@@ -15,9 +15,9 @@ verify it.
 - ✅ `async/await`, `Sendable` under Swift 6 strict concurrency, macOS + Linux + iOS
 - ✅ Golden-JSON + live-server test suites; a raw-JSON escape hatch for anything un-modelled
 
-> **Status:** early development (0.x). The API may still change, a license is not yet chosen (see
-> [License](#license)), and no release is tagged yet — so it is not yet resolvable as a versioned
-> SwiftPM dependency. Verified against WireMock **3.13.2**.
+> **Status:** early development (0.x). The API may still change and no release is tagged yet — so it
+> is not yet resolvable as a versioned SwiftPM dependency. Licensed under Apache-2.0. Verified against
+> WireMock **3.13.2**.
 
 ## Contents
 
@@ -525,4 +525,4 @@ Integration tests auto-skip when no server is reachable (override the target wit
 
 ## License
 
-TBD.
+Apache-2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
