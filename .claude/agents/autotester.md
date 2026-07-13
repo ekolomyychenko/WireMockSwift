@@ -41,14 +41,14 @@ Drive coverage toward complete for a client library whose value is contract-fide
 
 ## How to work
 
-1. Start/verify a live server: `java -jar $WIREMOCK_JAR --port 8080 --disable-banner &` (jar path is
-   given to you) or `docker run --rm -p 8080:8080 wiremock/wiremock:3.13.2`. Confirm
+1. Start/verify a live server: `java -jar wiremock-standalone-3.13.2.jar --port 8080 --disable-banner &`
+   or `docker run --rm -p 8080:8080 wiremock/wiremock:3.13.2`. Confirm
    `curl -sf localhost:8080/__admin/health`.
 2. Map current coverage: read `Tests/WireMockTests/**`, grep the public API in `Sources/`, and build a
    gap list (what's untested or golden-only).
 3. Write tests in focused new files or extend existing ones, following the established patterns
    (`GoldenEncodingTests` for shape, `*IntegrationTests`/`FeatureIntegrationTests` for live).
-4. Run `swift test` (and with `WIREMOCK_JAR` set for the server-boot test). Iterate until green.
+4. Run `swift test` (integration tests read `WIREMOCK_URL`, default `localhost:8080`). Iterate until green.
 5. Verify every claimed matcher/option is actually accepted by the live server before asserting on it
    (a 422 means the key is wrong or version-gated — don't paper over it).
 

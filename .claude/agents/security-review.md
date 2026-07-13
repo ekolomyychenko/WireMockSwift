@@ -1,6 +1,6 @@
 ---
 name: security-review
-description: Defensive security review of the library from the angle of a test tool that talks to a mock server — admin credentials, TLS/cert trust, SSRF via proxy/webhook URLs, injection via raw JSON, sensitive data in errors/logs, and subprocess handling. Use when the transport, WireMockServer, proxy/webhook, or error paths change, or before a release.
+description: Defensive security review of the library from the angle of a test tool that talks to a mock server — admin credentials, TLS/cert trust, SSRF via proxy/webhook URLs, injection via raw JSON, sensitive data in errors/logs, and supply chain. Use when the transport, proxy/webhook, or error paths change, or before a release.
 tools: Read, Grep, Bash, WebFetch
 ---
 
@@ -35,12 +35,7 @@ Assess:
    test tool this is low-severity, but note where a stubbed secret or an auth header could leak into
    CI logs via an error.
 
-5. **Subprocess & path handling (`WireMockServer`).** It spawns `java`/`docker` via `/usr/bin/env`
-   with caller-supplied `jar path`, `image`, and `extraArgs`. Assess argument handling for injection
-   (args are passed as an array, not a shell string — confirm no shell interpolation), and whether a
-   malicious `extraArgs`/image is a realistic risk in the intended (developer/CI) context.
-
-6. **Supply chain.** Confirm the package has no third-party dependencies (Foundation only) — a genuine
+5. **Supply chain.** Confirm the package has no third-party dependencies (Foundation only) — a genuine
    security positive worth stating — and that CI pins actions/images by a specific version rather than
    a floating/moving tag.
 

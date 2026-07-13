@@ -28,13 +28,14 @@ Check, in priority order:
    punctuation dropped, Cyrillic kept). List any broken anchor.
 
 4. **Prose matches the code.** Spot-check factual claims in both READMEs and `ARCHITECTURE.md` against
-   `Sources/WireMock/**`: file paths, type/method names in diagrams, platform-gating claims
-   (`WireMockServer` macOS/Linux-only), the "port not hardcoded" claim vs the real initializers,
-   error-type names, and every referenced path (e.g. `Examples/WireMockXCUIDemo`) actually exists.
+   `Sources/WireMock/**`: file paths, type/method names in diagrams, the "port not hardcoded" claim vs
+   the real initializers, error-type names, and every referenced path (e.g. `Examples/WireMockXCUIDemo`)
+   actually exists.
 
 5. **Caveats preserved.** The load-bearing caveats must be present and accurate in BOTH languages:
-   numeric-matcher 4.0+/HTTP 422, iOS/`WireMockServer` limits, ATS/device caveats, not-parallel-safe,
-   self-proxy-hang, license, version tested. Flag any that were softened, dropped, or overstated.
+   numeric-matcher 4.0+/HTTP 422, iOS "server runs on the host, not in the test bundle", ATS/device
+   caveats, not-parallel-safe, self-proxy-hang, license, version tested. Flag any that were softened,
+   dropped, or overstated.
 
 Report findings most-severe first (a snippet that won't compile or a dropped caveat beats a wording
 nit), each with file:line and the fix. If you were asked to review only (not fix), do not edit the

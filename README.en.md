@@ -3,8 +3,8 @@
 A native Swift client and DSL for [WireMock](https://wiremock.org) that closely mirrors the Java DSL
 and Admin API.
 
-It is **not** a reimplementation of the server — it drives a real WireMock server (run via Docker,
-the standalone jar, or spawned from code) over its `/__admin/**` REST API. All request matching,
+It is **not** a reimplementation of the server — it drives a real WireMock server (run via Docker or
+the standalone jar) over its `/__admin/**` REST API. All request matching,
 response templating, and JSON comparison are performed by the proven Java engine, so behaviour is
 identical to Java WireMock; this package gives you a fluent, type-safe Swift way to configure and
 verify it.
@@ -43,9 +43,8 @@ verify it.
 ## Requirements
 
 - Swift 6.0+ (builds clean under `-strict-concurrency=complete`)
-- A running WireMock **3.x** server (Docker image, standalone jar, or spawned via `WireMockServer`)
-- Platforms: macOS 12+, iOS 15+, tvOS 15+, watchOS 8+, and Linux. The `WireMockServer` process
-  launcher is macOS/Linux only (see [Platform notes](#platform-notes)).
+- A running WireMock **3.x** server (Docker image or standalone jar)
+- Platforms: macOS 12+, iOS 15+, tvOS 15+, watchOS 8+, and Linux.
 
 ## Installation
 
@@ -91,7 +90,7 @@ try await wireMock.resetAll()   // clean state between tests
 
 ## Running a WireMock server
 
-You have three options; pick by your environment and where your tests run.
+You have two options; pick by your environment and where your tests run.
 
 **1. Standalone jar (recommended, most portable)** — needs only a JDK, no Docker, no install step.
 Download it once from Maven Central and, ideally, **vendor it in your repo** so builds are
@@ -108,19 +107,6 @@ don't make it your only path:
 
 ```bash
 docker run --rm -p 8080:8080 wiremock/wiremock:3.13.2
-```
-
-**3. From code (`WireMockServer`)** — the test process launches and tears the server down itself,
-using whichever of the above is available. macOS/Linux host processes only (not inside an iOS
-simulator/device — see [Platform notes](#platform-notes)):
-
-```swift
-let server = WireMockServer(port: 8080, launch: .jar(path: "wiremock.jar"))
-// or: WireMockServer(port: 8080, launch: .docker(image: "wiremock/wiremock:3.13.2"))
-try await server.start()          // launches the process, polls the admin API until it responds
-defer { server.stop() }
-
-try await server.client.stubFor(get(anyUrl).willReturn(ok()))
 ```
 
 > **Restricted / corporate environments.** Prefer the **jar** — it only needs a JDK (commonly already
@@ -372,8 +358,6 @@ Verification count mismatches throw **`VerificationError(expected:actual:)`**.
 
 `WireMock` is a `Sendable` value-type `struct` holding no mutable state — copy it freely across tasks.
 All state lives on the server, so reset **the server** (`resetAll()`), not the client, between tests.
-(`WireMockServer`, the process launcher, is a reference type and `@unchecked Sendable`; use one
-instance per server.)
 
 ### Secured admin API & HTTPS
 
@@ -446,9 +430,9 @@ Passing the URL to the app under test:
 
 ### XCUITest (verified on the simulator)
 
-> **`WireMockServer` cannot be used from an iOS test bundle** (it spawns a `java`/`docker`
-> subprocess and is compiled out on iOS). Start the server on the **host** — as a jar (works
-> everywhere with just a JDK) **or** via Docker if available — and connect from the simulator.
+> **The server is a Java process that must run on the host** (as a jar or via Docker); it cannot run
+> inside an iOS simulator/test bundle. Start the server on the **host** — as a jar (works everywhere
+> with just a JDK) **or** via Docker if available — and connect from the simulator.
 
 Link the `WireMock` product into your **UI-test target**. The test runner (on the simulator) both
 configures stubs and drives the app; `localhost:8080` inside the simulator reaches the host server:
@@ -496,9 +480,6 @@ lives in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 ## Platform notes
 
 - The **client** (`WireMock`, the DSL, verification) works on all Apple platforms and Linux.
-- **`WireMockServer`** (launching the server from code) is compiled only on macOS/Linux — it spawns a
-  `java`/`docker` subprocess, which is impossible on an iOS/tvOS/watchOS device or simulator. There,
-  run the server on your host/CI machine and point the client at it via `WireMock(baseURL:)`.
 - Requires Java **or** Docker on the host that runs the server (the server itself is Java).
 
 ## Parity with Java WireMock
@@ -516,7 +497,7 @@ out-of-process HTTP client, and are not defects:
   `ResponseTransformer`) run *inside* the server. You can reference a server-installed extension by
   name and pass parameters, but you cannot supply Swift matcher code to the Java engine.
 - **In-process embedded server** — Java can run the server in the same JVM as the test; here it is an
-  external process (`WireMockServer`) or a separately-run container.
+  externally-started server (jar/Docker).
 - **Typed `WireMockConfiguration`** — server-launch tuning is passed through as raw CLI `extraArgs`
   rather than a typed options object.
 - **Numeric matchers** are WireMock 4.0+ (parity with Java, which also lacks them on 3.x).
@@ -531,8 +512,7 @@ swift test                                          # …now the integration tes
 ```
 
 Integration tests auto-skip when no server is reachable (override the target with
-`WIREMOCK_URL=http://host:port`). Set `WIREMOCK_JAR=/path/to/wiremock-standalone.jar` to run the
-`WireMockServer` boot test.
+`WIREMOCK_URL=http://host:port`).
 
 ## License
 

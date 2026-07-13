@@ -238,6 +238,15 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(try json(pattern), ["equalToXml": "<a/>", "namespaceAwareness": "NONE"])
     }
 
+    func testAdminAuthorizationHeaderValues() {
+        XCTAssertEqual(
+            AdminAuthorization.basic(username: "admin", password: "s3cret").headerValue,
+            "Basic " + Data("admin:s3cret".utf8).base64EncodedString()
+        )
+        XCTAssertEqual(AdminAuthorization.bearer(token: "tok").headerValue, "Bearer tok")
+        XCTAssertEqual(AdminAuthorization.header(value: "Custom xyz").headerValue, "Custom xyz")
+    }
+
     /// A nil optional must be omitted entirely, not encoded as JSON null.
     func testUnsetFieldsAreOmitted() throws {
         let stub = get(urlEqualTo("/x")).willReturn(ok()).build()
