@@ -110,8 +110,8 @@ jobs:
         run: |
           brew install xcodegen
           xcodegen generate
-          # Pick whatever iPhone simulator this runner actually has (avoids pinning).
-          DEV=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+[^(]*' | head -1 | xargs)
-          echo "Using simulator: $DEV"
+          # Target an available iPhone simulator by UDID (robust — no name pinning).
+          UDID=$(xcrun simctl list devices available | grep "iPhone" | grep -oE '[0-9A-F-]{36}' | head -1)
+          echo "Using simulator UDID: $UDID"
           xcodebuild test -project WireMockXCUIDemo.xcodeproj -scheme SampleApp \
-            -destination "platform=iOS Simulator,name=$DEV"
+            -destination "id=$UDID"
