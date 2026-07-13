@@ -116,7 +116,21 @@ public struct AdminClient: Sendable {
         ) else {
             throw WireMockError.invalidBaseURL(baseURL.absoluteString)
         }
-        if !query.isEmpty { components.queryItems = query }
+        if !query.isEmpty {
+            // Encode query values ourselves: URLComponents leaves `+` literal, but
+            // the server (Jetty) decodes query strings with form-urlencoded
+            // semantics where `+` means space — so an ISO-8601 offset like
+            // `since=...+01:00` would be misread. Escape `+` (and the other
+            // sub-delimiters that must not appear raw in a value) via %-encoding.
+            var allowed = CharacterSet.urlQueryAllowed
+            allowed.remove(charactersIn: "+&=?#")
+            components.percentEncodedQueryItems = query.map { item in
+                URLQueryItem(
+                    name: item.name.addingPercentEncoding(withAllowedCharacters: allowed) ?? item.name,
+                    value: item.value?.addingPercentEncoding(withAllowedCharacters: allowed)
+                )
+            }
+        }
         guard let url = components.url else {
             throw WireMockError.invalidBaseURL(baseURL.absoluteString)
         }

@@ -95,8 +95,13 @@ extension StringValuePattern {
         return .init(fields)
     }
 
-    public static func matchingJsonSchema(raw schema: String, version: JSONSchemaVersion? = nil) -> Self {
-        matchingJsonSchema(JSONValue(parsing: schema) ?? .string(schema), version: version)
+    public static func matchingJsonSchema(raw schema: String, version: JSONSchemaVersion? = nil) throws -> Self {
+        // Fail loudly on malformed input rather than silently degrading to a
+        // `.string` matcher (see `equalToJson(raw:)`).
+        guard let value = JSONValue(parsing: schema) else {
+            throw WireMockError.decodingFailed(underlying: "matchingJsonSchema(raw:) was given invalid JSON")
+        }
+        return matchingJsonSchema(value, version: version)
     }
 
     // MARK: XML with options

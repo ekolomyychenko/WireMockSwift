@@ -33,6 +33,7 @@ verify it.
 - [Recording, files, metadata & settings](#recording-files-metadata--settings)
 - [Webhooks](#webhooks)
 - [Escape hatch](#escape-hatch)
+- [Errors & concurrency](#errors--concurrency)
 - [Using it in tests](#using-it-in-tests)
 - [Continuous integration](#continuous-integration)
 - [Platform notes](#platform-notes)
@@ -474,8 +475,9 @@ in `Tests/WireMockTests/TestSupport.swift`, not built into the shipped library):
 - **Serial only.** If integration suites share one server and reset it in `setUp`, they are not
   parallel-safe; don't enable `--parallel` without per-suite server isolation.
 
-A ready-to-use GitHub Actions workflow (Linux service container + macOS jar, with a readiness gate)
-lives in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+A ready-to-use GitHub Actions workflow lives in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml): macOS runners with a standalone jar started on
+the host — unit + integration, an iOS build, and the iOS XCUITest example (all with a readiness gate).
 
 ## Platform notes
 

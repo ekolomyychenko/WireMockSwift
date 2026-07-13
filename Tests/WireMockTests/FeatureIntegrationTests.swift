@@ -50,7 +50,7 @@ final class FeatureIntegrationTests: XCTestCase {
                 let body = String(data: data, encoding: .utf8) ?? ""
                 XCTAssertFalse(
                     response.statusCode == 200 && body == "SHOULD-NOT-SEE",
-                    "fault \(fault.rawValue) returned a clean successful response"
+                    "fault \(fault) returned a clean successful response"
                 )
             } catch {
                 // Also acceptable: the connection was broken outright.
@@ -254,6 +254,11 @@ final class FeatureIntegrationTests: XCTestCase {
         try await wireMock.stubFor(get(urlEqualTo("/any")).withHeader("X-Trace", .anything).willReturn(ok()))
         let matched = try await WireMockFixture.hit("any", headers: ["X-Trace": "anything-goes"])
         XCTAssertEqual(matched.1.statusCode, 200)
+        // No meaningful negative exists: WireMock's `anything` (AnythingPattern)
+        // matches every value AND an absent header, so a request omitting X-Trace
+        // still returns 200 — dropping the matcher would be behaviourally
+        // indistinguishable here. The exact wire encoding is asserted in
+        // GoldenEncodingTests.testAnythingAndRedirectEncode instead.
     }
 
     // MARK: Journal removal by pattern / metadata

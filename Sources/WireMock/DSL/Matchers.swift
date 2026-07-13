@@ -49,8 +49,8 @@ public func equalToJson(
     raw json: String,
     ignoreArrayOrder: Bool = false,
     ignoreExtraElements: Bool = false
-) -> StringValuePattern {
-    .equalToJson(raw: json, ignoreArrayOrder: ignoreArrayOrder, ignoreExtraElements: ignoreExtraElements)
+) throws -> StringValuePattern {
+    try .equalToJson(raw: json, ignoreArrayOrder: ignoreArrayOrder, ignoreExtraElements: ignoreExtraElements)
 }
 
 public func matchingJsonPath(_ expression: String) -> StringValuePattern {

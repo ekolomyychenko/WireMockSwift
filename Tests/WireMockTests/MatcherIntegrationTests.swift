@@ -253,9 +253,10 @@ final class MatcherIntegrationTests: XCTestCase {
     func testHostPortSchemeMatching() async throws {
         // Positive: values that match this server's actual request line.
         let port = WireMockFixture.baseURL.port ?? 8080
+        let host = WireMockFixture.baseURL.host ?? "localhost"
         try await wireMock.stubFor(
             get(urlPathEqualTo("/hp"))
-                .withHost(equalTo("localhost"))
+                .withHost(equalTo(host))
                 .withPort(port)
                 .withScheme("http")
                 .willReturn(ok("hp"))

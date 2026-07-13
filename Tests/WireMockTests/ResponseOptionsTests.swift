@@ -10,6 +10,7 @@ import FoundationNetworking
 final class ResponseOptionsTests: XCTestCase {
     private var wireMock: WireMock!
     private var port: UInt16 { UInt16(WireMockFixture.baseURL.port ?? 8080) }
+    private var host: String { WireMockFixture.baseURL.host ?? "127.0.0.1" }
 
     override func setUp() async throws {
         wireMock = try await WireMockFixture.clientOrSkip()
@@ -25,7 +26,7 @@ final class ResponseOptionsTests: XCTestCase {
         try await wireMock.stubFor(
             get(urlEqualTo("/teapot")).willReturn(aResponse().withStatus(418).withStatusMessage("I am a teapot"))
         )
-        let statusLine = try RawHTTP.statusLine(path: "/teapot", port: port)
+        let statusLine = try RawHTTP.statusLine(path: "/teapot", host: host, port: port)
         XCTAssertTrue(statusLine.contains("418"), "status line was: \(statusLine)")
         XCTAssertTrue(statusLine.contains("I am a teapot"),
                       "custom reason phrase missing from status line: \(statusLine)")
@@ -37,7 +38,7 @@ final class ResponseOptionsTests: XCTestCase {
         try await wireMock.stubFor(
             get(urlEqualTo("/cookies")).willReturn(ok().withHeader("Set-Cookie", ["a=1", "b=2"]))
         )
-        let cookies = try RawHTTP.headerValues("Set-Cookie", path: "/cookies", port: port)
+        let cookies = try RawHTTP.headerValues("Set-Cookie", path: "/cookies", host: host, port: port)
         XCTAssertEqual(cookies.count, 2, "expected two distinct Set-Cookie headers, got: \(cookies)")
         XCTAssertTrue(cookies.contains("a=1"))
         XCTAssertTrue(cookies.contains("b=2"))

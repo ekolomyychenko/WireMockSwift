@@ -200,7 +200,7 @@ final class GoldenEncodingTests: XCTestCase {
     }
 
     func testAnythingAndRedirectEncode() throws {
-        XCTAssertEqual(try json(StringValuePattern.anything), ["anything": "anything"])
+        XCTAssertEqual(try json(StringValuePattern.anything), ["anything": "(always)"])
         let redirect = temporaryRedirect(to: "/new")
         XCTAssertEqual(try json(redirect.definition), ["status": 302, "headers": ["Location": "/new"]])
         XCTAssertEqual(try json(jsonResponse(["ok": true], status: 201).definition),

@@ -15,7 +15,13 @@ final class AdminIntegrationTests: XCTestCase {
     }
 
     override func tearDown() async throws {
-        if wireMock != nil { try? await wireMock.resetAll() }
+        if wireMock != nil {
+            // `POST /__admin/reset` does NOT clear a global fixed delay, so a test
+            // that sets one (and fails before its own cleanup) would leak it into
+            // every subsequent test. Reset it explicitly.
+            try? await wireMock.setGlobalFixedDelay(0)
+            try? await wireMock.resetAll()
+        }
     }
 
     // MARK: Verification & journal

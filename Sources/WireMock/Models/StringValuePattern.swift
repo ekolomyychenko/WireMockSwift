@@ -93,7 +93,10 @@ extension StringValuePattern {
 
     /// Matches any value (WireMock's `anything()` / `AnythingPattern`).
     public static var anything: Self {
-        .init(["anything": "anything"])
+        // `(always)` is the canonical operand the Java DSL emits; the value is
+        // ignored by the server but keeps Swift- and Java-authored mappings
+        // byte-identical when diffed.
+        .init(["anything": "(always)"])
     }
 
     public static func equalToJson(
@@ -111,12 +114,14 @@ extension StringValuePattern {
         raw json: String,
         ignoreArrayOrder: Bool = false,
         ignoreExtraElements: Bool = false
-    ) -> Self {
-        equalToJson(
-            JSONValue(parsing: json) ?? .string(json),
-            ignoreArrayOrder: ignoreArrayOrder,
-            ignoreExtraElements: ignoreExtraElements
-        )
+    ) throws -> Self {
+        // Surface malformed JSON loudly (like `register(raw:)`) instead of
+        // silently degrading to a `.string` matcher that compares the body
+        // against the literal text and never fires.
+        guard let value = JSONValue(parsing: json) else {
+            throw WireMockError.decodingFailed(underlying: "equalToJson(raw:) was given invalid JSON")
+        }
+        return equalToJson(value, ignoreArrayOrder: ignoreArrayOrder, ignoreExtraElements: ignoreExtraElements)
     }
 
     public static func matchingJsonPath(_ expression: String) -> Self {

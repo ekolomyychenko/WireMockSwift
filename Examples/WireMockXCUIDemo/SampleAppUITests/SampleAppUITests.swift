@@ -23,6 +23,14 @@ final class SampleAppUITests: XCTestCase {
         do {
             _ = try await wireMock.listAllStubMappings()
         } catch {
+            // In CI we pass TEST_RUNNER_WIREMOCK_REQUIRED=1 so an unreachable
+            // server FAILS instead of skipping — otherwise this job, whose whole
+            // purpose is to exercise the simulator↔host boundary, would go green
+            // without ever proving anything.
+            if ProcessInfo.processInfo.environment["WIREMOCK_REQUIRED"] == "1" {
+                XCTFail("WIREMOCK_REQUIRED=1 but no WireMock reachable from the simulator at \(base): \(error)")
+                throw error
+            }
             throw XCTSkip("No WireMock server reachable from the simulator at \(base): \(error)")
         }
         try await wireMock.resetAll()

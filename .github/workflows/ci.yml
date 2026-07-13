@@ -23,10 +23,10 @@ jobs:
           java-version: "21"
       - name: Download WireMock standalone
         run: |
-          VER=$(curl -s https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/maven-metadata.xml \
-            | grep -o '<version>3[^<]*' | grep -v beta | tail -1 | sed 's/<version>//')
+          # Pin the version (matches the ios-xcuitest job) so the integration
+          # suite can't silently drift onto a newer 3.x than we verify against.
           curl -sL -o wiremock.jar \
-            "https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/${VER}/wiremock-standalone-${VER}.jar"
+            https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.13.2/wiremock-standalone-3.13.2.jar
       - name: Start WireMock and wait for readiness
         run: |
           java -jar wiremock.jar --port 8080 --disable-banner &
@@ -80,5 +80,9 @@ jobs:
           # Target an available iPhone simulator by UDID (robust — no name pinning).
           UDID=$(xcrun simctl list devices available | grep "iPhone" | grep -oE '[0-9A-F-]{36}' | head -1)
           echo "Using simulator UDID: $UDID"
+          # TEST_RUNNER_* env vars are forwarded to the XCUITest runner process
+          # (prefix stripped), so the test sees WIREMOCK_REQUIRED=1 and FAILS —
+          # rather than XCTSkip-ing green — if it can't reach the server.
+          TEST_RUNNER_WIREMOCK_REQUIRED=1 \
           xcodebuild test -project WireMockXCUIDemo.xcodeproj -scheme SampleApp \
             -destination "id=$UDID"

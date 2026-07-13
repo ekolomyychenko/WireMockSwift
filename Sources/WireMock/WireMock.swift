@@ -44,7 +44,9 @@ public struct WireMock: Sendable {
     /// Creates a client for a server at the given base URL (e.g. a remote host).
     ///
     /// - Parameters:
-    ///   - baseURL: The server root.
+    ///   - baseURL: The server root. Do **not** embed credentials as
+    ///     `https://user:pass@host` — URLSession won't send them and they can
+    ///     leak into error text; pass `authorization:` instead.
     ///   - authorization: Credentials for a secured admin API.
     ///   - session: A custom `URLSession` (e.g. with a trust delegate for a self-signed HTTPS cert).
     public init(baseURL: URL, authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
@@ -91,6 +93,12 @@ public struct WireMock: Sendable {
     }
 
     /// Updates an existing stub mapping in place.
+    ///
+    /// - Important: this PUTs exactly the `mapping` you pass. `StubMapping` only
+    ///   models the fields this library knows about, so a fetch-modify-PUT of a
+    ///   mapping created by a newer/other client may drop fields it doesn't model.
+    ///   Build the mapping you intend to persist rather than round-tripping an
+    ///   unknown one.
     @discardableResult
     public func editStubMapping(id: UUID, _ mapping: StubMapping) async throws -> StubMapping {
         try await admin.send("PUT", "mappings/\(id.uuidString)", body: mapping, as: StubMapping.self)

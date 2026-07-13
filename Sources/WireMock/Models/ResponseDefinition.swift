@@ -42,7 +42,9 @@ public enum DelayDistribution: Codable, Sendable, Hashable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decode(String.self, forKey: .type)
+        // Missing/odd `type` falls through to `.other` rather than throwing, so
+        // the fallback actually holds its promise of never failing the decode.
+        let type = try? container.decode(String.self, forKey: .type)
         switch type {
         case "lognormal":
             self = .lognormal(
@@ -92,11 +94,41 @@ public struct ChunkedDribbleDelay: Codable, Sendable, Hashable {
 }
 
 /// Low-level connection faults WireMock can simulate.
-public enum Fault: String, Codable, Sendable, Hashable {
-    case emptyResponse = "EMPTY_RESPONSE"
-    case malformedResponseChunk = "MALFORMED_RESPONSE_CHUNK"
-    case randomDataThenClose = "RANDOM_DATA_THEN_CLOSE"
-    case connectionResetByPeer = "CONNECTION_RESET_BY_PEER"
+public enum Fault: Codable, Sendable, Hashable {
+    case emptyResponse
+    case malformedResponseChunk
+    case randomDataThenClose
+    case connectionResetByPeer
+    /// Any fault value this library doesn't model yet, preserved verbatim so
+    /// decoding a newer server's mapping (e.g. inside a bulk `listAllStubMappings`)
+    /// never fails.
+    case other(String)
+
+    private var wireValue: String {
+        switch self {
+        case .emptyResponse: return "EMPTY_RESPONSE"
+        case .malformedResponseChunk: return "MALFORMED_RESPONSE_CHUNK"
+        case .randomDataThenClose: return "RANDOM_DATA_THEN_CLOSE"
+        case .connectionResetByPeer: return "CONNECTION_RESET_BY_PEER"
+        case .other(let raw): return raw
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        switch raw {
+        case "EMPTY_RESPONSE": self = .emptyResponse
+        case "MALFORMED_RESPONSE_CHUNK": self = .malformedResponseChunk
+        case "RANDOM_DATA_THEN_CLOSE": self = .randomDataThenClose
+        case "CONNECTION_RESET_BY_PEER": self = .connectionResetByPeer
+        default: self = .other(raw)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(wireValue)
+    }
 }
 
 /// The `response` half of a stub mapping. Mirrors WireMock's
