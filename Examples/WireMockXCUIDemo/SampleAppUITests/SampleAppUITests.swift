@@ -17,21 +17,33 @@ final class SampleAppUITests: XCTestCase {
     }
 
     func testAppRendersStubbedResponse() async throws {
-        let wireMock = WireMock(baseURL: URL(string: base)!)
+        // Short per-request timeout so retries below stay quick.
+        let wireMock = WireMock(admin: AdminClient(baseURL: URL(string: base)!, timeout: 8))
 
-        // The UI-test process itself talks to WireMock from the simulator.
-        do {
-            _ = try await wireMock.listAllStubMappings()
-        } catch {
-            // In CI we pass TEST_RUNNER_WIREMOCK_REQUIRED=1 so an unreachable
+        // The UI-test process itself talks to WireMock from the simulator. The
+        // simulator↔host localhost path is occasionally slow to come up on CI,
+        // so retry a few times before deciding it's genuinely unreachable.
+        var lastError: Error?
+        for attempt in 1...5 {
+            do {
+                _ = try await wireMock.listAllStubMappings()
+                lastError = nil
+                break
+            } catch {
+                lastError = error
+                if attempt < 5 { try? await Task.sleep(nanoseconds: 2_000_000_000) }
+            }
+        }
+        if let lastError {
+            // In CI we pass TEST_RUNNER_WIREMOCK_REQUIRED=1 so a still-unreachable
             // server FAILS instead of skipping — otherwise this job, whose whole
             // purpose is to exercise the simulator↔host boundary, would go green
             // without ever proving anything.
             if ProcessInfo.processInfo.environment["WIREMOCK_REQUIRED"] == "1" {
-                XCTFail("WIREMOCK_REQUIRED=1 but no WireMock reachable from the simulator at \(base): \(error)")
-                throw error
+                XCTFail("WIREMOCK_REQUIRED=1 but no WireMock reachable from the simulator at \(base) after 5 tries: \(lastError)")
+                throw lastError
             }
-            throw XCTSkip("No WireMock server reachable from the simulator at \(base): \(error)")
+            throw XCTSkip("No WireMock server reachable from the simulator at \(base): \(lastError)")
         }
         try await wireMock.resetAll()
         try await wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(ok("pong")))
