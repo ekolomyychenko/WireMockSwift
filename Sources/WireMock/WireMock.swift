@@ -24,7 +24,10 @@ public struct WireMock: Sendable {
     ///   - scheme: `http` or `https`.
     ///   - host: Server host.
     ///   - port: Server port.
-    public init(scheme: String = "http", host: String = "localhost", port: Int = 8080) {
+    ///   - authorization: Credentials for a secured admin API (`--admin-api-basic-auth`).
+    ///   - session: A custom `URLSession` (e.g. with a trust delegate for a self-signed HTTPS cert).
+    public init(scheme: String = "http", host: String = "localhost", port: Int = 8080,
+                authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
         var components = URLComponents()
         components.scheme = scheme
         components.host = host
@@ -32,12 +35,17 @@ public struct WireMock: Sendable {
         guard let url = components.url else {
             preconditionFailure("WireMock: invalid scheme/host/port — \(scheme)://\(host):\(port). Use init(baseURL:) for full control.")
         }
-        self.admin = AdminClient(baseURL: url)
+        self.admin = AdminClient(baseURL: url, session: session, authorization: authorization)
     }
 
     /// Creates a client for a server at the given base URL (e.g. a remote host).
-    public init(baseURL: URL) {
-        self.admin = AdminClient(baseURL: baseURL)
+    ///
+    /// - Parameters:
+    ///   - baseURL: The server root.
+    ///   - authorization: Credentials for a secured admin API.
+    ///   - session: A custom `URLSession` (e.g. with a trust delegate for a self-signed HTTPS cert).
+    public init(baseURL: URL, authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
+        self.admin = AdminClient(baseURL: baseURL, session: session, authorization: authorization)
     }
 
     // MARK: - Stubbing

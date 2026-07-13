@@ -50,5 +50,40 @@ final class WireMockServerTests: XCTestCase {
             // Expected: refused rather than attaching to the foreign server.
         }
     }
+
+    /// A server secured with `--admin-api-basic-auth` rejects unauthenticated
+    /// clients and accepts a client configured with matching credentials.
+    func testSecuredAdminApiRequiresAuth() async throws {
+        guard let jar = ProcessInfo.processInfo.environment["WIREMOCK_JAR"] else {
+            throw XCTSkip("Set WIREMOCK_JAR to the standalone jar path to run this test")
+        }
+        let port = 8093
+        let server = WireMockServer(
+            port: port,
+            launch: .jar(path: jar, extraArgs: ["--admin-api-basic-auth", "admin:s3cret"])
+        )
+        try await server.start(timeout: 60)
+        defer { server.stop() }
+        let base = server.baseURL
+
+        // Without credentials the admin API returns 401.
+        let noAuth = WireMock(baseURL: base)
+        do {
+            _ = try await noAuth.listAllStubMappings()
+            XCTFail("expected 401 without credentials")
+        } catch let error as WireMockError {
+            guard case .unexpectedStatus(let code, _) = error else {
+                return XCTFail("expected unexpectedStatus, got \(error)")
+            }
+            XCTAssertEqual(code, 401)
+        }
+
+        // With matching credentials it works.
+        let authed = WireMock(baseURL: base, authorization: .basic(username: "admin", password: "s3cret"))
+        try await authed.resetAll()
+        try await authed.stubFor(get(urlEqualTo("/ok")).willReturn(ok()))
+        let stubs = try await authed.listAllStubMappings()
+        XCTAssertTrue(stubs.contains { $0.request.url == "/ok" })
+    }
 }
 #endif

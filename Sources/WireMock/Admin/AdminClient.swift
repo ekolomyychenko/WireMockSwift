@@ -32,19 +32,46 @@ public enum WireMockError: Error, Sendable, CustomStringConvertible {
 ///
 /// Handles URL building, JSON encoding/decoding and status-code checking.
 /// Higher-level typed operations live on the `WireMock` facade.
+/// Credentials for a WireMock admin API secured with `--admin-api-basic-auth`
+/// (or a bearer/custom scheme). Applied as an `Authorization` header on every
+/// admin request.
+public enum AdminAuthorization: Sendable {
+    case basic(username: String, password: String)
+    case bearer(token: String)
+    /// A raw `Authorization` header value, verbatim.
+    case header(value: String)
+
+    var headerValue: String {
+        switch self {
+        case let .basic(username, password):
+            return "Basic " + Data("\(username):\(password)".utf8).base64EncodedString()
+        case let .bearer(token):
+            return "Bearer \(token)"
+        case let .header(value):
+            return value
+        }
+    }
+}
+
 public struct AdminClient: Sendable {
     public let baseURL: URL
     private let session: URLSession
     private let timeout: TimeInterval
+    private let authorization: AdminAuthorization?
 
     /// - Parameters:
     ///   - baseURL: The server root, e.g. `http://localhost:8080`.
-    ///   - session: URLSession to use (defaults to `.shared`).
+    ///   - session: URLSession to use (defaults to `.shared`). Inject a session
+    ///     with a trust-evaluating delegate to reach an HTTPS server with a
+    ///     self-signed certificate.
     ///   - timeout: Per-request timeout in seconds.
-    public init(baseURL: URL, session: URLSession = .shared, timeout: TimeInterval = 30) {
+    ///   - authorization: Credentials for a secured admin API.
+    public init(baseURL: URL, session: URLSession = .shared, timeout: TimeInterval = 30,
+                authorization: AdminAuthorization? = nil) {
         self.baseURL = baseURL
         self.session = session
         self.timeout = timeout
+        self.authorization = authorization
     }
 
     private static let encoder: JSONEncoder = {
@@ -96,6 +123,9 @@ public struct AdminClient: Sendable {
 
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.httpMethod = method
+        if let authorization {
+            request.setValue(authorization.headerValue, forHTTPHeaderField: "Authorization")
+        }
         if let body {
             request.httpBody = body
             if let contentType {

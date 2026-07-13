@@ -211,7 +211,7 @@ okForJson(["id": 1])                  // 200 + application/json
 okForContentType("text/csv", "a,b,c") // 200 + given Content-Type
 jsonResponse(["error": "nope"], status: 422)
 created(); noContent(); badRequest(); notFound(); serverError()   // and more
-temporaryRedirect(to: "/new"); permanentRedirect(to: "/new"); seeOther("/other")
+temporaryRedirect(to: "/new"); permanentRedirect(to: "/new"); seeOther(to: "/other")
 status(418)
 
 aResponse()
@@ -374,6 +374,19 @@ Verification count mismatches throw **`VerificationError(expected:actual:)`**.
 All state lives on the server, so reset **the server** (`resetAll()`), not the client, between tests.
 (`WireMockServer`, the process launcher, is a reference type and `@unchecked Sendable`; use one
 instance per server.)
+
+### Secured admin API & HTTPS
+
+If the admin API is secured (`--admin-api-basic-auth`), pass credentials:
+
+```swift
+let wireMock = WireMock(host: "ci-host", port: 8080,
+                        authorization: .basic(username: "admin", password: "s3cret"))
+// also: .bearer(token: "…") or .header(value: "…")
+```
+
+For HTTPS with a self-signed certificate, inject a `URLSession` whose delegate trusts your dev cert
+(safer than globally disabling ATS): `WireMock(baseURL: url, session: mySession)`.
 
 ## Using it in tests
 

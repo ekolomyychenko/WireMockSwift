@@ -211,7 +211,7 @@ okForJson(["id": 1])                  // 200 + application/json
 okForContentType("text/csv", "a,b,c") // 200 + заданный Content-Type
 jsonResponse(["error": "nope"], status: 422)
 created(); noContent(); badRequest(); notFound(); serverError()   // и другие
-temporaryRedirect(to: "/new"); permanentRedirect(to: "/new"); seeOther("/other")
+temporaryRedirect(to: "/new"); permanentRedirect(to: "/new"); seeOther(to: "/other")
 status(418)
 
 aResponse()
@@ -374,6 +374,19 @@ try await wireMock.register(json: ["request": ["method": "GET", "url": "/x"],
 копируйте его между задачами. Всё состояние живёт на сервере, поэтому между тестами сбрасывайте **сервер**
 (`resetAll()`), а не клиент. (`WireMockServer`, запускающий процесс, является ссылочным типом и
 `@unchecked Sendable`; используйте один экземпляр на сервер.)
+
+### Защищённая админка и HTTPS
+
+Если админ-API защищён (`--admin-api-basic-auth`), передайте креды:
+
+```swift
+let wireMock = WireMock(host: "ci-host", port: 8080,
+                        authorization: .basic(username: "admin", password: "s3cret"))
+// также: .bearer(token: "…") или .header(value: "…")
+```
+
+Для HTTPS с самоподписанным сертификатом внедрите свой `URLSession` с делегатом, доверяющим dev-серту
+(так безопаснее, чем глобально отключать ATS): `WireMock(baseURL: url, session: mySession)`.
 
 ## Использование в тестах
 

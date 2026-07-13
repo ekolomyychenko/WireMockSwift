@@ -139,7 +139,10 @@ public final class WireMockServer: @unchecked Sendable {
               let http = response as? HTTPURLResponse else {
             return false
         }
-        return (200..<300).contains(http.statusCode)
+        // Any non-server-error response means the admin API is up. A secured
+        // server (`--admin-api-basic-auth`) answers this unauthenticated probe
+        // with 401 — that still means "ready".
+        return http.statusCode < 500
     }
 }
 #endif
