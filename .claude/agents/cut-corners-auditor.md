@@ -51,7 +51,7 @@ For every corner you find, assign exactly one verdict and DEFEND it with evidenc
 ## How to work
 
 Verify, don't speculate. A live WireMock server can be started (`java -jar wiremock-standalone.jar
---port 8080` or `docker run --rm -p 8080:8080 wiremock/wiremock:3`); use it, `curl`, `swift build`,
+--port 8080` or `docker run --rm -p 8080:8080 wiremock/wiremock:3.13.2`); use it, `curl`, `swift build`,
 `swift test`, and WebFetch of official docs to test every "can't"/"works"/"not supported" claim.
 Challenge the author's own review replies most of all — a corner blessed as "acceptable" by the
 author is exactly what you exist to re-examine.

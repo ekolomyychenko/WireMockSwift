@@ -16,7 +16,7 @@ Check:
    proxy, record, verification, near-misses, admin lifecycle) has at least one test that registers a
    stub on a live server, drives real HTTP traffic, and asserts the outcome. Flag features that only
    have unit tests. You can start a server yourself to validate:
-   - Docker: `docker run --rm -p 8080:8080 wiremock/wiremock:3`
+   - Docker: `docker run --rm -p 8080:8080 wiremock/wiremock:3.13.2`
    - or jar: `java -jar wiremock-standalone.jar --port 8080`
    Then `swift test`. Integration tests must **skip cleanly** (XCTSkip) when no server is reachable,
    never fail — verify that behaviour holds.
