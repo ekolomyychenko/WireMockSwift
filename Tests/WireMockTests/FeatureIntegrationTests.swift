@@ -276,6 +276,43 @@ final class FeatureIntegrationTests: XCTestCase {
         XCTAssertEqual(remaining, 0)
     }
 
+    // MARK: Parity additions (clientIp, version, unmatched mappings, filtered journal)
+
+    func testClientIpMatcherIsApplied() async throws {
+        // Our request is not from 9.9.9.9, so the clientIp criterion must reject it.
+        try await wireMock.stubFor(get(urlEqualTo("/ip")).withClientIp(equalTo("9.9.9.9")).willReturn(ok()))
+        let (_, response) = try await TestServer.hit("ip")
+        XCTAssertEqual(response.statusCode, 404)
+    }
+
+    func testGetVersion() async throws {
+        let version = try await wireMock.getVersion()
+        XCTAssertNotNil(version)
+        XCTAssertTrue(version?.hasPrefix("3.") ?? false, "expected a 3.x version, got \(version ?? "nil")")
+    }
+
+    func testUnmatchedStubMappings() async throws {
+        try await wireMock.stubFor(get(urlEqualTo("/never")).willReturn(ok()))
+        try await wireMock.stubFor(get(urlEqualTo("/used")).willReturn(ok()))
+        _ = try await TestServer.hit("used")
+
+        let unmatched = try await wireMock.findUnmatchedStubMappings()
+        XCTAssertTrue(unmatched.contains { $0.request.url == "/never" })
+        XCTAssertFalse(unmatched.contains { $0.request.url == "/used" })
+
+        try await wireMock.removeUnmatchedStubMappings()
+        let all = try await wireMock.listAllStubMappings()
+        XCTAssertFalse(all.contains { $0.request.url == "/never" })
+        XCTAssertTrue(all.contains { $0.request.url == "/used" })
+    }
+
+    func testGetServeEventsLimit() async throws {
+        try await wireMock.stubFor(get(urlEqualTo("/s")).willReturn(ok()))
+        for _ in 0..<3 { _ = try await TestServer.hit("s") }
+        let limited = try await wireMock.getServeEvents(limit: 2)
+        XCTAssertEqual(limited.count, 2)
+    }
+
     // NOTE: A full record→replay test (start recording → proxy real traffic →
     // stop → assert a generated stub replays) requires a SEPARATE upstream
     // server: recording against this same instance forms a self-proxy loop that

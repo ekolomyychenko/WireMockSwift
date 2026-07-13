@@ -65,6 +65,10 @@ public struct RequestPatternBuilder: Sendable {
     public func withScheme(_ scheme: String) -> Self {
         mutating { $0.scheme = scheme }
     }
+
+    public func withClientIp(_ matcher: StringValuePattern) -> Self {
+        mutating { $0.clientIp = matcher }
+    }
 }
 
 public func getRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .get, url: url) }

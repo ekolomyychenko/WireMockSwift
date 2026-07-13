@@ -15,9 +15,8 @@ verify it.
 - ✅ `async/await`, `Sendable` under Swift 6 strict concurrency, macOS + Linux + iOS
 - ✅ Golden-JSON + live-server test suites; a raw-JSON escape hatch for anything un-modelled
 
-> **Status:** early development (0.x). The API may still change and no release is tagged yet — so it
-> is not yet resolvable as a versioned SwiftPM dependency. Licensed under Apache-2.0. Verified against
-> WireMock **3.13.2**.
+> **Status:** early development (0.x); first release `0.1.0`. The API may still change. Licensed
+> under Apache-2.0. Verified against WireMock **3.13.2**.
 
 ## Contents
 
@@ -50,8 +49,7 @@ verify it.
 
 ## Installation
 
-Swift Package Manager — add to `Package.swift` (once a release is tagged; until then depend on a
-branch or revision):
+Swift Package Manager — add to `Package.swift`:
 
 ```swift
 .package(url: "https://github.com/ekolomyychenko/WireMockSwift.git", from: "0.1.0")

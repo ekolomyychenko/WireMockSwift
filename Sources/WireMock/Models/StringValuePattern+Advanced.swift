@@ -101,13 +101,20 @@ extension StringValuePattern {
 
     // MARK: XML with options
 
+    /// How XML namespaces are treated when comparing (`equalToXml`). `.off`
+    /// maps to WireMock's `NONE` (avoids clashing with `Optional.none`).
+    public enum NamespaceAwareness: String, Sendable {
+        case strict = "STRICT", off = "NONE", legacy = "LEGACY"
+    }
+
     public static func equalToXml(
         _ xml: String,
         enablePlaceholders: Bool = false,
         placeholderOpeningDelimiterRegex: String? = nil,
         placeholderClosingDelimiterRegex: String? = nil,
         exemptedComparisons: [String]? = nil,
-        ignoreOrderOfSameNode: Bool? = nil
+        ignoreOrderOfSameNode: Bool? = nil,
+        namespaceAwareness: NamespaceAwareness? = nil
     ) -> Self {
         var fields: [String: JSONValue] = ["equalToXml": .string(xml)]
         if enablePlaceholders { fields["enablePlaceholders"] = true }
@@ -115,6 +122,7 @@ extension StringValuePattern {
         if let placeholderClosingDelimiterRegex { fields["placeholderClosingDelimiterRegex"] = .string(placeholderClosingDelimiterRegex) }
         if let exemptedComparisons { fields["exemptedComparisons"] = .array(exemptedComparisons.map { .string($0) }) }
         if let ignoreOrderOfSameNode { fields["ignoreOrderOfSameNode"] = .bool(ignoreOrderOfSameNode) }
+        if let namespaceAwareness { fields["namespaceAwareness"] = .string(namespaceAwareness.rawValue) }
         return .init(fields)
     }
 

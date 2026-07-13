@@ -33,6 +33,7 @@ public struct RequestPattern: Codable, Sendable, Hashable {
     public var host: StringValuePattern?
     public var port: Int?
     public var scheme: String?
+    public var clientIp: StringValuePattern?
 
     public init(
         method: HTTPMethod? = nil,
@@ -51,7 +52,8 @@ public struct RequestPattern: Codable, Sendable, Hashable {
         multipartPatterns: [MultipartValuePattern]? = nil,
         host: StringValuePattern? = nil,
         port: Int? = nil,
-        scheme: String? = nil
+        scheme: String? = nil,
+        clientIp: StringValuePattern? = nil
     ) {
         self.method = method
         self.url = url
@@ -70,5 +72,6 @@ public struct RequestPattern: Codable, Sendable, Hashable {
         self.host = host
         self.port = port
         self.scheme = scheme
+        self.clientIp = clientIp
     }
 }

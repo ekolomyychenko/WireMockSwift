@@ -31,6 +31,15 @@ extension WireMock {
         try await admin.get("requests", as: GetServeEventsResult.self).requests
     }
 
+    /// Serve events with server-side filtering (`limit`, `since`, unmatched-only).
+    public func getServeEvents(limit: Int? = nil, since: String? = nil, unmatchedOnly: Bool = false) async throws -> [ServeEvent] {
+        var query: [URLQueryItem] = []
+        if let limit { query.append(URLQueryItem(name: "limit", value: String(limit))) }
+        if let since { query.append(URLQueryItem(name: "since", value: since)) }
+        if unmatchedOnly { query.append(URLQueryItem(name: "unmatched", value: "true")) }
+        return try await admin.get("requests", query: query, as: GetServeEventsResult.self).requests
+    }
+
     /// A single serve event by id.
     public func getServeEvent(id: UUID) async throws -> ServeEvent {
         try await admin.get("requests/\(id.uuidString)", as: ServeEvent.self)
@@ -132,6 +141,26 @@ extension WireMock {
     /// The server health endpoint (`GET /__admin/health`), returned verbatim.
     public func getHealth() async throws -> JSONValue {
         try await admin.get("health", as: JSONValue.self)
+    }
+
+    /// The running server's version (`GET /__admin/version`).
+    public func getVersion() async throws -> String? {
+        struct VersionResult: Decodable { let version: String? }
+        return try await admin.get("version", as: VersionResult.self).version
+    }
+}
+
+// MARK: - Unmatched stub mappings
+
+extension WireMock {
+    /// Stub mappings that have never been matched by any request.
+    public func findUnmatchedStubMappings() async throws -> [StubMapping] {
+        try await admin.get("mappings/unmatched", as: ListStubMappingsResult.self).mappings
+    }
+
+    /// Deletes all stub mappings that have never been matched.
+    public func removeUnmatchedStubMappings() async throws {
+        try await admin.send("DELETE", "mappings/unmatched")
     }
 }
 

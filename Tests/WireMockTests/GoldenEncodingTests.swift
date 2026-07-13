@@ -223,6 +223,21 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(filters["urlPathPattern"], "/api/.*")
     }
 
+    func testClientIpAndGzipDisabledEncode() throws {
+        let stub = get(urlEqualTo("/ip"))
+            .withClientIp(equalTo("1.2.3.4"))
+            .willReturn(ok().withGzipDisabled())
+            .build()
+        let encoded = try json(stub)
+        XCTAssertEqual(encoded.objectValue?["request"]?.objectValue?["clientIp"], ["equalTo": "1.2.3.4"])
+        XCTAssertEqual(encoded.objectValue?["response"]?.objectValue?["headers"]?.objectValue?["Content-Encoding"], "none")
+    }
+
+    func testXmlNamespaceAwarenessEncode() throws {
+        let pattern = StringValuePattern.equalToXml("<a/>", namespaceAwareness: .off)
+        XCTAssertEqual(try json(pattern), ["equalToXml": "<a/>", "namespaceAwareness": "NONE"])
+    }
+
     /// A nil optional must be omitted entirely, not encoded as JSON null.
     func testUnsetFieldsAreOmitted() throws {
         let stub = get(urlEqualTo("/x")).willReturn(ok()).build()

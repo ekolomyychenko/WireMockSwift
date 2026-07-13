@@ -88,6 +88,12 @@ public struct ResponseDefinitionBuilder: Sendable {
         mutating { $0.proxyBaseUrl = proxyBaseUrl }
     }
 
+    /// Disables gzip on the response (WireMock does this via a
+    /// `Content-Encoding: none` header, not a JSON field).
+    public func withGzipDisabled() -> Self {
+        withHeader("Content-Encoding", "none")
+    }
+
     /// Adds a header injected into the proxied request (proxy responses only).
     public func withAdditionalProxyRequestHeader(_ name: String, _ value: String) -> Self {
         mutating {

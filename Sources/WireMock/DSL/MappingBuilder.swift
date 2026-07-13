@@ -104,6 +104,11 @@ public struct MappingBuilder: Sendable {
         mutating { $0.request.scheme = scheme }
     }
 
+    /// Matches on the client's IP address.
+    public func withClientIp(_ pattern: StringValuePattern) -> Self {
+        mutating { $0.request.clientIp = pattern }
+    }
+
     /// Attaches a serve-event listener that fires when this stub is matched.
     /// For the built-in webhook, prefer `withWebhook(_:)`.
     public func withServeEventListener(_ listener: ServeEventListenerDefinition) -> Self {
