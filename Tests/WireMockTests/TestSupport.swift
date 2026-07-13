@@ -9,7 +9,7 @@ import FoundationNetworking
 /// - Important: The integration suites share one server and each `setUp` calls
 ///   `resetAll()`, so they are **not** parallel-safe. Run `swift test` serially
 ///   (the default); do not enable `--parallel` without per-suite server isolation.
-enum TestServer {
+enum WireMockFixture {
     static var baseURL: URL {
         URL(string: ProcessInfo.processInfo.environment["WIREMOCK_URL"] ?? "http://localhost:8080")!
     }

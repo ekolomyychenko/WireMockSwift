@@ -9,10 +9,10 @@ import FoundationNetworking
 /// headers, the random/chunked delays, and transformer parameters.
 final class ResponseOptionsTests: XCTestCase {
     private var wireMock: WireMock!
-    private var port: UInt16 { UInt16(TestServer.baseURL.port ?? 8080) }
+    private var port: UInt16 { UInt16(WireMockFixture.baseURL.port ?? 8080) }
 
     override func setUp() async throws {
-        wireMock = try await TestServer.clientOrSkip()
+        wireMock = try await WireMockFixture.clientOrSkip()
     }
 
     override func tearDown() async throws {
@@ -50,7 +50,7 @@ final class ResponseOptionsTests: XCTestCase {
         try await wireMock.stubFor(
             get(urlEqualTo("/bf")).willReturn(aResponse().withStatus(200).withBodyFile("resp.json"))
         )
-        let (data, response) = try await TestServer.hit("bf")
+        let (data, response) = try await WireMockFixture.hit("bf")
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: data), ["served": "from-file"])
         try await wireMock.deleteFile(named: "resp.json")
@@ -62,7 +62,7 @@ final class ResponseOptionsTests: XCTestCase {
         try await wireMock.stubFor(
             get(urlEqualTo("/jb")).willReturn(okForJson(["id": 7, "ok": true]))
         )
-        let (data, response) = try await TestServer.hit("jb")
+        let (data, response) = try await WireMockFixture.hit("jb")
         XCTAssertEqual(response.statusCode, 200)
         let contentType = response.value(forHTTPHeaderField: "Content-Type") ?? ""
         XCTAssertTrue(contentType.contains("application/json"), "Content-Type was: \(contentType)")
@@ -76,7 +76,7 @@ final class ResponseOptionsTests: XCTestCase {
             get(urlEqualTo("/ud")).willReturn(ok("delayed").withUniformRandomDelay(lower: 300, upper: 500))
         )
         let start = Date()
-        let (data, response) = try await TestServer.hit("ud")
+        let (data, response) = try await WireMockFixture.hit("ud")
         let elapsed = Date().timeIntervalSince(start)
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(String(data: data, encoding: .utf8), "delayed")
@@ -91,7 +91,7 @@ final class ResponseOptionsTests: XCTestCase {
             get(urlEqualTo("/cd")).willReturn(ok("streamed-body").withChunkedDribbleDelay(numberOfChunks: 5, totalDuration: 400))
         )
         let start = Date()
-        let (data, response) = try await TestServer.hit("cd")
+        let (data, response) = try await WireMockFixture.hit("cd")
         let elapsed = Date().timeIntervalSince(start)
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(String(data: data, encoding: .utf8), "streamed-body", "dribble must not corrupt the body")
@@ -108,7 +108,7 @@ final class ResponseOptionsTests: XCTestCase {
                     .withTransformerParameter("greeting", "hello")
             )
         )
-        let (data, _) = try await TestServer.hit("tp")
+        let (data, _) = try await WireMockFixture.hit("tp")
         XCTAssertEqual(String(data: data, encoding: .utf8), "greeting=hello")
     }
 }

@@ -130,9 +130,9 @@ final class ModelDecodingTests: XCTestCase {
     // MARK: - Live decode round-trips
 
     func testLiveLoggedRequestFormParamsAndProtocol() async throws {
-        let wireMock = try await TestServer.clientOrSkip()
+        let wireMock = try await WireMockFixture.clientOrSkip()
         try await wireMock.stubFor(post(urlPathEqualTo("/form")).willReturn(ok()))
-        try await TestServer.hit(
+        try await WireMockFixture.hit(
             "form", method: "POST",
             headers: ["Content-Type": "application/x-www-form-urlencoded"],
             body: Data("name=bob&age=3".utf8)
@@ -149,10 +149,10 @@ final class ModelDecodingTests: XCTestCase {
     }
 
     func testLiveServeEventWasMatchedTrueAndFalse() async throws {
-        let wireMock = try await TestServer.clientOrSkip()
+        let wireMock = try await WireMockFixture.clientOrSkip()
         try await wireMock.stubFor(get(urlEqualTo("/hit")).willReturn(ok()))
-        _ = try await TestServer.hit("hit")      // matched
-        _ = try await TestServer.hit("nope")     // unmatched
+        _ = try await WireMockFixture.hit("hit")      // matched
+        _ = try await WireMockFixture.hit("nope")     // unmatched
 
         let events = try await wireMock.getAllServeEvents()
         let hit = try XCTUnwrap(events.first { $0.request.url == "/hit" })
@@ -162,9 +162,9 @@ final class ModelDecodingTests: XCTestCase {
     }
 
     func testLiveNearMissDistanceIsPositive() async throws {
-        let wireMock = try await TestServer.clientOrSkip()
+        let wireMock = try await WireMockFixture.clientOrSkip()
         try await wireMock.stubFor(get(urlEqualTo("/expected")).willReturn(ok()))
-        _ = try await TestServer.hit("expectd")  // near miss
+        _ = try await WireMockFixture.hit("expectd")  // near miss
 
         let misses = try await wireMock.findNearMissesForAllUnmatched()
         let miss = try XCTUnwrap(misses.first)

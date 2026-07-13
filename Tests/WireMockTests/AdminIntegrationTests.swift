@@ -11,7 +11,7 @@ final class AdminIntegrationTests: XCTestCase {
     private var wireMock: WireMock!
 
     override func setUp() async throws {
-        wireMock = try await TestServer.clientOrSkip()
+        wireMock = try await WireMockFixture.clientOrSkip()
     }
 
     override func tearDown() async throws {
@@ -22,7 +22,7 @@ final class AdminIntegrationTests: XCTestCase {
 
     func testVerifyCountStrategies() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(ok()))
-        for _ in 0..<3 { try await TestServer.hit("ping") }
+        for _ in 0..<3 { try await WireMockFixture.hit("ping") }
 
         try await wireMock.verify(getRequestedFor(urlEqualTo("/ping")))
         try await wireMock.verify(.exactly(3), getRequestedFor(urlEqualTo("/ping")))
@@ -39,7 +39,7 @@ final class AdminIntegrationTests: XCTestCase {
 
     func testFindAllAndServeEvents() async throws {
         try await wireMock.stubFor(post(urlEqualTo("/collect")).willReturn(ok()))
-        try await TestServer.hit("collect", method: "POST", body: Data("hello".utf8))
+        try await WireMockFixture.hit("collect", method: "POST", body: Data("hello".utf8))
 
         let matched = try await wireMock.findAll(postRequestedFor(urlEqualTo("/collect")))
         XCTAssertEqual(matched.count, 1)
@@ -51,7 +51,7 @@ final class AdminIntegrationTests: XCTestCase {
 
     func testUnmatchedAndNearMisses() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/expected")).willReturn(ok()))
-        _ = try await TestServer.hit("expectd") // typo -> unmatched
+        _ = try await WireMockFixture.hit("expectd") // typo -> unmatched
 
         let unmatched = try await wireMock.getUnmatchedRequests()
         XCTAssertTrue(unmatched.contains { $0.url == "/expectd" })
@@ -62,7 +62,7 @@ final class AdminIntegrationTests: XCTestCase {
 
     func testResetRequests() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/x")).willReturn(ok()))
-        try await TestServer.hit("x")
+        try await WireMockFixture.hit("x")
         let before = try await wireMock.count(getRequestedFor(urlEqualTo("/x")))
         XCTAssertEqual(before, 1)
         try await wireMock.resetRequests()
@@ -76,9 +76,9 @@ final class AdminIntegrationTests: XCTestCase {
         try await wireMock.stubFor(
             get(urlPathEqualTo("/num")).withQueryParam("n", matching("[0-9]+")).willReturn(ok("digits"))
         )
-        let matched = try await TestServer.hit("num?n=20")
+        let matched = try await WireMockFixture.hit("num?n=20")
         XCTAssertEqual(matched.1.statusCode, 200)
-        let unmatched = try await TestServer.hit("num?n=abc")
+        let unmatched = try await WireMockFixture.hit("num?n=abc")
         XCTAssertEqual(unmatched.1.statusCode, 404)
     }
 
@@ -86,9 +86,9 @@ final class AdminIntegrationTests: XCTestCase {
         try await wireMock.stubFor(
             post(urlEqualTo("/j")).withRequestBody(matchingJsonPath("$.name")).willReturn(ok())
         )
-        let hit = try await TestServer.hit("j", method: "POST", headers: ["Content-Type": "application/json"], body: Data(#"{"name":"bob"}"#.utf8))
+        let hit = try await WireMockFixture.hit("j", method: "POST", headers: ["Content-Type": "application/json"], body: Data(#"{"name":"bob"}"#.utf8))
         XCTAssertEqual(hit.1.statusCode, 200)
-        let miss = try await TestServer.hit("j", method: "POST", headers: ["Content-Type": "application/json"], body: Data(#"{"age":1}"#.utf8))
+        let miss = try await WireMockFixture.hit("j", method: "POST", headers: ["Content-Type": "application/json"], body: Data(#"{"age":1}"#.utf8))
         XCTAssertEqual(miss.1.statusCode, 404)
     }
 
@@ -104,18 +104,18 @@ final class AdminIntegrationTests: XCTestCase {
                 .willReturn(ok("second"))
         )
 
-        var (data, response) = try await TestServer.hit("state")
+        var (data, response) = try await WireMockFixture.hit("state")
         XCTAssertEqual(String(data: data, encoding: .utf8), "first")
         XCTAssertEqual(response.statusCode, 200)
 
-        (data, _) = try await TestServer.hit("state")
+        (data, _) = try await WireMockFixture.hit("state")
         XCTAssertEqual(String(data: data, encoding: .utf8), "second")
 
         let scenarios = try await wireMock.getAllScenarios()
         XCTAssertTrue(scenarios.contains { $0.name == "s" })
 
         try await wireMock.resetAllScenarios()
-        (data, _) = try await TestServer.hit("state")
+        (data, _) = try await WireMockFixture.hit("state")
         XCTAssertEqual(String(data: data, encoding: .utf8), "first", "reset should return to Started")
     }
 
@@ -125,7 +125,7 @@ final class AdminIntegrationTests: XCTestCase {
         try await wireMock.stubFor(get(urlEqualTo("/slow")).willReturn(ok()))
         try await wireMock.setGlobalFixedDelay(400)
         let start = Date()
-        _ = try await TestServer.hit("slow")
+        _ = try await WireMockFixture.hit("slow")
         XCTAssertGreaterThan(Date().timeIntervalSince(start), 0.3)
         try await wireMock.setGlobalFixedDelay(0)
     }
@@ -145,7 +145,7 @@ final class AdminIntegrationTests: XCTestCase {
 
     func testSnapshotEndpoint() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/rec")).willReturn(ok("recorded")))
-        try await TestServer.hit("rec")
+        try await WireMockFixture.hit("rec")
         // Requests already served by a stub are not re-snapshotted; the call
         // must still succeed and decode to a (here empty) mapping list.
         let snapshot = try await wireMock.takeSnapshot()
@@ -160,7 +160,7 @@ final class AdminIntegrationTests: XCTestCase {
         try await wireMock.stubFor(
             get(urlEqualTo("/file")).willReturn(aResponse().withStatus(200).withBodyFile("greeting.json"))
         )
-        let (data, response) = try await TestServer.hit("file")
+        let (data, response) = try await WireMockFixture.hit("file")
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: data), ["hi": true])
 
@@ -190,7 +190,7 @@ final class AdminIntegrationTests: XCTestCase {
     func testImportMappings() async throws {
         let stub = get(urlEqualTo("/imported")).willReturn(ok("yes")).build()
         try await wireMock.importMappings([stub])
-        let (data, _) = try await TestServer.hit("imported")
+        let (data, _) = try await WireMockFixture.hit("imported")
         XCTAssertEqual(String(data: data, encoding: .utf8), "yes")
     }
 
@@ -199,7 +199,7 @@ final class AdminIntegrationTests: XCTestCase {
         { "request": { "method": "GET", "url": "/raw" },
           "response": { "status": 200, "body": "raw-ok" } }
         """#)
-        let (data, _) = try await TestServer.hit("raw")
+        let (data, _) = try await WireMockFixture.hit("raw")
         XCTAssertEqual(String(data: data, encoding: .utf8), "raw-ok")
     }
 }

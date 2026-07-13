@@ -12,7 +12,7 @@ final class ErrorPathTests: XCTestCase {
     private let randomID = UUID()
 
     override func setUp() async throws {
-        wireMock = try await TestServer.clientOrSkip()
+        wireMock = try await WireMockFixture.clientOrSkip()
     }
 
     override func tearDown() async throws {
@@ -36,7 +36,7 @@ final class ErrorPathTests: XCTestCase {
 
     func testUnmatchedRequestReturns404() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/known")).willReturn(ok()))
-        let (_, response) = try await TestServer.hit("unknown")
+        let (_, response) = try await WireMockFixture.hit("unknown")
         XCTAssertEqual(response.statusCode, 404, "an unstubbed path must return 404")
     }
 

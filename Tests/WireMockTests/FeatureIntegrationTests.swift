@@ -9,10 +9,10 @@ import FoundationNetworking
 /// matchers, cookies/basic-auth, XML/XPath, and server info endpoints.
 final class FeatureIntegrationTests: XCTestCase {
     private var wireMock: WireMock!
-    private var base: URL { TestServer.baseURL }
+    private var base: URL { WireMockFixture.baseURL }
 
     override func setUp() async throws {
-        wireMock = try await TestServer.clientOrSkip()
+        wireMock = try await WireMockFixture.clientOrSkip()
     }
 
     override func tearDown() async throws {
@@ -30,7 +30,7 @@ final class FeatureIntegrationTests: XCTestCase {
             any(urlPathMatching("/gateway/.*"))
                 .willReturn(aResponse().proxiedFrom(base.absoluteString).withProxyUrlPrefixToRemove("/gateway"))
         )
-        let (data, response) = try await TestServer.hit("gateway/upstream")
+        let (data, response) = try await WireMockFixture.hit("gateway/upstream")
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(String(data: data, encoding: .utf8), "from-upstream")
     }
@@ -46,7 +46,7 @@ final class FeatureIntegrationTests: XCTestCase {
             try await wireMock.resetAll()
             try await wireMock.stubFor(get(urlEqualTo("/boom")).willReturn(ok("SHOULD-NOT-SEE").withFault(fault)))
             do {
-                let (data, response) = try await TestServer.hit("boom")
+                let (data, response) = try await WireMockFixture.hit("boom")
                 let body = String(data: data, encoding: .utf8) ?? ""
                 XCTAssertFalse(
                     response.statusCode == 200 && body == "SHOULD-NOT-SEE",
@@ -70,7 +70,7 @@ final class FeatureIntegrationTests: XCTestCase {
                     .withAdditionalProxyRequestHeader("X-Injected", "yes")
             )
         )
-        let (data, response) = try await TestServer.hit("gw/up")
+        let (data, response) = try await WireMockFixture.hit("gw/up")
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(String(data: data, encoding: .utf8), "injected")
     }
@@ -80,7 +80,7 @@ final class FeatureIntegrationTests: XCTestCase {
     func testResponseFixedDelay() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/lag")).willReturn(ok().withFixedDelay(400)))
         let start = Date()
-        _ = try await TestServer.hit("lag")
+        _ = try await WireMockFixture.hit("lag")
         XCTAssertGreaterThan(Date().timeIntervalSince(start), 0.3)
     }
 
@@ -99,9 +99,9 @@ final class FeatureIntegrationTests: XCTestCase {
         let bad = "--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"\r\n\r\ngoodbye\r\n--\(boundary)--\r\n"
         let headers = ["Content-Type": "multipart/form-data; boundary=\(boundary)"]
 
-        let matched = try await TestServer.hit("upload", method: "POST", headers: headers, body: Data(good.utf8))
+        let matched = try await WireMockFixture.hit("upload", method: "POST", headers: headers, body: Data(good.utf8))
         XCTAssertEqual(matched.1.statusCode, 200)
-        let missed = try await TestServer.hit("upload", method: "POST", headers: headers, body: Data(bad.utf8))
+        let missed = try await WireMockFixture.hit("upload", method: "POST", headers: headers, body: Data(bad.utf8))
         XCTAssertEqual(missed.1.statusCode, 404)
     }
 
@@ -114,7 +114,7 @@ final class FeatureIntegrationTests: XCTestCase {
                 .withWebhook(WebhookDefinition(method: .post, url: base.appendingPathComponent("receiver").absoluteString, body: "ping"))
                 .willReturn(ok())
         )
-        _ = try await TestServer.hit("fire", method: "POST")
+        _ = try await WireMockFixture.hit("fire", method: "POST")
 
         // The webhook is asynchronous; poll briefly for the callback.
         var received = 0
@@ -134,9 +134,9 @@ final class FeatureIntegrationTests: XCTestCase {
                 .withQueryParam("id", .hasExactly([equalTo("1"), equalTo("2")]))
                 .willReturn(ok())
         )
-        let matched = try await TestServer.hit("multi?id=1&id=2")
+        let matched = try await WireMockFixture.hit("multi?id=1&id=2")
         XCTAssertEqual(matched.1.statusCode, 200)
-        let missed = try await TestServer.hit("multi?id=1")
+        let missed = try await WireMockFixture.hit("multi?id=1")
         XCTAssertEqual(missed.1.statusCode, 404)
     }
 
@@ -150,9 +150,9 @@ final class FeatureIntegrationTests: XCTestCase {
                 .willReturn(ok("ok"))
         )
         let auth = "Basic " + Data("user:pass".utf8).base64EncodedString()
-        let good = try await TestServer.hit("secure", headers: ["Cookie": "session=abc", "Authorization": auth])
+        let good = try await WireMockFixture.hit("secure", headers: ["Cookie": "session=abc", "Authorization": auth])
         XCTAssertEqual(good.1.statusCode, 200)
-        let noCookie = try await TestServer.hit("secure", headers: ["Authorization": auth])
+        let noCookie = try await WireMockFixture.hit("secure", headers: ["Authorization": auth])
         XCTAssertEqual(noCookie.1.statusCode, 404)
     }
 
@@ -165,9 +165,9 @@ final class FeatureIntegrationTests: XCTestCase {
                 .willReturn(ok("xml-ok"))
         )
         let headers = ["Content-Type": "application/xml"]
-        let matched = try await TestServer.hit("xml", method: "POST", headers: headers, body: Data("<note><to>Bob</to></note>".utf8))
+        let matched = try await WireMockFixture.hit("xml", method: "POST", headers: headers, body: Data("<note><to>Bob</to></note>".utf8))
         XCTAssertEqual(matched.1.statusCode, 200)
-        let missed = try await TestServer.hit("xml", method: "POST", headers: headers, body: Data("<note><to>Alice</to></note>".utf8))
+        let missed = try await WireMockFixture.hit("xml", method: "POST", headers: headers, body: Data("<note><to>Alice</to></note>".utf8))
         XCTAssertEqual(missed.1.statusCode, 404)
     }
 
@@ -194,12 +194,12 @@ final class FeatureIntegrationTests: XCTestCase {
         try await wireMock.stubFor(
             get(urlEqualTo("/sc")).inScenario("flow").whenScenarioStateIs("next").willReturn(ok("b"))
         )
-        _ = try await TestServer.hit("sc")                 // advance to "next"
-        let advanced = try await TestServer.hit("sc")
+        _ = try await WireMockFixture.hit("sc")                 // advance to "next"
+        let advanced = try await WireMockFixture.hit("sc")
         XCTAssertEqual(String(data: advanced.0, encoding: .utf8), "b")
 
         try await wireMock.resetScenario(name: "flow")
-        let reset = try await TestServer.hit("sc")
+        let reset = try await WireMockFixture.hit("sc")
         XCTAssertEqual(String(data: reset.0, encoding: .utf8), "a")
     }
 
@@ -207,7 +207,7 @@ final class FeatureIntegrationTests: XCTestCase {
 
     func testCustomHTTPMethod() async throws {
         try await wireMock.stubFor(request("REPORT", urlEqualTo("/r")).willReturn(ok("reported")))
-        let (data, response) = try await TestServer.hit("r", method: "REPORT")
+        let (data, response) = try await WireMockFixture.hit("r", method: "REPORT")
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(String(data: data, encoding: .utf8), "reported")
     }
@@ -220,9 +220,9 @@ final class FeatureIntegrationTests: XCTestCase {
                 .withQueryParam("tag", .includes([containing("red")]))
                 .willReturn(ok())
         )
-        let matched = try await TestServer.hit("inc?tag=bright-red&tag=blue")
+        let matched = try await WireMockFixture.hit("inc?tag=bright-red&tag=blue")
         XCTAssertEqual(matched.1.statusCode, 200)
-        let missed = try await TestServer.hit("inc?tag=blue&tag=green")
+        let missed = try await WireMockFixture.hit("inc?tag=blue&tag=green")
         XCTAssertEqual(missed.1.statusCode, 404)
     }
 
@@ -233,7 +233,7 @@ final class FeatureIntegrationTests: XCTestCase {
             get(urlPathEqualTo("/hi"))
                 .willReturn(ok("Hello {{request.query.name}}").withTransformers("response-template"))
         )
-        let (data, _) = try await TestServer.hit("hi?name=Bob")
+        let (data, _) = try await WireMockFixture.hit("hi?name=Bob")
         XCTAssertEqual(String(data: data, encoding: .utf8), "Hello Bob")
     }
 
@@ -244,7 +244,7 @@ final class FeatureIntegrationTests: XCTestCase {
         try await wireMock.stubFor(
             get(urlEqualTo("/bin")).willReturn(aResponse().withStatus(200).withBase64Body(payload.base64EncodedString()))
         )
-        let (data, _) = try await TestServer.hit("bin")
+        let (data, _) = try await WireMockFixture.hit("bin")
         XCTAssertEqual(data, payload)
     }
 
@@ -252,7 +252,7 @@ final class FeatureIntegrationTests: XCTestCase {
 
     func testAnythingMatcher() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/any")).withHeader("X-Trace", .anything).willReturn(ok()))
-        let matched = try await TestServer.hit("any", headers: ["X-Trace": "anything-goes"])
+        let matched = try await WireMockFixture.hit("any", headers: ["X-Trace": "anything-goes"])
         XCTAssertEqual(matched.1.statusCode, 200)
     }
 
@@ -260,8 +260,8 @@ final class FeatureIntegrationTests: XCTestCase {
 
     func testRemoveServeEventsByPattern() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/rm")).willReturn(ok()))
-        try await TestServer.hit("rm")
-        try await TestServer.hit("rm")
+        try await WireMockFixture.hit("rm")
+        try await WireMockFixture.hit("rm")
         let removed = try await wireMock.removeServeEvents(matching: getRequestedFor(urlEqualTo("/rm")))
         XCTAssertEqual(removed.count, 2)
         let remaining = try await wireMock.count(getRequestedFor(urlEqualTo("/rm")))
@@ -270,7 +270,7 @@ final class FeatureIntegrationTests: XCTestCase {
 
     func testRemoveServeEventsByMetadata() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/md")).withMetadata(["team": "x"]).willReturn(ok()))
-        try await TestServer.hit("md")
+        try await WireMockFixture.hit("md")
         try await wireMock.removeServeEventsByMetadata(.matchingJsonPath("$.team", equalTo("x")))
         let remaining = try await wireMock.count(getRequestedFor(urlEqualTo("/md")))
         XCTAssertEqual(remaining, 0)
@@ -281,7 +281,7 @@ final class FeatureIntegrationTests: XCTestCase {
     func testClientIpMatcherIsApplied() async throws {
         // Our request is not from 9.9.9.9, so the clientIp criterion must reject it.
         try await wireMock.stubFor(get(urlEqualTo("/ip")).withClientIp(equalTo("9.9.9.9")).willReturn(ok()))
-        let (_, response) = try await TestServer.hit("ip")
+        let (_, response) = try await WireMockFixture.hit("ip")
         XCTAssertEqual(response.statusCode, 404)
     }
 
@@ -294,7 +294,7 @@ final class FeatureIntegrationTests: XCTestCase {
     func testUnmatchedStubMappings() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/never")).willReturn(ok()))
         try await wireMock.stubFor(get(urlEqualTo("/used")).willReturn(ok()))
-        _ = try await TestServer.hit("used")
+        _ = try await WireMockFixture.hit("used")
 
         let unmatched = try await wireMock.findUnmatchedStubMappings()
         XCTAssertTrue(unmatched.contains { $0.request.url == "/never" })
@@ -308,7 +308,7 @@ final class FeatureIntegrationTests: XCTestCase {
 
     func testGetServeEventsLimit() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/s")).willReturn(ok()))
-        for _ in 0..<3 { _ = try await TestServer.hit("s") }
+        for _ in 0..<3 { _ = try await WireMockFixture.hit("s") }
         let limited = try await wireMock.getServeEvents(limit: 2)
         XCTAssertEqual(limited.count, 2)
     }

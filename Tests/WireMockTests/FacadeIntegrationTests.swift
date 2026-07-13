@@ -12,7 +12,7 @@ final class FacadeIntegrationTests: XCTestCase {
     private var wireMock: WireMock!
 
     override func setUp() async throws {
-        wireMock = try await TestServer.clientOrSkip()
+        wireMock = try await WireMockFixture.clientOrSkip()
     }
 
     override func tearDown() async throws {
@@ -42,7 +42,7 @@ final class FacadeIntegrationTests: XCTestCase {
         let result = try await wireMock.editStubMapping(id: id, updated)
         XCTAssertEqual(result.id, id)
 
-        let (data, _) = try await TestServer.hit("e")
+        let (data, _) = try await WireMockFixture.hit("e")
         XCTAssertEqual(String(data: data, encoding: .utf8), "after", "edit should replace the served body")
     }
 
@@ -71,7 +71,7 @@ final class FacadeIntegrationTests: XCTestCase {
 
     func testGetAndRemoveServeEvent() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/se")).willReturn(ok()))
-        _ = try await TestServer.hit("se")
+        _ = try await WireMockFixture.hit("se")
 
         let events = try await wireMock.getAllServeEvents()
         let event = try XCTUnwrap(events.first { $0.request.url == "/se" })
@@ -90,7 +90,7 @@ final class FacadeIntegrationTests: XCTestCase {
 
     func testFindNearMissesForRequest() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/expected")).willReturn(ok()))
-        _ = try await TestServer.hit("expectd") // near miss
+        _ = try await WireMockFixture.hit("expectd") // near miss
         let unmatched = try await wireMock.getUnmatchedRequests()
         let request = try XCTUnwrap(unmatched.first)
 
@@ -101,7 +101,7 @@ final class FacadeIntegrationTests: XCTestCase {
 
     func testFindNearMissesForPattern() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/exact")).willReturn(ok()))
-        _ = try await TestServer.hit("exact")
+        _ = try await WireMockFixture.hit("exact")
 
         // A pattern for a slightly different URL should report the served
         // request as a near miss.
@@ -121,7 +121,7 @@ final class FacadeIntegrationTests: XCTestCase {
         )
         // Jump straight to a non-initial state.
         try await wireMock.setScenarioState(name: "flow", state: "jumped")
-        let (data, _) = try await TestServer.hit("sc")
+        let (data, _) = try await WireMockFixture.hit("sc")
         XCTAssertEqual(String(data: data, encoding: .utf8), "jumped")
 
         let scenarios = try await wireMock.getAllScenarios()
@@ -143,7 +143,7 @@ final class FacadeIntegrationTests: XCTestCase {
         ]
         try await wireMock.importMappings(stubs)
         for (path, expected) in [("one", "1"), ("two", "2"), ("three", "3")] {
-            let (data, _) = try await TestServer.hit(path)
+            let (data, _) = try await WireMockFixture.hit(path)
             XCTAssertEqual(String(data: data, encoding: .utf8), expected)
         }
     }
@@ -152,7 +152,7 @@ final class FacadeIntegrationTests: XCTestCase {
 
     func testCountStrategiesExhaustive() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/c")).willReturn(ok()))
-        for _ in 0..<3 { _ = try await TestServer.hit("c") }
+        for _ in 0..<3 { _ = try await WireMockFixture.hit("c") }
         let builder = getRequestedFor(urlEqualTo("/c"))
 
         // Passing cases.
