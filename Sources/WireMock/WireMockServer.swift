@@ -25,7 +25,7 @@ public final class WireMockServer: @unchecked Sendable {
         /// `java -jar <path> --port <port>`.
         case jar(path: String, javaPath: String = "java", extraArgs: [String] = [])
         /// `docker run --rm -p <port>:8080 <image>`.
-        case docker(image: String = "wiremock/wiremock:3", extraArgs: [String] = [])
+        case docker(image: String = "wiremock/wiremock:3.13.2", extraArgs: [String] = [])
     }
 
     public let host = "localhost"

@@ -10,7 +10,7 @@ import FoundationNetworking
 /// `WIREMOCK_URL` env var (default `http://localhost:8080`), e.g.:
 ///
 /// ```
-/// docker run --rm -p 8080:8080 wiremock/wiremock:3
+/// docker run --rm -p 8080:8080 wiremock/wiremock:3.13.2
 /// swift test
 /// ```
 final class IntegrationTests: XCTestCase {

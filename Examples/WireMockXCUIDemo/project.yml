@@ -1,0 +1,51 @@
+name: WireMockXCUIDemo
+options:
+  bundleIdPrefix: com.example.wiremockxcui
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+packages:
+  WireMock:
+    path: ../..
+targets:
+  SampleApp:
+    type: application
+    platform: iOS
+    sources: [SampleApp]
+    info:
+      path: SampleApp/Info.plist
+      properties:
+        UILaunchScreen: {}
+        # Allow cleartext HTTP to the loopback (simulator forwards localhost to the host).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.wiremockxcui.app
+  SampleAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [SampleAppUITests]
+    dependencies:
+      - target: SampleApp
+      - package: WireMock
+    info:
+      path: SampleAppUITests/Info.plist
+      properties:
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.wiremockxcui.uitests
+schemes:
+  SampleApp:
+    build:
+      targets:
+        SampleApp: all
+        SampleAppUITests: [test]
+    test:
+      targets:
+        - SampleAppUITests
