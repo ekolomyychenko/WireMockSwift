@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    name: Linux (Swift ${{ matrix.swift }})
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    strategy:
+      matrix:
+        swift: ["6.0"]
+    services:
+      wiremock:
+        image: wiremock/wiremock:3
+        ports:
+          - 8080:8080
+    env:
+      # The service container is reachable by its job-network hostname.
+      WIREMOCK_URL: http://wiremock:8080
+      # Fail (don't skip) the integration suites if the server isn't reachable.
+      WIREMOCK_REQUIRED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for WireMock service to be ready
+        run: |
+          apt-get update && apt-get install -y curl
+          for i in $(seq 1 60); do
+            curl -sf http://wiremock:8080/__admin/health && exit 0
+            sleep 1
+          done
+          echo "WireMock service never became ready" >&2
+          exit 1
+      - name: Build
+        run: swift build -Xswiftc -strict-concurrency=complete
+      - name: Test (unit + integration against the WireMock service)
+        run: swift test
+
+  macos:
+    name: macOS
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Download WireMock standalone
+        run: |
+          VER=$(curl -s https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/maven-metadata.xml \
+            | grep -o '<version>3[^<]*' | grep -v beta | tail -1 | sed 's/<version>//')
+          curl -sL -o wiremock.jar \
+            "https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/${VER}/wiremock-standalone-${VER}.jar"
+      - name: Start WireMock
+        run: |
+          java -jar wiremock.jar --port 8080 --disable-banner &
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/__admin/mappings && break; sleep 1; done
+      - name: Build
+        run: swift build -Xswiftc -strict-concurrency=complete
+      - name: Test (unit + integration + WireMockServer boot)
+        env:
+          WIREMOCK_JAR: ${{ github.workspace }}/wiremock.jar
+        run: swift test
