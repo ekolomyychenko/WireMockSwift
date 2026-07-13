@@ -29,5 +29,26 @@ final class WireMockServerTests: XCTestCase {
         XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
         XCTAssertEqual(String(data: data, encoding: .utf8), "up")
     }
+
+    /// `start()` must refuse a port already served by another/stale server
+    /// rather than silently attaching to it and orphaning its own process.
+    func testStartOnOccupiedPortThrows() async throws {
+        guard let jar = ProcessInfo.processInfo.environment["WIREMOCK_JAR"] else {
+            throw XCTSkip("Set WIREMOCK_JAR to the standalone jar path to run this test")
+        }
+        let port = 8086
+        let first = WireMockServer(port: port, launch: .jar(path: jar))
+        try await first.start(timeout: 60)
+        defer { first.stop() }
+
+        let second = WireMockServer(port: port, launch: .jar(path: jar))
+        do {
+            try await second.start(timeout: 10)
+            second.stop()
+            XCTFail("start() should refuse an already-occupied port, not attach to the foreign server")
+        } catch {
+            // Expected: refused rather than attaching to the foreign server.
+        }
+    }
 }
 #endif

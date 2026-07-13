@@ -305,6 +305,9 @@ try await wireMock.putFile(named: "body.json", text: #"{"hi":true}"#, contentTyp
 let names = try await wireMock.listFiles()
 let data = try await wireMock.getFile(named: "body.json")
 try await wireMock.deleteFile(named: "body.json")
+// Note: WireMock 3.x does not percent-decode path segments, so scenario and
+// __files names should be URL-safe — a name with spaces/`%`/unicode is stored
+// and addressed under its encoded form (e.g. "a b.json" → "a%20b.json").
 
 // Metadata & bulk import:
 let stubs = try await wireMock.findStubsByMetadata(matchingJsonPath("$.team", equalTo("payments")))

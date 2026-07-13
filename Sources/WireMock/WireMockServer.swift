@@ -46,7 +46,19 @@ public final class WireMockServer: @unchecked Sendable {
     public var client: WireMock { WireMock(baseURL: baseURL) }
 
     /// Launches the process and waits until the admin API responds.
+    ///
+    /// - Throws: if the port is already serving an admin API before launch — we
+    ///   cannot tell our own server from a foreign/stale one, so rather than
+    ///   silently attaching to it (and orphaning our spawned process) we refuse.
+    ///   Stop the other server or choose another port.
     public func start(timeout: TimeInterval = 60) async throws {
+        if await isReady() {
+            throw WireMockError.transport(
+                underlying: "Port \(port) is already serving a WireMock admin API. Refusing to attach "
+                    + "to a foreign/stale server — stop it or use a different port."
+            )
+        }
+
         let process = makeProcess()
         do {
             try process.run()
@@ -57,6 +69,9 @@ public final class WireMockServer: @unchecked Sendable {
 
         let started = Date()
         while Date().timeIntervalSince(started) < timeout {
+            // Check liveness before readiness: if the process died (e.g. it lost
+            // a port-bind race after our pre-flight check), fail loudly instead
+            // of reporting a foreign listener as "ready".
             if !process.isRunning {
                 throw WireMockError.transport(underlying: "WireMock process exited during startup (code \(process.terminationStatus))")
             }
