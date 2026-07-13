@@ -86,3 +86,33 @@ jobs:
       - name: Build the library for the iOS Simulator SDK
         # WireMockServer is compiled out on iOS; this proves the rest compiles/links.
         run: xcodebuild build -scheme WireMockSwift -destination 'generic/platform=iOS Simulator'
+
+  ios-xcuitest:
+    name: iOS XCUITest example
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Start WireMock on the host
+        run: |
+          curl -sL -o wiremock.jar \
+            https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.13.2/wiremock-standalone-3.13.2.jar
+          java -jar wiremock.jar --port 8080 --disable-banner &
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/__admin/health && break; sleep 1; done
+          curl -sf http://localhost:8080/__admin/health || { echo "WireMock never ready" >&2; exit 1; }
+      - name: Generate and run the XCUITest example on a simulator
+        working-directory: Examples/WireMockXCUIDemo
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          # Pick whatever iPhone simulator this runner actually has (avoids pinning).
+          DEV=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+[^(]*' | head -1 | xargs)
+          echo "Using simulator: $DEV"
+          xcodebuild test -project WireMockXCUIDemo.xcodeproj -scheme SampleApp \
+            -destination "platform=iOS Simulator,name=$DEV"

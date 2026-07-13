@@ -144,7 +144,7 @@ public func permanentRedirect(to location: String) -> ResponseDefinitionBuilder 
     aResponse().withStatus(301).withHeader("Location", HeaderValue.single(location))
 }
 /// 303 redirect to `location`.
-public func seeOther(_ location: String) -> ResponseDefinitionBuilder {
+public func seeOther(to location: String) -> ResponseDefinitionBuilder {
     aResponse().withStatus(303).withHeader("Location", HeaderValue.single(location))
 }
 

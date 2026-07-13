@@ -52,6 +52,11 @@ public final class WireMockServer: @unchecked Sendable {
     ///   silently attaching to it (and orphaning our spawned process) we refuse.
     ///   Stop the other server or choose another port.
     public func start(timeout: TimeInterval = 60) async throws {
+        // Refuse re-entry: a second start() on a live instance would orphan the
+        // first process. Call stop() before starting again.
+        if currentProcess() != nil {
+            throw WireMockError.transport(underlying: "WireMockServer is already started; call stop() first.")
+        }
         if await isReady() {
             throw WireMockError.transport(
                 underlying: "Port \(port) is already serving a WireMock admin API. Refusing to attach "
@@ -73,6 +78,7 @@ public final class WireMockServer: @unchecked Sendable {
             // a port-bind race after our pre-flight check), fail loudly instead
             // of reporting a foreign listener as "ready".
             if !process.isRunning {
+                _ = takeProcess()   // drop the dead reference so start() can be retried
                 throw WireMockError.transport(underlying: "WireMock process exited during startup (code \(process.terminationStatus))")
             }
             if await isReady() { return }
@@ -106,6 +112,11 @@ public final class WireMockServer: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         let process = self.process
         self.process = nil
+        return process
+    }
+
+    private func currentProcess() -> Process? {
+        lock.lock(); defer { lock.unlock() }
         return process
     }
 

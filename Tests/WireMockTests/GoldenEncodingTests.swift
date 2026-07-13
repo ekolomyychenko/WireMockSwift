@@ -207,6 +207,22 @@ final class GoldenEncodingTests: XCTestCase {
                        ["status": 201, "headers": ["Content-Type": "application/json"], "jsonBody": ["ok": true]])
     }
 
+    func testRedirectAndStatusFactoriesEncode() throws {
+        XCTAssertEqual(try json(status(418).definition), ["status": 418])
+        XCTAssertEqual(try json(permanentRedirect(to: "/p").definition),
+                       ["status": 301, "headers": ["Location": "/p"]])
+        XCTAssertEqual(try json(seeOther(to: "/s").definition),
+                       ["status": 303, "headers": ["Location": "/s"]])
+    }
+
+    func testRecordSpecFiltersMethodEncodes() throws {
+        let spec = RecordSpec(targetBaseUrl: "http://up",
+                              filters: RecordFilters(urlPathPattern: "/api/.*", method: .get))
+        let filters = try XCTUnwrap(try json(spec).objectValue?["filters"]?.objectValue)
+        XCTAssertEqual(filters["method"], "GET")   // HTTPMethod encodes as a bare string
+        XCTAssertEqual(filters["urlPathPattern"], "/api/.*")
+    }
+
     /// A nil optional must be omitted entirely, not encoded as JSON null.
     func testUnsetFieldsAreOmitted() throws {
         let stub = get(urlEqualTo("/x")).willReturn(ok()).build()

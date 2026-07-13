@@ -7,7 +7,7 @@ import Foundation
 public struct LoggedRequest: Codable, Sendable, Hashable {
     public var url: String?
     public var absoluteUrl: String?
-    public var method: String?
+    public var method: HTTPMethod?
     public var scheme: String?
     public var host: String?
     public var port: Int?

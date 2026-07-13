@@ -18,9 +18,12 @@ xcodegen generate
 java -jar wiremock-standalone-3.13.2.jar --port 8080 --disable-banner &
 for i in $(seq 1 30); do curl -sf http://localhost:8080/__admin/health && break; sleep 1; done
 
-# 3. XCUITest на симуляторе
+# 3. XCUITest на симуляторе (подставь любой установленный симулятор)
 xcodebuild test -project WireMockXCUIDemo.xcodeproj -scheme SampleApp \
-  -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5'
+  -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
+
+> Имя/версию симулятора подставь под то, что установлено у тебя (`xcrun simctl list devices available`).
+> В CI устройство выбирается автоматически — см. джобу `ios-xcuitest` в `.github/workflows/ci.yml`.
 
 `.xcodeproj` генерируется из `project.yml` (в git не коммитится — запусти `xcodegen generate`).
