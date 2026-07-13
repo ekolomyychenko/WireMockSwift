@@ -1,7 +1,8 @@
 import Foundation
 
 // Additional matchers beyond the common string operators: numeric, date/time,
-// JSON-schema, and XML with options. Keys mirror the WireMock 3.x contract.
+// JSON-schema, and XML with options. Keys mirror the WireMock contract — mostly
+// 3.x, except the numeric matchers below, which are WireMock 4.0+ (see note).
 
 extension StringValuePattern {
 

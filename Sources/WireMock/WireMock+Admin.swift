@@ -64,14 +64,17 @@ extension WireMock {
 
     // MARK: Near misses
 
+    /// The closest-matching stubs for every request that matched nothing.
     public func findNearMissesForAllUnmatched() async throws -> [NearMiss] {
         try await admin.get("requests/unmatched/near-misses", as: FindNearMissesResult.self).nearMisses
     }
 
+    /// The closest-matching stubs for a specific logged request.
     public func findNearMisses(for request: LoggedRequest) async throws -> [NearMiss] {
         try await admin.send("POST", "near-misses/request", body: request, as: FindNearMissesResult.self).nearMisses
     }
 
+    /// The requests that came closest to matching the given pattern.
     public func findNearMisses(for builder: RequestPatternBuilder) async throws -> [NearMiss] {
         try await admin.send("POST", "near-misses/request-pattern", body: builder.pattern, as: FindNearMissesResult.self).nearMisses
     }
@@ -80,14 +83,17 @@ extension WireMock {
 // MARK: - Scenarios
 
 extension WireMock {
+    /// All scenarios and their current states.
     public func getAllScenarios() async throws -> [Scenario] {
         try await admin.get("scenarios", as: GetScenariosResult.self).scenarios
     }
 
+    /// Resets every scenario back to its initial (`Started`) state.
     public func resetAllScenarios() async throws {
         try await admin.send("POST", "scenarios/reset")
     }
 
+    /// Forces a single scenario into the given state.
     public func setScenarioState(name: String, state: String) async throws {
         struct StateBody: Encodable { let state: String }
         try await admin.send("PUT", "scenarios/\(name)/state", body: StateBody(state: state))
@@ -102,10 +108,12 @@ extension WireMock {
 // MARK: - Global settings
 
 extension WireMock {
+    /// Replaces the global settings (delay distribution, proxy pass-through, …).
     public func updateGlobalSettings(_ settings: GlobalSettings) async throws {
         try await admin.send("POST", "settings", body: settings)
     }
 
+    /// Applies a fixed delay (ms) to every response server-wide.
     public func setGlobalFixedDelay(_ milliseconds: Int) async throws {
         try await updateGlobalSettings(GlobalSettings(fixedDelay: milliseconds))
     }
@@ -130,23 +138,30 @@ extension WireMock {
 // MARK: - Record & playback
 
 extension WireMock {
+    /// Starts recording, proxying traffic to `spec.targetBaseUrl` and capturing
+    /// it as stubs. Point the target at a SEPARATE upstream (self-proxy hangs).
     public func startRecording(_ spec: RecordSpec) async throws {
         try await admin.send("POST", "recordings/start", body: spec)
     }
 
+    /// Starts recording against an upstream base URL with default options.
     public func startRecording(targetBaseUrl: String) async throws {
         try await startRecording(RecordSpec(targetBaseUrl: targetBaseUrl))
     }
 
+    /// Stops recording and returns the stub mappings generated from the traffic.
     @discardableResult
     public func stopRecording() async throws -> [StubMapping] {
         try await admin.send("POST", "recordings/stop", body: EmptyBody(), as: SnapshotResult.self).mappings ?? []
     }
 
+    /// The recorder state (`"NeverStarted"`, `"Recording"`, `"Stopped"`).
     public func getRecordingStatus() async throws -> String? {
         try await admin.get("recordings/status", as: RecordingStatusResult.self).status
     }
 
+    /// Generates stubs from the requests already in the journal, without an
+    /// active recording session; returns the generated mappings.
     @discardableResult
     public func takeSnapshot(_ spec: RecordSpec = RecordSpec()) async throws -> [StubMapping] {
         try await admin.send("POST", "recordings/snapshot", body: spec, as: SnapshotResult.self).mappings ?? []
@@ -174,18 +189,22 @@ extension WireMock {
         )
     }
 
+    /// Fetches the raw bytes of a `__files` entry.
     public func getFile(named name: String) async throws -> Data {
         try await admin.send("GET", "files/\(name)")
     }
 
+    /// Uploads binary data as a `__files` entry (served via `withBodyFile`).
     public func putFile(named name: String, data: Data, contentType: String = "application/octet-stream") async throws {
         try await admin.sendData("PUT", "files/\(name)", body: data, contentType: contentType)
     }
 
+    /// Uploads text as a `__files` entry (served via `withBodyFile`).
     public func putFile(named name: String, text: String, contentType: String = "text/plain") async throws {
         try await putFile(named: name, data: Data(text.utf8), contentType: contentType)
     }
 
+    /// Deletes a `__files` entry.
     public func deleteFile(named name: String) async throws {
         try await admin.send("DELETE", "files/\(name)")
     }
@@ -194,14 +213,17 @@ extension WireMock {
 // MARK: - Metadata & bulk import
 
 extension WireMock {
+    /// Finds stubs whose `metadata` satisfies the matcher (e.g. a JSONPath match).
     public func findStubsByMetadata(_ matcher: StringValuePattern) async throws -> [StubMapping] {
         try await admin.send("POST", "mappings/find-by-metadata", body: matcher, as: ListStubMappingsResult.self).mappings
     }
 
+    /// Removes stubs whose `metadata` satisfies the matcher.
     public func removeStubsByMetadata(_ matcher: StringValuePattern) async throws {
         try await admin.send("POST", "mappings/remove-by-metadata", body: matcher)
     }
 
+    /// Registers many stub mappings in one call.
     public func importMappings(_ mappings: [StubMapping]) async throws {
         struct ImportBody: Encodable { let mappings: [StubMapping] }
         try await admin.send("POST", "mappings/import", body: ImportBody(mappings: mappings))

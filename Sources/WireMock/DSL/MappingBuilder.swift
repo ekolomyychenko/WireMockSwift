@@ -104,7 +104,8 @@ public struct MappingBuilder: Sendable {
         mutating { $0.request.scheme = scheme }
     }
 
-    /// Attaches a webhook that fires when this stub is matched.
+    /// Attaches a serve-event listener that fires when this stub is matched.
+    /// For the built-in webhook, prefer `withWebhook(_:)`.
     public func withServeEventListener(_ listener: ServeEventListenerDefinition) -> Self {
         mutating {
             var listeners = $0.serveEventListeners ?? []

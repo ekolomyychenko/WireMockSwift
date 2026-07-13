@@ -13,10 +13,13 @@ public struct WireMock: Sendable {
     /// The underlying admin API client.
     public let admin: AdminClient
 
+    /// Creates a client over a pre-built admin API client.
     public init(admin: AdminClient) {
         self.admin = admin
     }
 
+    /// Creates a client for a server addressed by scheme/host/port.
+    ///
     /// - Parameters:
     ///   - scheme: `http` or `https`.
     ///   - host: Server host.
@@ -32,6 +35,7 @@ public struct WireMock: Sendable {
         self.admin = AdminClient(baseURL: url)
     }
 
+    /// Creates a client for a server at the given base URL (e.g. a remote host).
     public init(baseURL: URL) {
         self.admin = AdminClient(baseURL: baseURL)
     }

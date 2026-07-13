@@ -27,8 +27,9 @@ public struct WebhookDefinition: Sendable {
     public var jsonBody: JSONValue?
     public var delay: Delay?
 
-    /// Delay applied before the webhook fires. Mirrors the response
-    /// `DelayDistribution` shape, with a `fixed` case for a constant delay.
+    /// Delay applied before the webhook fires. `uniform`/`lognormal` match the
+    /// response delay-distribution shape; `fixed` is a constant-delay form
+    /// specific to webhooks (the response side uses `fixedDelayMilliseconds`).
     public enum Delay: Sendable, Hashable {
         case fixed(milliseconds: Int)
         case uniform(lower: Int, upper: Int)
