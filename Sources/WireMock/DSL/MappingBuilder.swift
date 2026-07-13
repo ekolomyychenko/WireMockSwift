@@ -9,105 +9,98 @@ import Foundation
 ///     .atPriority(1)
 ///     .willReturn(okForJson(["id": 1]))
 /// ```
+///
+/// Like Java's `BasicMappingBuilder`, the request-matching methods delegate to a
+/// wrapped `RequestPatternBuilder` so that logic lives in exactly one place.
 public struct MappingBuilder: Sendable {
-    public private(set) var mapping: StubMapping
+    /// Builds the request half. Single source of truth for request criteria.
+    private var requestBuilder: RequestPatternBuilder
+    /// Everything else (response, priority, scenario, metadata, …). Its own
+    /// `request` field is unused — the request comes from `requestBuilder`.
+    private var meta: StubMapping
 
     init(method: HTTPMethod, url: UrlPattern) {
-        var request = RequestPattern()
-        request.method = method
-        url.apply(to: &request)
-        self.mapping = StubMapping(request: request, response: ResponseDefinition())
+        self.requestBuilder = RequestPatternBuilder(method: method, url: url)
+        self.meta = StubMapping(request: RequestPattern(), response: ResponseDefinition())
+    }
+
+    /// The assembled mapping: `meta` with its request replaced by the one built
+    /// from the delegated `RequestPatternBuilder`.
+    public var mapping: StubMapping {
+        var result = meta
+        result.request = requestBuilder.pattern
+        return result
+    }
+
+    private func delegatingRequest(_ transform: (RequestPatternBuilder) -> RequestPatternBuilder) -> Self {
+        var copy = self
+        copy.requestBuilder = transform(copy.requestBuilder)
+        return copy
     }
 
     private func mutating(_ transform: (inout StubMapping) -> Void) -> Self {
         var copy = self
-        transform(&copy.mapping)
+        transform(&copy.meta)
         return copy
     }
 
-    // MARK: Request criteria
+    // MARK: Request criteria (delegated to RequestPatternBuilder)
 
     public func withHeader(_ name: String, _ pattern: StringValuePattern) -> Self {
-        mutating {
-            var headers = $0.request.headers ?? [:]
-            headers[name] = pattern
-            $0.request.headers = headers
-        }
+        delegatingRequest { $0.withHeader(name, pattern) }
     }
 
     /// Requires the header to be absent.
     public func withoutHeader(_ name: String) -> Self {
-        withHeader(name, .absent)
+        delegatingRequest { $0.withoutHeader(name) }
     }
 
     public func withQueryParam(_ name: String, _ pattern: StringValuePattern) -> Self {
-        mutating {
-            var params = $0.request.queryParameters ?? [:]
-            params[name] = pattern
-            $0.request.queryParameters = params
-        }
+        delegatingRequest { $0.withQueryParam(name, pattern) }
     }
 
     public func withCookie(_ name: String, _ pattern: StringValuePattern) -> Self {
-        mutating {
-            var cookies = $0.request.cookies ?? [:]
-            cookies[name] = pattern
-            $0.request.cookies = cookies
-        }
+        delegatingRequest { $0.withCookie(name, pattern) }
     }
 
     public func withPathParam(_ name: String, _ pattern: StringValuePattern) -> Self {
-        mutating {
-            var params = $0.request.pathParameters ?? [:]
-            params[name] = pattern
-            $0.request.pathParameters = params
-        }
+        delegatingRequest { $0.withPathParam(name, pattern) }
     }
 
     public func withFormParam(_ name: String, _ pattern: StringValuePattern) -> Self {
-        mutating {
-            var params = $0.request.formParameters ?? [:]
-            params[name] = pattern
-            $0.request.formParameters = params
-        }
+        delegatingRequest { $0.withFormParam(name, pattern) }
     }
 
     public func withRequestBody(_ pattern: StringValuePattern) -> Self {
-        mutating {
-            var patterns = $0.request.bodyPatterns ?? []
-            patterns.append(pattern)
-            $0.request.bodyPatterns = patterns
-        }
+        delegatingRequest { $0.withRequestBody(pattern) }
     }
 
     public func withBasicAuth(username: String, password: String) -> Self {
-        mutating { $0.request.basicAuthCredentials = BasicAuthCredentials(username: username, password: password) }
+        delegatingRequest { $0.withBasicAuth(username: username, password: password) }
     }
 
     public func withMultipartRequestBody(_ part: MultipartValuePattern) -> Self {
-        mutating {
-            var parts = $0.request.multipartPatterns ?? []
-            parts.append(part)
-            $0.request.multipartPatterns = parts
-        }
+        delegatingRequest { $0.withMultipartRequestBody(part) }
     }
 
     public func withHost(_ pattern: StringValuePattern) -> Self {
-        mutating { $0.request.host = pattern }
+        delegatingRequest { $0.withHost(pattern) }
     }
 
     public func withPort(_ port: Int) -> Self {
-        mutating { $0.request.port = port }
+        delegatingRequest { $0.withPort(port) }
     }
 
     public func withScheme(_ scheme: String) -> Self {
-        mutating { $0.request.scheme = scheme }
+        delegatingRequest { $0.withScheme(scheme) }
     }
 
     /// Matches on the client's IP address.
     public func withClientIp(_ pattern: StringValuePattern) -> Self {
-        mutating { $0.request.clientIp = pattern }
+        delegatingRequest { $0.withClientIp(pattern) }
     }
+
+    // MARK: Serve-event listeners
 
     /// Attaches a serve-event listener that fires when this stub is matched.
     /// For the built-in webhook, prefer `withWebhook(_:)`.
