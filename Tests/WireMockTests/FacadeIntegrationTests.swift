@@ -217,4 +217,54 @@ final class FacadeIntegrationTests: XCTestCase {
                        "extended settings must survive a POST→GET round-trip")
         try await wireMock.updateGlobalSettings(GlobalSettings(fixedDelay: 0))
     }
+
+    // MARK: - Acceptance coverage: verify(count), verbs, random delay, files, since
+
+    func testVerifyExactCountOverload() async throws {
+        try await wireMock.stubFor(get(urlEqualTo("/vc")).willReturn(ok()))
+        try await WireMockFixture.hit("vc")
+        try await WireMockFixture.hit("vc")
+        try await wireMock.verify(2, getRequestedFor(urlEqualTo("/vc")))
+        do {
+            try await wireMock.verify(3, getRequestedFor(urlEqualTo("/vc")))
+            XCTFail("verify(3) should have thrown for a count of 2")
+        } catch is VerificationError {
+            // expected
+        }
+    }
+
+    func testNonGetVerbsMatchLive() async throws {
+        try await wireMock.stubFor(put(urlEqualTo("/pv")).willReturn(ok("put-ok")))
+        try await wireMock.stubFor(delete(urlEqualTo("/dv")).willReturn(ok("del-ok")))
+        let putBody = String(data: try await WireMockFixture.hit("pv", method: "PUT").0, encoding: .utf8)
+        let delBody = String(data: try await WireMockFixture.hit("dv", method: "DELETE").0, encoding: .utf8)
+        XCTAssertEqual(putBody, "put-ok")
+        XCTAssertEqual(delBody, "del-ok")
+        // Negative: a GET to a PUT-only stub must not match.
+        let getStatus = try await WireMockFixture.hit("pv").1.statusCode
+        XCTAssertEqual(getStatus, 404, "GET must not match a PUT stub")
+    }
+
+    func testSetGlobalRandomDelayRoundTrip() async throws {
+        try await wireMock.setGlobalRandomDelay(.uniform(lower: 10, upper: 20))
+        let settings = try await wireMock.getGlobalSettings()
+        XCTAssertEqual(settings.delayDistribution, .uniform(lower: 10, upper: 20))
+        // Reset doesn't clear the distribution; neutralize it so later tests aren't slowed.
+        try await wireMock.setGlobalRandomDelay(.uniform(lower: 0, upper: 0))
+    }
+
+    func testListFilesLive() async throws {
+        try await wireMock.putFile(named: "acc.txt", text: "hi")
+        let files = try await wireMock.listFiles()
+        XCTAssertTrue(files.contains("acc.txt"), "listFiles should include the uploaded file; got \(files)")
+        try await wireMock.deleteFile(named: "acc.txt")
+    }
+
+    func testGetServeEventsSinceWithTimezoneOffset() async throws {
+        try await wireMock.stubFor(get(urlEqualTo("/se")).willReturn(ok()))
+        try await WireMockFixture.hit("se")
+        // `since` carries a `+hh:mm` offset — exercises the query percent-encoding path.
+        let past = try await wireMock.getServeEvents(since: "2020-01-01T00:00:00+00:00")
+        XCTAssertGreaterThanOrEqual(past.count, 1, "a past `since` must include the recorded event")
+    }
 }

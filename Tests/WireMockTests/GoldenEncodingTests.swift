@@ -538,4 +538,110 @@ final class GoldenEncodingTests: XCTestCase {
         // matching Java — a top-level key would be silently ignored.
         XCTAssertEqual(decoded.objectValue?["extended"], ["custom": ["nested": 1]])
     }
+
+    // MARK: - Acceptance coverage: verbs, URL forms, status helpers, new DSL
+
+    func testAllStubVerbsEncodeMethod() throws {
+        let cases: [(MappingBuilder, String)] = [
+            (get(urlEqualTo("/x")), "GET"), (post(urlEqualTo("/x")), "POST"),
+            (put(urlEqualTo("/x")), "PUT"), (patch(urlEqualTo("/x")), "PATCH"),
+            (delete(urlEqualTo("/x")), "DELETE"), (head(urlEqualTo("/x")), "HEAD"),
+            (options(urlEqualTo("/x")), "OPTIONS"), (trace(urlEqualTo("/x")), "TRACE"),
+            (any(urlEqualTo("/x")), "ANY"), (request(.getOrHead, urlEqualTo("/x")), "GET_OR_HEAD"),
+        ]
+        for (builder, method) in cases {
+            XCTAssertEqual(try json(builder.willReturn(ok()).build()).objectValue?["request"]?.objectValue?["method"],
+                           .string(method), "verb \(method)")
+        }
+    }
+
+    func testUrlFormsEncodeCorrectKey() throws {
+        func req(_ b: MappingBuilder) throws -> [String: JSONValue]? {
+            try json(b.willReturn(ok()).build()).objectValue?["request"]?.objectValue
+        }
+        XCTAssertEqual(try req(get(urlEqualTo("/a")))?["url"], "/a")
+        XCTAssertEqual(try req(get(urlMatching("/a.*")))?["urlPattern"], "/a.*")
+        XCTAssertEqual(try req(get(urlPathEqualTo("/a")))?["urlPath"], "/a")
+        XCTAssertEqual(try req(get(urlPathMatching("/a.*")))?["urlPathPattern"], "/a.*")
+        XCTAssertEqual(try req(get(urlPathTemplate("/a/{id}")))?["urlPathTemplate"], "/a/{id}")
+    }
+
+    func testVerificationVerbsEncodeMethod() throws {
+        let cases: [(RequestPatternBuilder, String)] = [
+            (getRequestedFor(urlEqualTo("/x")), "GET"), (postRequestedFor(urlEqualTo("/x")), "POST"),
+            (putRequestedFor(urlEqualTo("/x")), "PUT"), (patchRequestedFor(urlEqualTo("/x")), "PATCH"),
+            (deleteRequestedFor(urlEqualTo("/x")), "DELETE"), (headRequestedFor(urlEqualTo("/x")), "HEAD"),
+            (optionsRequestedFor(urlEqualTo("/x")), "OPTIONS"), (anyRequestedFor(urlEqualTo("/x")), "ANY"),
+        ]
+        for (builder, method) in cases {
+            XCTAssertEqual(try json(builder.pattern).objectValue?["method"], .string(method), "verb \(method)")
+        }
+    }
+
+    func testResponseStatusHelpersEncode() throws {
+        let cases: [(ResponseDefinitionBuilder, Int)] = [
+            (created(), 201), (noContent(), 204), (badRequest(), 400), (badRequestEntity(), 422),
+            (unauthorized(), 401), (forbidden(), 403), (notFound(), 404),
+            (serverError(), 500), (serviceUnavailable(), 503),
+        ]
+        for (builder, status) in cases {
+            XCTAssertEqual(try json(builder.definition).objectValue?["status"], .int(status), "status \(status)")
+        }
+        let empty = try json(okForEmptyJson().definition).objectValue
+        XCTAssertEqual(empty?["status"], 200)
+        XCTAssertEqual(empty?["jsonBody"], .object([:]))
+        let typed = try json(okForContentType("text/csv", "a,b").definition).objectValue
+        XCTAssertEqual(typed?["status"], 200)
+        XCTAssertEqual(typed?["body"], "a,b")
+        XCTAssertEqual(typed?["headers"]?.objectValue?["Content-Type"], "text/csv")
+    }
+
+    func testMappingMetadataEncode() throws {
+        let id = UUID()
+        let mapping = try json(get(urlEqualTo("/x")).withId(id).withName("my-stub").persistent().willReturn(ok()).build()).objectValue
+        XCTAssertEqual(mapping?["id"], .string(id.uuidString))
+        XCTAssertEqual(mapping?["name"], "my-stub")
+        XCTAssertEqual(mapping?["persistent"], true)
+    }
+
+    func testWithoutParamsEncodeAbsent() throws {
+        let req = try json(get(urlEqualTo("/x")).withoutQueryParam("q").withoutFormParam("f").willReturn(ok()).build())
+            .objectValue?["request"]?.objectValue
+        XCTAssertEqual(req?["queryParameters"]?.objectValue?["q"], ["absent": true])
+        XCTAssertEqual(req?["formParameters"]?.objectValue?["f"], ["absent": true])
+    }
+
+    func testAndMatchingEncodesCustomMatcher() throws {
+        let req = try json(get(urlEqualTo("/x")).andMatching("path-matcher", parameters: ["k": 1]).willReturn(ok()).build())
+            .objectValue?["request"]?.objectValue
+        XCTAssertEqual(req?["customMatcher"], ["name": "path-matcher", "parameters": ["k": 1]])
+    }
+
+    func testWithPostServeActionEncodes() throws {
+        let mapping = try json(get(urlEqualTo("/x")).withPostServeAction("webhook", parameters: ["url": "http://cb"]).willReturn(ok()).build()).objectValue
+        let action = mapping?["postServeActions"]?.arrayValue?.first?.objectValue
+        XCTAssertEqual(action?["name"], "webhook")
+        XCTAssertEqual(action?["parameters"], ["url": "http://cb"])
+    }
+
+    func testDateTimeNowAndXPathAndMultiValueFreeFunctions() throws {
+        XCTAssertEqual(try json(beforeNow()), ["before": "now"])
+        XCTAssertEqual(try json(afterNow()), ["after": "now"])
+        XCTAssertEqual(try json(isNow()), ["equalToDateTime": "now"])
+        XCTAssertEqual(try json(matchingXPath("/a", equalTo("x"))), ["matchesXPath": ["expression": "/a", "equalTo": "x"]])
+        XCTAssertEqual(try json(hasExactly(equalTo("1"), equalTo("2"))), ["hasExactly": [["equalTo": "1"], ["equalTo": "2"]]])
+        XCTAssertEqual(try json(includes(equalTo("1"))), ["includes": [["equalTo": "1"]]])
+    }
+
+    func testLognormalMaxValueMultipartFileNameRecordFiltersEncode() throws {
+        XCTAssertEqual(try json(aResponse().withLogNormalRandomDelay(median: 90, sigma: 0.1, maxValue: 60).definition).objectValue?["delayDistribution"],
+                       ["type": "lognormal", "median": 90.0, "sigma": 0.1, "maxValue": 60.0])
+        let part = MultipartValuePattern(name: "file", fileName: "a.txt", bodyPatterns: [.containing("x")])
+        XCTAssertEqual(try json(part).objectValue?["fileName"], "a.txt")
+        let filters = RecordFilters(url: "/a", ids: ["id1"], allowNonProxied: true)
+        let encoded = try json(filters).objectValue
+        XCTAssertEqual(encoded?["url"], "/a")
+        XCTAssertEqual(encoded?["ids"], ["id1"])
+        XCTAssertEqual(encoded?["allowNonProxied"], true)
+    }
 }

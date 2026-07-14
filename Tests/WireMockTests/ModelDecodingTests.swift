@@ -171,4 +171,33 @@ final class ModelDecodingTests: XCTestCase {
         let distance = try XCTUnwrap(miss.matchResult?.distance)
         XCTAssertGreaterThan(distance, 0)
     }
+
+    // MARK: - Acceptance coverage: journal response/timing, multi-value cookie, diffs
+
+    func testLoggedRequestDecodesMultiValueCookie() throws {
+        // A cookie name may repeat → the server emits an array; single stays a string.
+        let raw = #"{"url":"/x","method":"GET","cookies":{"single":"a","multi":["x","y"]}}"#
+        let request = try decode(LoggedRequest.self, raw)
+        XCTAssertEqual(request.cookies?["single"], .single("a"))
+        XCTAssertEqual(request.cookies?["multi"], .multiple(["x", "y"]))
+    }
+
+    func testServeEventDecodesResponseAndTiming() throws {
+        let raw = #"{"request":{"url":"/x","method":"GET"},"response":{"status":201,"body":"hi","headers":{"X-A":"1"}},"timing":{"serveTime":5,"totalTime":7}}"#
+        let event = try decode(ServeEvent.self, raw)
+        XCTAssertEqual(event.response?.status, 201)
+        XCTAssertEqual(event.response?.body, "hi")
+        XCTAssertEqual(event.response?.headers?["X-A"], .single("1"))
+        XCTAssertEqual(event.timing?.serveTime, 5)
+        XCTAssertEqual(event.timing?.totalTime, 7)
+    }
+
+    func testMatchResultDecodesDiffDescriptions() throws {
+        let raw = #"{"distance":0.3,"diffDescriptions":[{"expected":"/a","actual":"/b","errorMessage":"URL does not match"}]}"#
+        let result = try decode(MatchResult.self, raw)
+        XCTAssertEqual(result.distance, 0.3)
+        XCTAssertEqual(result.diffDescriptions?.first?.expected, "/a")
+        XCTAssertEqual(result.diffDescriptions?.first?.actual, "/b")
+        XCTAssertEqual(result.diffDescriptions?.first?.errorMessage, "URL does not match")
+    }
 }
