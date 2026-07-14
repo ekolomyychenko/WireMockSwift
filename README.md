@@ -376,7 +376,13 @@ let wireMock = WireMock(baseURL: URL(string: "http://ci-host:8080")!,
 
 ## Использование в тестах
 
-Клиент в первую очередь `async`. Сбрасывайте состояние в каждом тесте для изоляции:
+Клиент в первую очередь `async` — каждый вызов идёт по сети к admin-API сервера. Сбрасывайте состояние
+в каждом тесте для изоляции (сбрасывайте **сервер** через `resetAll()`, а не клиент — всё состояние там).
+
+### Async (рекомендуется)
+
+XCTest нативно поддерживает `async`-тесты: пометьте метод (и `setUp`) как `async throws` и зовите через
+`try await`.
 
 ```swift
 final class CheckoutTests: XCTestCase {
@@ -392,12 +398,38 @@ final class CheckoutTests: XCTestCase {
 }
 ```
 
-Внутри синхронного тела теста используйте мост `WireMockSync.run` (блокирует с таймаутом; никогда не
-вызывайте его из `async`-контекста):
+> Если компилятор ругается `'async' call in a function that does not support concurrency` — значит
+> вызывающая функция не `async`. Добавьте `async` в её сигнатуру (`func testX() async throws`) и зовите
+> `try await wireMock.…` (`try` — потому что бросает, `await` — потому что `async`).
+
+### Синхронно (без `async`)
+
+Если вы застряли в **синхронном** контексте, который нельзя сделать `async` (например, обычный helper),
+используйте мост `WireMockSync.run` — он блокирует вызывающий поток с таймаутом, пока работа не завершится.
 
 ```swift
-let stub = try WireMockSync.run { try await wireMock.stubFor(get(anyUrl).willReturn(ok())) }
+final class CheckoutSyncTests: XCTestCase {
+    let wireMock = WireMock(baseURL: URL(string: "http://localhost:8080")!)
+
+    override func setUp() {
+        try! WireMockSync.run { try await wireMock.resetAll() }
+    }
+
+    func testCheckout() throws {                       // синхронный тест — без async
+        try WireMockSync.run {
+            try await wireMock.stubFor(get(urlEqualTo("/cart")).willReturn(okForJson(["items": 2])))
+        }
+        // ... прогоните приложение, затем ...
+        try WireMockSync.run {
+            try await wireMock.verify(getRequestedFor(urlEqualTo("/cart")))
+        }
+    }
+}
 ```
+
+> `WireMockSync.run` **блокирует** поток (по умолчанию таймаут 30 с) — **никогда** не вызывайте его из
+> `async`-контекста (там всегда `try await`). В XCTest предпочитайте async-вариант выше; `.run` — это
+> запасной путь для кода, который нельзя сделать `async`.
 
 ## Непрерывная интеграция
 
