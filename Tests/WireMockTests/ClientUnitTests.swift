@@ -10,15 +10,22 @@ import FoundationNetworking
 /// attached, the request-journal-disabled guard, and error-status surfacing.
 final class ClientUnitTests: XCTestCase {
 
+    private var session: URLSession?
+
     private func makeClient(authorization: AdminAuthorization? = nil) -> WireMock {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         let session = URLSession(configuration: config)
+        self.session = session
         return WireMock(baseURL: URL(string: "http://stub.local:8080")!,
                         authorization: authorization, session: session)
     }
 
     override func tearDown() {
+        // Deterministically tear the session down so no URLProtocol callback
+        // fires on a background thread after the test ends.
+        session?.invalidateAndCancel()
+        session = nil
         MockURLProtocol.reset()
         super.tearDown()
     }
@@ -117,28 +124,51 @@ final class ClientUnitTests: XCTestCase {
 }
 
 /// A `URLProtocol` that returns canned responses and records the last request.
+/// Static state is lock-guarded because `URLProtocol` callbacks run on the
+/// session's own queue, not the test thread.
 final class MockURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) -> (Int, String))?
-    nonisolated(unsafe) static var lastRequest: URLRequest?
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var _handler: (@Sendable (URLRequest) -> (Int, String))?
+    nonisolated(unsafe) private static var _lastRequest: URLRequest?
 
     static func respond(_ handler: @escaping @Sendable (URLRequest) -> (Int, String)) {
-        self.handler = handler
-        self.lastRequest = nil
+        lock.lock(); defer { lock.unlock() }
+        _handler = handler
+        _lastRequest = nil
     }
 
     static func reset() {
-        handler = nil
-        lastRequest = nil
+        lock.lock(); defer { lock.unlock() }
+        _handler = nil
+        _lastRequest = nil
+    }
+
+    static var lastRequest: URLRequest? {
+        lock.lock(); defer { lock.unlock() }
+        return _lastRequest
     }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        MockURLProtocol.lastRequest = request
-        let (status, body) = MockURLProtocol.handler?(request) ?? (500, "")
-        let response = HTTPURLResponse(url: request.url!, statusCode: status,
-                                       httpVersion: "HTTP/1.1", headerFields: nil)!
+        MockURLProtocol.lock.lock()
+        MockURLProtocol._lastRequest = request
+        let handler = MockURLProtocol._handler
+        MockURLProtocol.lock.unlock()
+
+        // If the session was torn down / handler cleared, fail the load cleanly
+        // instead of force-unwrapping on a background thread.
+        guard let url = request.url, let handler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
+            return
+        }
+        let (status, body) = handler(request)
+        guard let response = HTTPURLResponse(url: url, statusCode: status,
+                                             httpVersion: "HTTP/1.1", headerFields: nil) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(body.utf8))
         client?.urlProtocolDidFinishLoading(self)
