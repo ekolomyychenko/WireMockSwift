@@ -2,11 +2,7 @@ import Foundation
 
 // Additional matchers beyond the common string operators: date/time,
 // JSON-schema, and XML with options. Keys mirror the WireMock 3.13.2 contract.
-//
-// NOTE: numeric comparison matchers (equalToNumber/greaterThan/lessThan/…) are
-// intentionally NOT provided — they are a WireMock 4.0+ feature that the 3.13.2
-// server rejects with HTTP 422. On 3.x, compare numbers with a JSONPath
-// predicate instead: `matchingJsonPath("$[?(@.age > 5)]")`.
+// (Numeric comparison matchers are intentionally absent — see the note in Matchers.swift.)
 
 extension StringValuePattern {
 

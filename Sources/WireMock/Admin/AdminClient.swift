@@ -33,10 +33,6 @@ public enum WireMockError: Error, Sendable, CustomStringConvertible {
     }
 }
 
-/// Low-level async HTTP client for the WireMock admin API (`/__admin/**`).
-///
-/// Handles URL building, JSON encoding/decoding and status-code checking.
-/// Higher-level typed operations live on the `WireMock` facade.
 /// Credentials for a WireMock admin API secured with `--admin-api-basic-auth`
 /// (or a bearer/custom scheme). Applied as an `Authorization` header on every
 /// admin request.
@@ -68,6 +64,10 @@ public enum AdminAuthorization: Sendable, CustomStringConvertible {
     }
 }
 
+/// Low-level synchronous HTTP client for the WireMock admin API (`/__admin/**`).
+///
+/// Handles URL building, JSON encoding/decoding and status-code checking.
+/// Higher-level typed operations live on the `WireMock` facade.
 public struct AdminClient: Sendable, CustomStringConvertible {
     public let baseURL: URL
     private let session: URLSession
@@ -96,11 +96,7 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         self.authorization = authorization
     }
 
-    private static let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        return encoder
-    }()
-
+    private static let encoder = JSONEncoder()
     private static let decoder = JSONDecoder()
 
     /// Bodyless request to `/__admin/<path>`, returning the raw response body.

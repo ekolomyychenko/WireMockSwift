@@ -46,7 +46,7 @@ WireMock** (jar/Docker) через его REST Admin API (`/__admin/**`). Всё
                 ▼
 ┌──────────────────────────────────────────────────────────────┐
 │  Admin-транспорт  AdminClient   Sources/WireMock/Admin/*      │
-│  async/await поверх URLSession; сборка URL, статус-коды,      │
+│  синхронно поверх URLSession; сборка URL, статус-коды,        │
 │  типизированные ошибки (WireMockError)                        │
 └───────────────┬──────────────────────────────────────────────┘
                 │ HTTP → /__admin/**
@@ -83,9 +83,10 @@ scenarios, settings, recording, files, metadata, near-misses. Методы тр�
 вызовы `AdminClient`.
 
 ### Admin-транспорт (`Admin/AdminClient.swift`)
-Низкоуровневый `async/await`-клиент поверх `URLSession`: собирает `/__admin/<path>`, кодирует тело,
-проверяет статус, отдаёт типизированные `WireMockError`. Методы `send`/`get`/`sendData` —
-`internal` (наружу не торчат).
+Низкоуровневый **синхронный** клиент поверх `URLSession`: собирает `/__admin/<path>`, кодирует тело,
+проверяет статус, отдаёт типизированные `WireMockError`. Транспорт блокирует вызывающий поток на
+`DispatchSemaphore`, пока `URLSession.dataTask` не завершится на своей очереди (безопасно с главного
+потока — без дедлока). Методы `send`/`get`/`sendData` — `internal` (наружу не торчат).
 
 ## Поток данных (пример стаба)
 
@@ -123,10 +124,13 @@ Java-сервер регистрирует стаб; ответ декодиру
 
 ## Конкурентность
 
-- Основной API — `async/await`. `WireMock` и `AdminClient` — `Sendable` value-типы **без
-  изменяемого состояния** (всё состояние — на сервере), их можно свободно копировать между задачами.
-- Синхронный мост `WireMockSync.run { … }` — блокирует поток на `DispatchSemaphore`, пока работа
-  идёт в `Task` на пуле; при таймауте отменяет задачу. Нельзя звать из async-контекста.
+- Основной API — **синхронный** (как Java WireMock): каждый метод блокирует вызывающий поток.
+  `WireMock` и `AdminClient` — `Sendable` value-типы **без изменяемого состояния** (всё состояние —
+  на сервере), их можно свободно копировать между задачами.
+- Опциональный async-мост `wireMock.callAsync { try $0.stubFor(…) }` (`Sources/WireMock/Async.swift`) —
+  уводит блокирующий вызов на фоновую очередь через `withCheckedThrowingContinuation`, поэтому **не**
+  блокирует cooperative-поток Swift concurrency. Прямой синхронный вызов из async-контекста заблокировал
+  бы cooperative-поток — из async используйте `callAsync`; в обычных синхронных тестах он не нужен.
 - Сборка чистая под `-strict-concurrency=complete` (язык-режим Swift 6).
 
 ## Платформенные границы
@@ -167,6 +171,6 @@ Java-сервер регистрирует стаб; ответ декодиру
 ## Обработка ошибок
 
 - `WireMockError`: `.unexpectedStatus(code:body:)`, `.transport`, `.decodingFailed`,
-  `.invalidBaseURL`. Отмена (`CancellationError`/`URLError.cancelled`) сохраняется как отмена, а не
-  подменяется транспортной ошибкой.
+  `.invalidBaseURL`. Таймаут транспорта (safety-wait чуть больше request timeout) отменяет задачу и
+  бросается как `.transport`.
 - `VerificationError(expected:actual:)` — при несовпадении числа запросов в `verify`.
