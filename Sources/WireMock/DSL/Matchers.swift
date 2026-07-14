@@ -69,6 +69,11 @@ public func matchingXPath(_ expression: String, namespaces: [String: String] = [
     .matchingXPath(expression, namespaces: namespaces)
 }
 
+/// XPath with a nested sub-matcher applied to the extracted value.
+public func matchingXPath(_ expression: String, _ submatcher: StringValuePattern, namespaces: [String: String] = [:]) -> StringValuePattern {
+    .matchingXPath(expression, submatcher, namespaces: namespaces)
+}
+
 public func and(_ patterns: StringValuePattern...) -> StringValuePattern { .and(patterns) }
 public func or(_ patterns: StringValuePattern...) -> StringValuePattern { .or(patterns) }
 public func not(_ pattern: StringValuePattern) -> StringValuePattern { .not(pattern) }
@@ -96,6 +101,13 @@ public func includes(_ patterns: StringValuePattern...) -> StringValuePattern { 
 public func before(_ dateTime: String) -> StringValuePattern { .before(dateTime) }
 public func after(_ dateTime: String) -> StringValuePattern { .after(dateTime) }
 public func equalToDateTime(_ dateTime: String) -> StringValuePattern { .equalToDateTime(dateTime) }
+
+/// Matches a date/time before the current moment (`beforeNow()` in Java).
+public func beforeNow() -> StringValuePattern { .before("now") }
+/// Matches a date/time after the current moment (`afterNow()` in Java).
+public func afterNow() -> StringValuePattern { .after("now") }
+/// Matches a date/time equal to the current moment (`isNow()` in Java).
+public func isNow() -> StringValuePattern { .equalToDateTime("now") }
 
 // MARK: JSON schema
 

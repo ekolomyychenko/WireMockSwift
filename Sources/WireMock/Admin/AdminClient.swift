@@ -13,6 +13,9 @@ public enum WireMockError: Error, Sendable, CustomStringConvertible {
     case invalidBaseURL(String)
     /// A transport-level failure (connection refused, timeout, …).
     case transport(underlying: String)
+    /// A count/verify/find was attempted while the server's request journal is
+    /// disabled, so no request history is available.
+    case requestJournalDisabled
 
     public var description: String {
         switch self {
@@ -24,6 +27,8 @@ public enum WireMockError: Error, Sendable, CustomStringConvertible {
             return "Invalid WireMock base URL: \(url)"
         case .transport(let underlying):
             return "WireMock transport error: \(underlying)"
+        case .requestJournalDisabled:
+            return "The WireMock request journal is disabled; request counts/history are unavailable"
         }
     }
 }

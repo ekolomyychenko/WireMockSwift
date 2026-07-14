@@ -59,6 +59,11 @@ public struct MappingBuilder: Sendable {
         delegatingRequest { $0.withQueryParam(name, pattern) }
     }
 
+    /// Requires the query parameter to be absent.
+    public func withoutQueryParam(_ name: String) -> Self {
+        delegatingRequest { $0.withoutQueryParam(name) }
+    }
+
     public func withCookie(_ name: String, _ pattern: StringValuePattern) -> Self {
         delegatingRequest { $0.withCookie(name, pattern) }
     }
@@ -69,6 +74,11 @@ public struct MappingBuilder: Sendable {
 
     public func withFormParam(_ name: String, _ pattern: StringValuePattern) -> Self {
         delegatingRequest { $0.withFormParam(name, pattern) }
+    }
+
+    /// Requires the form parameter to be absent.
+    public func withoutFormParam(_ name: String) -> Self {
+        delegatingRequest { $0.withoutFormParam(name) }
     }
 
     public func withRequestBody(_ pattern: StringValuePattern) -> Self {

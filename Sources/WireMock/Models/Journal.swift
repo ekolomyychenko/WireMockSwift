@@ -13,7 +13,10 @@ public struct LoggedRequest: Codable, Sendable, Hashable {
     public var port: Int?
     public var clientIp: String?
     public var headers: [String: HeaderValue]?
-    public var cookies: [String: String]?
+    /// A cookie may carry one value or several (repeated `Cookie` entries),
+    /// so this reuses the string-or-array `HeaderValue` shape rather than a
+    /// plain `[String: String]`, which would fail to decode the array form.
+    public var cookies: [String: HeaderValue]?
     public var body: String?
     public var bodyAsBase64: String?
     public var loggedDate: Int?
@@ -31,18 +34,51 @@ public struct LoggedRequest: Codable, Sendable, Hashable {
     }
 }
 
+/// The response WireMock actually sent for a serve event (after rendering the
+/// `responseDefinition` — proxying, templating, etc. already applied).
+public struct LoggedResponse: Codable, Sendable, Hashable {
+    public var status: Int?
+    public var headers: [String: HeaderValue]?
+    public var body: String?
+    public var bodyAsBase64: String?
+    public var fault: Fault?
+}
+
+/// Per-request latency breakdown (milliseconds) attached to a serve event.
+public struct Timing: Codable, Sendable, Hashable {
+    public var addedDelay: Int?
+    public var processTime: Int?
+    public var responseSendTime: Int?
+    public var serveTime: Int?
+    public var totalTime: Int?
+}
+
 /// A single serve event: a request plus how WireMock handled it.
 public struct ServeEvent: Codable, Sendable, Hashable {
     public var id: UUID?
     public var request: LoggedRequest
     public var responseDefinition: ResponseDefinition?
+    /// The response actually sent (status/body/headers after rendering).
+    public var response: LoggedResponse?
     public var wasMatched: Bool?
     public var stubMapping: StubMapping?
+    /// Latency breakdown for this request.
+    public var timing: Timing?
+}
+
+/// One expected-vs-actual difference contributing to a near miss.
+public struct DiffDescription: Codable, Sendable, Hashable {
+    public var expected: String?
+    public var actual: String?
+    public var errorMessage: String?
 }
 
 /// How close an unmatched request came to a stub.
 public struct MatchResult: Codable, Sendable, Hashable {
     public var distance: Double?
+    /// Human-readable expected-vs-actual diffs — the most useful near-miss
+    /// diagnostic.
+    public var diffDescriptions: [DiffDescription]?
 }
 
 /// A "near miss" — a request that failed to match, with the closest stub and
@@ -58,10 +94,12 @@ public struct NearMiss: Codable, Sendable, Hashable {
 
 struct GetServeEventsResult: Decodable {
     let requests: [ServeEvent]
+    let requestJournalDisabled: Bool?
 }
 
 struct FindRequestsResult: Decodable {
     let requests: [LoggedRequest]
+    let requestJournalDisabled: Bool?
 }
 
 /// Envelope returned by `POST /__admin/requests/remove` (removed events).

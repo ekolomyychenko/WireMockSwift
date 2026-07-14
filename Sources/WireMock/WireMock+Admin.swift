@@ -13,6 +13,11 @@ extension WireMock {
         try await verify(.moreThanOrExactly(1), builder)
     }
 
+    /// Asserts exactly `count` requests matched (`verify(count, pattern)` in Java).
+    public func verify(_ count: Int, _ builder: RequestPatternBuilder) async throws {
+        try await verify(.exactly(count), builder)
+    }
+
     /// Asserts the matching-request count satisfies `strategy`.
     public func verify(_ strategy: CountMatchingStrategy, _ builder: RequestPatternBuilder) async throws {
         let actual = try await count(builder)
@@ -23,12 +28,16 @@ extension WireMock {
 
     /// Returns all journalled requests matching the builder.
     public func findAll(_ builder: RequestPatternBuilder) async throws -> [LoggedRequest] {
-        try await admin.send("POST", "requests/find", body: builder.pattern, as: FindRequestsResult.self).requests
+        let result = try await admin.send("POST", "requests/find", body: builder.pattern, as: FindRequestsResult.self)
+        if result.requestJournalDisabled == true { throw WireMockError.requestJournalDisabled }
+        return result.requests
     }
 
     /// All serve events in the journal (most recent first).
     public func getAllServeEvents() async throws -> [ServeEvent] {
-        try await admin.get("requests", as: GetServeEventsResult.self).requests
+        let result = try await admin.get("requests", as: GetServeEventsResult.self)
+        if result.requestJournalDisabled == true { throw WireMockError.requestJournalDisabled }
+        return result.requests
     }
 
     /// Serve events with server-side filtering (`limit`, `since`, unmatched-only).
@@ -37,7 +46,9 @@ extension WireMock {
         if let limit { query.append(URLQueryItem(name: "limit", value: String(limit))) }
         if let since { query.append(URLQueryItem(name: "since", value: since)) }
         if unmatchedOnly { query.append(URLQueryItem(name: "unmatched", value: "true")) }
-        return try await admin.get("requests", query: query, as: GetServeEventsResult.self).requests
+        let result = try await admin.get("requests", query: query, as: GetServeEventsResult.self)
+        if result.requestJournalDisabled == true { throw WireMockError.requestJournalDisabled }
+        return result.requests
     }
 
     /// A single serve event by id.

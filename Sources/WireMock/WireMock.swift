@@ -135,7 +135,11 @@ public struct WireMock: Sendable {
 
     /// Counts journalled requests matching the given pattern.
     public func countRequests(matching pattern: RequestPattern) async throws -> Int {
-        try await admin.send("POST", "requests/count", body: pattern, as: CountResult.self).count
+        let result = try await admin.send("POST", "requests/count", body: pattern, as: CountResult.self)
+        // The server returns count == -1 with this flag when the journal is off;
+        // surface a clear error rather than a bogus negative count.
+        if result.requestJournalDisabled == true { throw WireMockError.requestJournalDisabled }
+        return result.count
     }
 
     /// Convenience: count requests received for a method + exact URL.

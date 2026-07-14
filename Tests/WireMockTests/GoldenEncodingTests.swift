@@ -512,7 +512,10 @@ final class GoldenEncodingTests: XCTestCase {
             delay: .fixed(milliseconds: 100)
         ).asServeEventListener()
         let params = try XCTUnwrap(try json(webhook).objectValue?["parameters"]?.objectValue)
-        XCTAssertEqual(params["jsonBody"], ["ok": true])
+        // WireMock's webhook has no `jsonBody` param (it's ignored), so it is
+        // serialized into `body` as a JSON string; no `jsonBody` key is emitted.
+        XCTAssertNil(params["jsonBody"])
+        XCTAssertEqual(params["body"], #"{"ok":true}"#)
         XCTAssertEqual(params["headers"], ["Content-Type": "application/json"])
         XCTAssertEqual(params["delay"], ["type": "fixed", "milliseconds": 100])
     }
@@ -531,6 +534,8 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(decoded.objectValue?["delayDistribution"],
                        ["type": "lognormal", "median": 90.0, "sigma": 0.1])
         XCTAssertEqual(decoded.objectValue?["proxyPassThrough"], false)
-        XCTAssertEqual(decoded.objectValue?["custom"], ["nested": 1])
+        // `extended` nests under the server's `extended` key (not top-level),
+        // matching Java — a top-level key would be silently ignored.
+        XCTAssertEqual(decoded.objectValue?["extended"], ["custom": ["nested": 1]])
     }
 }

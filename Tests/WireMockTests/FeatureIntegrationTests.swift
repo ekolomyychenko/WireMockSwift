@@ -126,6 +126,34 @@ final class FeatureIntegrationTests: XCTestCase {
         XCTAssertEqual(received, 1, "webhook callback should have hit /receiver")
     }
 
+    func testWebhookJsonBodyDeliveredAsBody() async throws {
+        try await wireMock.stubFor(post(urlEqualTo("/receiver2")).willReturn(ok()))
+        try await wireMock.stubFor(
+            post(urlEqualTo("/fire2"))
+                .withWebhook(WebhookDefinition(
+                    method: .post,
+                    url: base.appendingPathComponent("receiver2").absoluteString,
+                    headers: ["Content-Type": "application/json"],
+                    jsonBody: ["ok": true]
+                ))
+                .willReturn(ok())
+        )
+        _ = try await WireMockFixture.hit("fire2", method: "POST")
+
+        // Poll for the async callback, then assert it carried the JSON body —
+        // proving jsonBody is serialized into `body` (WireMock ignores a raw
+        // `jsonBody` webhook param).
+        var body: String?
+        for _ in 0..<20 {
+            if let first = try await wireMock.findAll(postRequestedFor(urlEqualTo("/receiver2"))).first {
+                body = first.body
+                break
+            }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTAssertEqual(body, #"{"ok":true}"#, "webhook jsonBody must arrive as a JSON body")
+    }
+
     // MARK: Multi-value matcher
 
     func testHasExactlyQueryParam() async throws {

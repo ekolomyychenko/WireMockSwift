@@ -30,6 +30,11 @@ public struct RequestPatternBuilder: Sendable {
         mutating { $0.queryParameters = ($0.queryParameters ?? [:]).merging([name: matcher]) { _, new in new } }
     }
 
+    /// Requires the query parameter to be absent.
+    public func withoutQueryParam(_ name: String) -> Self {
+        withQueryParam(name, .absent)
+    }
+
     public func withCookie(_ name: String, _ matcher: StringValuePattern) -> Self {
         mutating { $0.cookies = ($0.cookies ?? [:]).merging([name: matcher]) { _, new in new } }
     }
@@ -48,6 +53,11 @@ public struct RequestPatternBuilder: Sendable {
 
     public func withFormParam(_ name: String, _ matcher: StringValuePattern) -> Self {
         mutating { $0.formParameters = ($0.formParameters ?? [:]).merging([name: matcher]) { _, new in new } }
+    }
+
+    /// Requires the form parameter to be absent.
+    public func withoutFormParam(_ name: String) -> Self {
+        withFormParam(name, .absent)
     }
 
     public func withMultipartRequestBody(_ part: MultipartValuePattern) -> Self {

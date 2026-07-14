@@ -84,6 +84,16 @@ public struct ResponseDefinitionBuilder: Sendable {
         }
     }
 
+    /// Merges several transformer parameters at once (`withTransformerParameters`
+    /// in Java).
+    public func withTransformerParameters(_ parameters: [String: JSONValue]) -> Self {
+        mutating {
+            var params = $0.transformerParameters ?? [:]
+            params.merge(parameters) { _, new in new }
+            $0.transformerParameters = params
+        }
+    }
+
     public func proxiedFrom(_ proxyBaseUrl: String) -> Self {
         mutating { $0.proxyBaseUrl = proxyBaseUrl }
     }

@@ -306,7 +306,7 @@ try await wireMock.importMappings([stub1, stub2])
 
 // Settings:
 try await wireMock.updateGlobalSettings(GlobalSettings(fixedDelay: 100))
-let settings = try await wireMock.getGlobalSettings()   // lossless: unknown keys preserved in .extended
+let settings = try await wireMock.getGlobalSettings()   // extension settings live in .extended (nested `extended` key)
 let health = try await wireMock.getHealth()
 ```
 

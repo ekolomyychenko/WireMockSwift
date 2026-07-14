@@ -74,9 +74,16 @@ public struct WebhookDefinition: Sendable {
         if !headers.isEmpty {
             parameters["headers"] = .object(headers.mapValues { .string($0) })
         }
-        if let body { parameters["body"] = .string(body) }
+        if let body {
+            parameters["body"] = .string(body)
+        } else if let jsonBody,
+                  let data = try? JSONEncoder().encode(jsonBody),
+                  let string = String(data: data, encoding: .utf8) {
+            // WireMock's webhook listener has no `jsonBody` parameter (it is
+            // silently ignored), so serialise it into `body` to actually send it.
+            parameters["body"] = .string(string)
+        }
         if let base64Body { parameters["base64Body"] = .string(base64Body) }
-        if let jsonBody { parameters["jsonBody"] = jsonBody }
         if let delay { parameters["delay"] = delay.asJSON }
         return ServeEventListenerDefinition(name: "webhook", parameters: parameters)
     }

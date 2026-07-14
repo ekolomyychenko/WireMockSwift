@@ -205,10 +205,16 @@ final class FacadeIntegrationTests: XCTestCase {
     }
 
     func testGlobalSettingsExtendedKeysPreserved() async throws {
-        // The live server always returns proxyPassThrough and may include other
-        // keys; getGlobalSettings must not drop them. proxyPassThrough is typed.
-        let settings = try await wireMock.getGlobalSettings()
-        XCTAssertNotNil(settings.proxyPassThrough,
-                        "proxyPassThrough must be captured, not dropped")
+        // proxyPassThrough is always returned and typed — must not be dropped.
+        let base = try await wireMock.getGlobalSettings()
+        XCTAssertNotNil(base.proxyPassThrough, "proxyPassThrough must be captured, not dropped")
+
+        // `extended` must round-trip through the server: it is sent under the
+        // nested `extended` key (a top-level key would be silently ignored).
+        try await wireMock.updateGlobalSettings(GlobalSettings(extended: ["custom": .int(7)]))
+        let readBack = try await wireMock.getGlobalSettings()
+        XCTAssertEqual(readBack.extended?["custom"], .int(7),
+                       "extended settings must survive a POST→GET round-trip")
+        try await wireMock.updateGlobalSettings(GlobalSettings(fixedDelay: 0))
     }
 }
