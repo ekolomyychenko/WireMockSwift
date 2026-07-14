@@ -174,6 +174,19 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertGreaterThan(distance, 0)
     }
 
+    func testLiveServeEventCarriesSubEventsForUnmatched() throws {
+        // End-to-end proof (not just hardcoded-JSON decode): the real 3.13.2
+        // server attaches a REQUEST_NOT_MATCHED subEvent to an unmatched serve
+        // event, and getAllServeEvents() decodes it.
+        let wireMock = try WireMockFixture.clientOrSkip()
+        _ = try WireMockFixture.hit("totally-unmatched-xyz")
+        let events = try wireMock.getAllServeEvents()
+        let unmatched = try XCTUnwrap(events.first { $0.request.url == "/totally-unmatched-xyz" })
+        let sub = try XCTUnwrap(unmatched.subEvents?.first, "server should attach a subEvent to an unmatched event")
+        XCTAssertEqual(sub.type, "REQUEST_NOT_MATCHED")
+        XCTAssertNotNil(sub.data, "the subEvent should carry a diff/report payload")
+    }
+
     // MARK: - Acceptance coverage: journal response/timing, multi-value cookie, diffs
 
     func testLoggedRequestDecodesMultiValueCookie() throws {

@@ -30,6 +30,27 @@ final class ClientUnitTests: XCTestCase {
         super.tearDown()
     }
 
+    // MARK: - Failable scheme/host/port initializer
+
+    func testInitSchemeHostPortBuildsExpectedBaseURL() throws {
+        let client = try XCTUnwrap(WireMock(scheme: "https", host: "example.com", port: 9000))
+        XCTAssertEqual(client.admin.baseURL.absoluteString, "https://example.com:9000")
+    }
+
+    func testInitReturnsNilForMalformedHost() {
+        // A host with a space can't form a valid URL, so the failable init must
+        // return nil rather than trap (host/port often come from config/env).
+        XCTAssertNil(WireMock(scheme: "http", host: "bad host", port: 8080))
+    }
+
+    // MARK: - listFiles decodes both the bare-array and {files:[...]} shapes
+
+    func testListFilesDecodesWrapperObjectShape() throws {
+        MockURLProtocol.respond { _ in (200, #"{"files":["a.json","b.json"]}"#) }
+        let client = makeClient()
+        XCTAssertEqual(try client.listFiles(), ["a.json", "b.json"])
+    }
+
     // MARK: - Authorization header attachment
 
     func testBasicAuthorizationHeaderIsAttached() throws {

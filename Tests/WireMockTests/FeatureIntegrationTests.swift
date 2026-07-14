@@ -58,6 +58,23 @@ final class FeatureIntegrationTests: XCTestCase {
         }
     }
 
+    func testProxyRemoveRequestHeaderStripsHeader() throws {
+        // Upstream matches only when X-Drop is ABSENT; the gateway proxies with
+        // withRemoveRequestHeader("X-Drop"). A request that HAS X-Drop must still
+        // match upstream — proving the header was stripped from the proxied call.
+        try wireMock.stubFor(get(urlEqualTo("/up-rm")).withoutHeader("X-Drop").willReturn(ok("stripped")))
+        try wireMock.stubFor(
+            any(urlPathMatching("/gwrm/.*")).willReturn(
+                aResponse().proxiedFrom(base.absoluteString)
+                    .withProxyUrlPrefixToRemove("/gwrm")
+                    .withRemoveRequestHeader("X-Drop")
+            )
+        )
+        let (data, response) = try WireMockFixture.hit("gwrm/up-rm", headers: ["X-Drop": "please-remove"])
+        XCTAssertEqual(response.statusCode, 200, "the proxied request should have X-Drop stripped and match upstream")
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), "stripped")
+    }
+
     func testProxyHeaderInjection() throws {
         // Upstream only matches when the injected header is present.
         try wireMock.stubFor(

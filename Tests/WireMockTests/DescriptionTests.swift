@@ -21,6 +21,8 @@ final class DescriptionTests: XCTestCase {
     func testHTTPMethodDescription() {
         XCTAssertEqual(HTTPMethod.get.description, "GET")
         XCTAssertEqual(HTTPMethod("REPORT").description, "REPORT")
+        // The RawRepresentable init (distinct from the string-literal one).
+        XCTAssertEqual(HTTPMethod(rawValue: "PATCH").rawValue, "PATCH")
         XCTAssertEqual("\(HTTPMethod.getOrHead)", "GET_OR_HEAD")
     }
 
@@ -140,5 +142,67 @@ final class DescriptionTests: XCTestCase {
         XCTAssertTrue(builder.description.hasPrefix("{"), builder.description)
         // The builder's description equals its built mapping's JSON.
         XCTAssertEqual(builder.description, builder.build().description)
+    }
+
+    // MARK: - Raw-value enum descriptions (bare wire value)
+
+    func testRawValueEnumDescriptions() {
+        XCTAssertEqual(MultipartValuePattern.MatchingType.all.description, "ALL")
+        XCTAssertEqual(MultipartValuePattern.MatchingType.any.description, "ANY")
+        XCTAssertEqual(StringValuePattern.JSONSchemaVersion.v202012.description, "V202012")
+        XCTAssertEqual(StringValuePattern.JSONSchemaVersion.v4.description, "V4")
+        XCTAssertEqual(StringValuePattern.NamespaceAwareness.strict.description, "STRICT")
+        XCTAssertEqual(StringValuePattern.NamespaceAwareness.off.description, "NONE")
+        XCTAssertEqual(StringValuePattern.NamespaceAwareness.legacy.description, "LEGACY")
+        XCTAssertEqual(WireMock.DuplicatePolicy.overwrite.description, "OVERWRITE")
+        XCTAssertEqual(WireMock.DuplicatePolicy.ignore.description, "IGNORE")
+    }
+
+    // MARK: - Error / client descriptions (exact, secrets masked)
+
+    func testWireMockErrorDescriptions() {
+        XCTAssertEqual(WireMockError.unexpectedStatus(code: 422, body: "nope").description,
+                       "WireMock returned HTTP 422: nope")
+        XCTAssertEqual(WireMockError.decodingFailed(underlying: "boom").description,
+                       "Failed to decode WireMock response: boom")
+        XCTAssertEqual(WireMockError.invalidBaseURL("weird://").description,
+                       "Invalid WireMock base URL: weird://")
+        XCTAssertEqual(WireMockError.transport(underlying: "refused").description,
+                       "WireMock transport error: refused")
+        XCTAssertEqual(WireMockError.requestJournalDisabled.description,
+                       "The WireMock request journal is disabled; request counts/history are unavailable")
+    }
+
+    func testVerificationErrorDescription() {
+        XCTAssertEqual(VerificationError(expected: "exactly 2", actual: 3).description,
+                       "Expected exactly 2 matching request(s) but found 3")
+    }
+
+    func testAdminClientDescriptionShowsBaseURLNotSecrets() {
+        let admin = AdminClient(baseURL: URL(string: "http://host:8080")!,
+                                authorization: .bearer(token: "s3cr3t"))
+        XCTAssertEqual(admin.description, "AdminClient(baseURL: http://host:8080, authorized: true)")
+        XCTAssertFalse(admin.description.contains("s3cr3t"), "token must not leak")
+    }
+
+    // MARK: - Builder descriptions render the built model's JSON (faithful round-trip)
+
+    func testRequestPatternBuilderDescriptionIsPatternJSON() throws {
+        let builder = getRequestedFor(urlEqualTo("/x")).withHeader("H", equalTo("v"))
+        XCTAssertTrue(builder.description.hasPrefix("{"))
+        XCTAssertEqual(try WireMockFixture.decode(RequestPattern.self, builder.description), builder.pattern)
+    }
+
+    func testResponseDefinitionBuilderDescriptionIsDefinitionJSON() throws {
+        let builder = ok("hi").withHeader("X-A", "y").withFixedDelay(50)
+        XCTAssertTrue(builder.description.hasPrefix("{"))
+        XCTAssertEqual(try WireMockFixture.decode(ResponseDefinition.self, builder.description), builder.definition)
+    }
+
+    func testWebhookDefinitionDescriptionIsListenerJSON() throws {
+        let webhook = WebhookDefinition(method: .post, url: "http://cb", body: "ping")
+        XCTAssertTrue(webhook.description.contains("\"webhook\""))
+        XCTAssertEqual(try WireMockFixture.decode(ServeEventListenerDefinition.self, webhook.description),
+                       webhook.asServeEventListener())
     }
 }

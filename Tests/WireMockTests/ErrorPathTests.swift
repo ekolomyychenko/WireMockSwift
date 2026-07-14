@@ -32,6 +32,15 @@ final class ErrorPathTests: XCTestCase {
         }
     }
 
+    func testEqualToJsonRawWithInvalidJSONThrows() {
+        // The raw-string escape hatch validates JSON up front (no server needed).
+        XCTAssertThrowsError(try StringValuePattern.equalToJson(raw: "{not valid")) { error in
+            guard case WireMockError.decodingFailed = error else {
+                return XCTFail("expected .decodingFailed, got \(error)")
+            }
+        }
+    }
+
     // MARK: Unmatched request -> 404
 
     func testUnmatchedRequestReturns404() throws {

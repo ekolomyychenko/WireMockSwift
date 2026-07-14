@@ -483,6 +483,28 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(decoded.objectValue?["transformerParameters"], ["greeting": "hi", "count": 3])
     }
 
+    func testWithTransformerSetsNameAndParameter() throws {
+        // The 3-arg withTransformer sets the single transformer AND one param.
+        let response = aResponse().withStatus(200).withTransformer("response-template", "greeting", "hi")
+        let decoded = try json(response.definition)
+        XCTAssertEqual(decoded.objectValue?["transformers"], ["response-template"])
+        XCTAssertEqual(decoded.objectValue?["transformerParameters"], ["greeting": "hi"])
+    }
+
+    func testWithTransformerParametersBulkMerges() throws {
+        let response = aResponse().withStatus(200)
+            .withTransformerParameter("a", 1)
+            .withTransformerParameters(["b": 2, "c": 3])
+        XCTAssertEqual(try json(response.definition).objectValue?["transformerParameters"],
+                       ["a": 1, "b": 2, "c": 3])
+    }
+
+    func testExtractBodyCriteriaEncodes() throws {
+        let criteria = ExtractBodyCriteria(textSizeThreshold: "100", binarySizeThreshold: "1 kb")
+        XCTAssertEqual(try json(criteria),
+                       ["textSizeThreshold": "100", "binarySizeThreshold": "1 kb"])
+    }
+
     func testBodyFileEncodes() throws {
         let response = aResponse().withStatus(200).withBodyFile("greeting.json")
         XCTAssertEqual(try json(response.definition), ["status": 200, "bodyFileName": "greeting.json"])

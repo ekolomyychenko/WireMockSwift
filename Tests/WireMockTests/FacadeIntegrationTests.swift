@@ -341,4 +341,34 @@ final class FacadeIntegrationTests: XCTestCase {
         XCTAssertEqual(http.statusCode, 201)
         XCTAssertEqual(String(decoding: data, as: UTF8.self), "hi")
     }
+
+    // MARK: Priority resolution (behaviour, not shape)
+
+    func testPriorityResolvesToHigherPriorityStub() throws {
+        // Two overlapping stubs; in WireMock the LOWER priority number wins.
+        try wireMock.stubFor(any(urlPathMatching("/prio.*")).atPriority(5).willReturn(ok("LOW")))
+        try wireMock.stubFor(get(urlEqualTo("/prio")).atPriority(1).willReturn(ok("HIGH")))
+        let (data, _) = try WireMockFixture.hit("prio")
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), "HIGH",
+                       "the higher-priority (lower-number) stub must win the overlap")
+    }
+
+    // MARK: Read-path fidelity (register → GET back → features survive decode)
+
+    func testRichStubRoundTripsThroughGetStubMapping() throws {
+        // Golden covers the WRITE shape; this proves the READ path decodes rich
+        // features back intact — a decoder that dropped one on read would pass
+        // every served-response test but fail here.
+        let created = try wireMock.stubFor(
+            post(urlPathEqualTo("/rich"))
+                .withRequestBody(matchingJsonPath("$.id"))
+                .willReturn(ok("body").withFixedDelay(50).withTransformers("response-template"))
+        )
+        let id = try XCTUnwrap(created.id)
+        let fetched = try wireMock.getStubMapping(id: id)
+        XCTAssertEqual(fetched.request.bodyPatterns?.first?.fields["matchesJsonPath"], "$.id",
+                       "request-side body matcher must survive store→read")
+        XCTAssertEqual(fetched.response.fixedDelayMilliseconds, 50, "response delay must survive store→read")
+        XCTAssertEqual(fetched.response.transformers, ["response-template"], "transformer must survive store→read")
+    }
 }

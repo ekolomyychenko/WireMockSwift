@@ -59,6 +59,20 @@ final class MatcherIntegrationTests: XCTestCase {
                    "wrong value must not match")
     }
 
+    func testEqualToJsonBothFlagsTogether() throws {
+        // Each flag is tested in isolation above; prove they compose — a body
+        // that is BOTH reordered AND has an extra key matches only when both are on.
+        try wireMock.stubFor(
+            post(urlEqualTo("/both"))
+                .withRequestBody(equalToJson(["items": [1, 2, 3]], ignoreArrayOrder: true, ignoreExtraElements: true))
+                .willReturn(ok())
+        )
+        WireMockFixture.assertMatch(try WireMockFixture.hit("both", method: "POST", headers: jsonHeaders,
+            body: Data(#"{"items":[3,1,2],"extra":true}"#.utf8)), "reordered array + extra key should match")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("both", method: "POST", headers: jsonHeaders,
+            body: Data(#"{"items":[9,9]}"#.utf8)), "a genuinely different value must still miss")
+    }
+
     // MARK: caseInsensitive / equalToIgnoreCase
 
     func testEqualToIgnoreCaseHeader() throws {

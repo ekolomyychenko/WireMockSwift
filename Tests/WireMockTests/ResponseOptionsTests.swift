@@ -102,6 +102,20 @@ final class ResponseOptionsTests: XCTestCase {
             "body should be spread across time (span \(span)s of ~400ms) — a fixed delay would span ~0")
     }
 
+    // MARK: withHeaders REPLACE semantics — observed on the wire
+
+    func testWithHeadersReplacesOnTheWire() throws {
+        // withHeaders reassigns the whole set (Java semantics): a header set by a
+        // prior withHeader must NOT survive. Observe over a raw socket.
+        try wireMock.stubFor(
+            get(urlEqualTo("/rh")).willReturn(ok().withHeader("X-Keep", "1").withHeaders(["X-New": "2"]))
+        )
+        let new = try RawHTTP.headerValues("X-New", path: "/rh", host: host, port: port)
+        let keep = try RawHTTP.headerValues("X-Keep", path: "/rh", host: host, port: port)
+        XCTAssertEqual(new, ["2"], "the replaced header must be served")
+        XCTAssertTrue(keep.isEmpty, "withHeaders replaces the set — X-Keep must be gone, got \(keep)")
+    }
+
     // MARK: withTransformerParameter (consumed by response-template)
 
     func testTransformerParameter() throws {

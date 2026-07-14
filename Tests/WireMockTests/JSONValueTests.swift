@@ -39,6 +39,10 @@ final class JSONValueTests: XCTestCase {
     func testStringAndParsingAccessors() throws {
         XCTAssertEqual(JSONValue.string("hi").stringValue, "hi")
         XCTAssertNil(JSONValue.int(1).stringValue)
+        // Wrong-case accessors return nil (not a trap).
+        XCTAssertNil(JSONValue.int(1).arrayValue)
+        XCTAssertNil(JSONValue.int(1).objectValue)
+        XCTAssertEqual(([1, 2] as JSONValue).arrayValue?.count, 2)
         XCTAssertEqual(JSONValue(parsing: #"{"a":1}"#)?.objectValue?["a"], .int(1))
         XCTAssertNil(JSONValue(parsing: "{not json"))
     }
