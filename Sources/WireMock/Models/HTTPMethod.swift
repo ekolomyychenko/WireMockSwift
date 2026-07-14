@@ -32,6 +32,8 @@ public struct HTTPMethod: RawRepresentable, Codable, Sendable, Hashable, Express
     public static let head: Self = "HEAD"
     public static let options: Self = "OPTIONS"
     public static let trace: Self = "TRACE"
+    /// Matches a GET or a HEAD request (WireMock's `GET_OR_HEAD`).
+    public static let getOrHead: Self = "GET_OR_HEAD"
     /// Matches requests of any method.
     public static let any: Self = "ANY"
 }

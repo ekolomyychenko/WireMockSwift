@@ -200,6 +200,30 @@ final class AdminIntegrationTests: XCTestCase {
         XCTAssertEqual(String(data: data, encoding: .utf8), "yes")
     }
 
+    func testImportWithDeleteAllNotInImport() async throws {
+        try await wireMock.stubFor(get(urlEqualTo("/old")).willReturn(ok()))
+        // Importing with deleteAllNotInImport must drop the pre-existing /old stub.
+        try await wireMock.importMappings(
+            [get(urlEqualTo("/new")).willReturn(ok("new")).build()],
+            duplicatePolicy: .overwrite,
+            deleteAllNotInImport: true
+        )
+        let newStatus = try await WireMockFixture.hit("new").1.statusCode
+        let oldStatus = try await WireMockFixture.hit("old").1.statusCode
+        XCTAssertEqual(newStatus, 200)
+        XCTAssertEqual(oldStatus, 404, "deleteAllNotInImport should remove /old")
+    }
+
+    func testRemoveStubByPattern() async throws {
+        try await wireMock.stubFor(get(urlEqualTo("/byebye")).willReturn(ok()))
+        let before = try await WireMockFixture.hit("byebye").1.statusCode
+        XCTAssertEqual(before, 200)
+        // Remove it by re-describing the stub, without knowing its id.
+        try await wireMock.removeStub(get(urlEqualTo("/byebye")).willReturn(ok()))
+        let after = try await WireMockFixture.hit("byebye").1.statusCode
+        XCTAssertEqual(after, 404)
+    }
+
     func testRawRegister() async throws {
         try await wireMock.register(raw: #"""
         { "request": { "method": "GET", "url": "/raw" },

@@ -79,6 +79,13 @@ public struct RequestPatternBuilder: Sendable {
     public func withClientIp(_ matcher: StringValuePattern) -> Self {
         mutating { $0.clientIp = matcher }
     }
+
+    /// Matches with a named server-side custom matcher extension
+    /// (`andMatching(name, parameters)` in Java). The matcher must be registered
+    /// on the WireMock server.
+    public func andMatching(_ name: String, parameters: [String: JSONValue]? = nil) -> Self {
+        mutating { $0.customMatcher = CustomMatcherDefinition(name: name, parameters: parameters) }
+    }
 }
 
 public func getRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .get, url: url) }

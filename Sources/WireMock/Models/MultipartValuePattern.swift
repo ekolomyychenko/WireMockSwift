@@ -11,17 +11,21 @@ public struct MultipartValuePattern: Codable, Sendable, Hashable {
     }
 
     public var name: String?
+    /// Matches the part's `filename` (from its `Content-Disposition`).
+    public var fileName: String?
     public var matchingType: MatchingType?
     public var headers: [String: StringValuePattern]?
     public var bodyPatterns: [StringValuePattern]?
 
     public init(
         name: String? = nil,
+        fileName: String? = nil,
         matchingType: MatchingType? = nil,
         headers: [String: StringValuePattern]? = nil,
         bodyPatterns: [StringValuePattern]? = nil
     ) {
         self.name = name
+        self.fileName = fileName
         self.matchingType = matchingType
         self.headers = headers
         self.bodyPatterns = bodyPatterns

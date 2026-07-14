@@ -21,7 +21,7 @@ public struct ServeEventListenerDefinition: Codable, Sendable, Hashable {
 public struct WebhookDefinition: Sendable {
     public var method: HTTPMethod
     public var url: String
-    public var headers: [String: String]
+    public var headers: [String: HeaderValue]
     public var body: String?
     public var base64Body: String?
     public var jsonBody: JSONValue?
@@ -50,7 +50,7 @@ public struct WebhookDefinition: Sendable {
     public init(
         method: HTTPMethod,
         url: String,
-        headers: [String: String] = [:],
+        headers: [String: HeaderValue] = [:],
         body: String? = nil,
         base64Body: String? = nil,
         jsonBody: JSONValue? = nil,
@@ -72,7 +72,12 @@ public struct WebhookDefinition: Sendable {
             "url": .string(url),
         ]
         if !headers.isEmpty {
-            parameters["headers"] = .object(headers.mapValues { .string($0) })
+            parameters["headers"] = .object(headers.mapValues { value in
+                switch value {
+                case .single(let string): return .string(string)
+                case .multiple(let strings): return .array(strings.map { .string($0) })
+                }
+            })
         }
         if let body {
             parameters["body"] = .string(body)

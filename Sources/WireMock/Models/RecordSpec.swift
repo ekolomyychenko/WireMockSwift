@@ -11,22 +11,43 @@ public struct ExtractBodyCriteria: Codable, Sendable, Hashable {
     }
 }
 
-/// Filters limiting which requests are recorded.
+/// Filters limiting which requests are recorded/snapshotted. Java unwraps a full
+/// `RequestPattern` here (plus `ids` and `allowNonProxied`), so all the URL/query
+/// forms are available, not just `urlPathPattern`.
 public struct RecordFilters: Codable, Sendable, Hashable {
+    public var url: String?
+    public var urlPattern: String?
+    public var urlPath: String?
     public var urlPathPattern: String?
+    public var urlPathTemplate: String?
     public var method: HTTPMethod?
     public var headers: [String: StringValuePattern]?
+    public var queryParameters: [String: StringValuePattern]?
+    /// Select specific serve events by id (snapshot only).
+    public var ids: [String]?
     public var allowNonProxied: Bool?
 
     public init(
+        url: String? = nil,
+        urlPattern: String? = nil,
+        urlPath: String? = nil,
         urlPathPattern: String? = nil,
+        urlPathTemplate: String? = nil,
         method: HTTPMethod? = nil,
         headers: [String: StringValuePattern]? = nil,
+        queryParameters: [String: StringValuePattern]? = nil,
+        ids: [String]? = nil,
         allowNonProxied: Bool? = nil
     ) {
+        self.url = url
+        self.urlPattern = urlPattern
+        self.urlPath = urlPath
         self.urlPathPattern = urlPathPattern
+        self.urlPathTemplate = urlPathTemplate
         self.method = method
         self.headers = headers
+        self.queryParameters = queryParameters
+        self.ids = ids
         self.allowNonProxied = allowNonProxied
     }
 }

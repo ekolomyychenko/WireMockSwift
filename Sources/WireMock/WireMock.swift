@@ -109,6 +109,12 @@ public struct WireMock: Sendable {
         try await admin.send("DELETE", "mappings/\(id.uuidString)")
     }
 
+    /// Removes the stub matching the given builder (`POST /mappings/remove`),
+    /// without needing to know its id (`removeStub(MappingBuilder)` in Java).
+    public func removeStub(_ builder: MappingBuilder) async throws {
+        try await admin.send("POST", "mappings/remove", body: builder.build())
+    }
+
     /// Deletes all stub mappings.
     public func removeAllMappings() async throws {
         try await admin.send("DELETE", "mappings")

@@ -30,14 +30,15 @@ public enum HeaderValue: Codable, Sendable, Hashable, ExpressibleByStringLiteral
 
 /// Random delay distribution applied to a response.
 public enum DelayDistribution: Codable, Sendable, Hashable {
-    case lognormal(median: Double, sigma: Double)
+    /// `maxValue` optionally caps the sampled delay (milliseconds).
+    case lognormal(median: Double, sigma: Double, maxValue: Double? = nil)
     case uniform(lower: Int, upper: Int)
     /// Any distribution type this library doesn't model yet, preserved verbatim
     /// so decoding a newer server's settings never fails.
     case other(JSONValue)
 
     private enum CodingKeys: String, CodingKey {
-        case type, median, sigma, lower, upper
+        case type, median, sigma, lower, upper, maxValue
     }
 
     public init(from decoder: Decoder) throws {
@@ -49,7 +50,8 @@ public enum DelayDistribution: Codable, Sendable, Hashable {
         case "lognormal":
             self = .lognormal(
                 median: try container.decode(Double.self, forKey: .median),
-                sigma: try container.decode(Double.self, forKey: .sigma)
+                sigma: try container.decode(Double.self, forKey: .sigma),
+                maxValue: try container.decodeIfPresent(Double.self, forKey: .maxValue)
             )
         case "uniform":
             self = .uniform(
@@ -64,11 +66,12 @@ public enum DelayDistribution: Codable, Sendable, Hashable {
 
     public func encode(to encoder: Encoder) throws {
         switch self {
-        case .lognormal(let median, let sigma):
+        case .lognormal(let median, let sigma, let maxValue):
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode("lognormal", forKey: .type)
             try container.encode(median, forKey: .median)
             try container.encode(sigma, forKey: .sigma)
+            try container.encodeIfPresent(maxValue, forKey: .maxValue)
         case .uniform(let lower, let upper):
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode("uniform", forKey: .type)

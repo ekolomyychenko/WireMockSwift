@@ -100,8 +100,8 @@ final class ModelDecodingTests: XCTestCase {
             XCTAssertEqual(lower, 5); XCTAssertEqual(upper, 9)
         } else { XCTFail("expected uniform") }
 
-        if case .lognormal(let median, let sigma) = try decode(DelayDistribution.self, #"{"type":"lognormal","median":90,"sigma":0.1}"#) {
-            XCTAssertEqual(median, 90); XCTAssertEqual(sigma, 0.1)
+        if case .lognormal(let median, let sigma, let maxValue) = try decode(DelayDistribution.self, #"{"type":"lognormal","median":90,"sigma":0.1}"#) {
+            XCTAssertEqual(median, 90); XCTAssertEqual(sigma, 0.1); XCTAssertNil(maxValue)
         } else { XCTFail("expected lognormal") }
 
         // An unknown type must be preserved, not throw.

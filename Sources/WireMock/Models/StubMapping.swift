@@ -17,6 +17,9 @@ public struct StubMapping: Codable, Sendable, Hashable {
     public var metadata: [String: JSONValue]?
     public var persistent: Bool?
     public var serveEventListeners: [ServeEventListenerDefinition]?
+    /// Legacy post-serve actions (superseded by `serveEventListeners`). Modelled
+    /// so a fetched mapping that carries them round-trips losslessly.
+    public var postServeActions: [ServeEventListenerDefinition]?
 
     public init(
         id: UUID? = nil,
@@ -29,7 +32,8 @@ public struct StubMapping: Codable, Sendable, Hashable {
         response: ResponseDefinition = ResponseDefinition(),
         metadata: [String: JSONValue]? = nil,
         persistent: Bool? = nil,
-        serveEventListeners: [ServeEventListenerDefinition]? = nil
+        serveEventListeners: [ServeEventListenerDefinition]? = nil,
+        postServeActions: [ServeEventListenerDefinition]? = nil
     ) {
         self.id = id
         self.name = name
@@ -42,5 +46,6 @@ public struct StubMapping: Codable, Sendable, Hashable {
         self.metadata = metadata
         self.persistent = persistent
         self.serveEventListeners = serveEventListeners
+        self.postServeActions = postServeActions
     }
 }

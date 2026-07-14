@@ -138,6 +138,11 @@ extension WireMock {
         try await updateGlobalSettings(GlobalSettings(fixedDelay: milliseconds))
     }
 
+    /// Applies a random delay distribution to every response server-wide.
+    public func setGlobalRandomDelay(_ distribution: DelayDistribution) async throws {
+        try await updateGlobalSettings(GlobalSettings(delayDistribution: distribution))
+    }
+
     /// Reads the current global settings. `GET /__admin/settings` wraps the
     /// object under a `settings` key; this unwraps it for you.
     public func getGlobalSettings() async throws -> GlobalSettings {
@@ -263,10 +268,30 @@ extension WireMock {
         try await admin.send("POST", "mappings/remove-by-metadata", body: matcher)
     }
 
+    /// How `importMappings` treats a mapping whose id already exists.
+    public enum DuplicatePolicy: String, Sendable {
+        case overwrite = "OVERWRITE"
+        case ignore = "IGNORE"
+    }
+
     /// Registers many stub mappings in one call.
-    public func importMappings(_ mappings: [StubMapping]) async throws {
-        struct ImportBody: Encodable { let mappings: [StubMapping] }
-        try await admin.send("POST", "mappings/import", body: ImportBody(mappings: mappings))
+    ///
+    /// - Parameters:
+    ///   - duplicatePolicy: whether an imported mapping overwrites or is ignored
+    ///     when its id already exists (server default: overwrite).
+    ///   - deleteAllNotInImport: if `true`, remove existing stubs absent from
+    ///     this import.
+    public func importMappings(
+        _ mappings: [StubMapping],
+        duplicatePolicy: DuplicatePolicy? = nil,
+        deleteAllNotInImport: Bool? = nil
+    ) async throws {
+        struct ImportOptions: Encodable { let duplicatePolicy: String?; let deleteAllNotInImport: Bool? }
+        struct ImportBody: Encodable { let mappings: [StubMapping]; let importOptions: ImportOptions? }
+        let options = (duplicatePolicy != nil || deleteAllNotInImport != nil)
+            ? ImportOptions(duplicatePolicy: duplicatePolicy?.rawValue, deleteAllNotInImport: deleteAllNotInImport)
+            : nil
+        try await admin.send("POST", "mappings/import", body: ImportBody(mappings: mappings, importOptions: options))
     }
 }
 

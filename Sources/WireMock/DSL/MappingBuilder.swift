@@ -110,6 +110,11 @@ public struct MappingBuilder: Sendable {
         delegatingRequest { $0.withClientIp(pattern) }
     }
 
+    /// Matches with a named server-side custom matcher extension (`andMatching`).
+    public func andMatching(_ name: String, parameters: [String: JSONValue]? = nil) -> Self {
+        delegatingRequest { $0.andMatching(name, parameters: parameters) }
+    }
+
     // MARK: Serve-event listeners
 
     /// Attaches a serve-event listener that fires when this stub is matched.
@@ -125,6 +130,15 @@ public struct MappingBuilder: Sendable {
     /// Convenience for the built-in `webhook` listener.
     public func withWebhook(_ webhook: WebhookDefinition) -> Self {
         withServeEventListener(webhook.asServeEventListener())
+    }
+
+    /// Attaches a legacy post-serve action (superseded by serve-event listeners).
+    public func withPostServeAction(_ name: String, parameters: [String: JSONValue]? = nil) -> Self {
+        mutating {
+            var actions = $0.postServeActions ?? []
+            actions.append(ServeEventListenerDefinition(name: name, parameters: parameters))
+            $0.postServeActions = actions
+        }
     }
 
     // MARK: Mapping metadata

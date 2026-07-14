@@ -11,6 +11,19 @@ public struct BasicAuthCredentials: Codable, Sendable, Hashable {
     }
 }
 
+/// Names a server-side custom request-matcher extension and its parameters
+/// (`{ "name": …, "parameters": {…} }`). The named matcher must be registered
+/// on the WireMock server.
+public struct CustomMatcherDefinition: Codable, Sendable, Hashable {
+    public var name: String
+    public var parameters: [String: JSONValue]?
+
+    public init(name: String, parameters: [String: JSONValue]? = nil) {
+        self.name = name
+        self.parameters = parameters
+    }
+}
+
 /// The `request` half of a stub mapping — the criteria a request must satisfy.
 ///
 /// Mirrors WireMock's `RequestPattern` JSON. Exactly one URL form is normally
@@ -34,6 +47,8 @@ public struct RequestPattern: Codable, Sendable, Hashable {
     public var port: Int?
     public var scheme: String?
     public var clientIp: StringValuePattern?
+    /// A named server-side custom matcher extension (`andMatching`).
+    public var customMatcher: CustomMatcherDefinition?
 
     public init(
         method: HTTPMethod? = nil,
@@ -53,7 +68,8 @@ public struct RequestPattern: Codable, Sendable, Hashable {
         host: StringValuePattern? = nil,
         port: Int? = nil,
         scheme: String? = nil,
-        clientIp: StringValuePattern? = nil
+        clientIp: StringValuePattern? = nil,
+        customMatcher: CustomMatcherDefinition? = nil
     ) {
         self.method = method
         self.url = url
@@ -73,5 +89,6 @@ public struct RequestPattern: Codable, Sendable, Hashable {
         self.port = port
         self.scheme = scheme
         self.clientIp = clientIp
+        self.customMatcher = customMatcher
     }
 }

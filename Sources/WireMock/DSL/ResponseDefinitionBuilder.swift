@@ -56,8 +56,8 @@ public struct ResponseDefinitionBuilder: Sendable {
         mutating { $0.fixedDelayMilliseconds = milliseconds }
     }
 
-    public func withLogNormalRandomDelay(median: Double, sigma: Double) -> Self {
-        mutating { $0.delayDistribution = .lognormal(median: median, sigma: sigma) }
+    public func withLogNormalRandomDelay(median: Double, sigma: Double, maxValue: Double? = nil) -> Self {
+        mutating { $0.delayDistribution = .lognormal(median: median, sigma: sigma, maxValue: maxValue) }
     }
 
     public func withUniformRandomDelay(lower: Int, upper: Int) -> Self {
@@ -74,6 +74,17 @@ public struct ResponseDefinitionBuilder: Sendable {
 
     public func withTransformers(_ transformers: String...) -> Self {
         mutating { $0.transformers = transformers }
+    }
+
+    /// Sets a single transformer plus one of its parameters (`withTransformer`
+    /// in Java).
+    public func withTransformer(_ name: String, _ parameterKey: String, _ parameterValue: JSONValue) -> Self {
+        mutating {
+            $0.transformers = [name]
+            var params = $0.transformerParameters ?? [:]
+            params[parameterKey] = parameterValue
+            $0.transformerParameters = params
+        }
     }
 
     public func withTransformerParameter(_ name: String, _ value: JSONValue) -> Self {
@@ -139,6 +150,11 @@ public func okForJson(_ json: JSONValue) -> ResponseDefinitionBuilder {
         .withJsonBody(json)
 }
 
+/// 200 with an empty JSON object body (`okForEmptyJson()` in Java).
+public func okForEmptyJson() -> ResponseDefinitionBuilder {
+    okForJson([:])
+}
+
 public func okForContentType(_ contentType: String, _ body: String) -> ResponseDefinitionBuilder {
     aResponse().withStatus(200).withHeader("Content-Type", HeaderValue.single(contentType)).withBody(body)
 }
@@ -167,6 +183,8 @@ public func seeOther(to location: String) -> ResponseDefinitionBuilder {
 public func created() -> ResponseDefinitionBuilder { aResponse().withStatus(201) }
 public func noContent() -> ResponseDefinitionBuilder { aResponse().withStatus(204) }
 public func badRequest() -> ResponseDefinitionBuilder { aResponse().withStatus(400) }
+/// 422 Unprocessable Entity (`badRequestEntity()` in Java).
+public func badRequestEntity() -> ResponseDefinitionBuilder { aResponse().withStatus(422) }
 public func unauthorized() -> ResponseDefinitionBuilder { aResponse().withStatus(401) }
 public func forbidden() -> ResponseDefinitionBuilder { aResponse().withStatus(403) }
 public func notFound() -> ResponseDefinitionBuilder { aResponse().withStatus(404) }
