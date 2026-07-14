@@ -53,6 +53,15 @@ public struct Timing: Codable, Sendable, Hashable {
     public var totalTime: Int?
 }
 
+/// A diagnostic sub-event attached to a serve event or match result (e.g. a
+/// `REQUEST_NOT_MATCHED` diff report). Mirrors WireMock's `SubEvent`; `data` is
+/// free-form JSON (the server puts a diff/near-miss report here).
+public struct SubEvent: Codable, Sendable, Hashable {
+    public var type: String?
+    public var timeOffsetNanos: Int?
+    public var data: JSONValue?
+}
+
 /// A single serve event: a request plus how WireMock handled it.
 public struct ServeEvent: Codable, Sendable, Hashable {
     public var id: UUID?
@@ -64,6 +73,9 @@ public struct ServeEvent: Codable, Sendable, Hashable {
     public var stubMapping: StubMapping?
     /// Latency breakdown for this request.
     public var timing: Timing?
+    /// Diagnostic sub-events the server attaches (e.g. the `REQUEST_NOT_MATCHED`
+    /// diff report on an unmatched request).
+    public var subEvents: [SubEvent]?
 }
 
 /// One expected-vs-actual difference contributing to a near miss.
@@ -79,6 +91,8 @@ public struct MatchResult: Codable, Sendable, Hashable {
     /// Human-readable expected-vs-actual diffs — the most useful near-miss
     /// diagnostic.
     public var diffDescriptions: [DiffDescription]?
+    /// Diagnostic sub-events the server attaches to the match result.
+    public var subEvents: [SubEvent]?
 }
 
 /// A "near miss" — a request that failed to match, with the closest stub and

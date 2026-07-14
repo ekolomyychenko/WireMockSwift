@@ -90,9 +90,14 @@ public struct RecordSpec: Codable, Sendable, Hashable {
     }
 }
 
-/// Result of stopping a recording or taking a snapshot.
+/// Result of stopping a recording or taking a snapshot. The server returns
+/// exactly one shape: `{"mappings":[...]}` normally, or `{"ids":[...]}` when the
+/// spec requests `outputFormat = "ids"`.
 public struct SnapshotResult: Codable, Sendable, Hashable {
     public var mappings: [StubMapping]?
+    /// Populated instead of `mappings` when the snapshot was taken with
+    /// `outputFormat = "ids"`.
+    public var ids: [String]?
 }
 
 /// Current recorder state.

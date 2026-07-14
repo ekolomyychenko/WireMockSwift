@@ -200,4 +200,49 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(result.diffDescriptions?.first?.actual, "/b")
         XCTAssertEqual(result.diffDescriptions?.first?.errorMessage, "URL does not match")
     }
+
+    // MARK: - SubEvents (the diagnostic diff report the 3.13.2 server attaches)
+
+    func testServeEventDecodesSubEvents() throws {
+        // Shape the live server emits on an unmatched request (GET /__admin/requests).
+        let raw = #"""
+        {
+          "request": { "url": "/x", "method": "GET" },
+          "wasMatched": false,
+          "subEvents": [
+            { "type": "REQUEST_NOT_MATCHED", "timeOffsetNanos": 169333,
+              "data": { "status": 404, "contentType": "text/plain", "report": "Request was not matched" } }
+          ]
+        }
+        """#
+        let event = try decode(ServeEvent.self, raw)
+        let sub = try XCTUnwrap(event.subEvents?.first)
+        XCTAssertEqual(sub.type, "REQUEST_NOT_MATCHED")
+        XCTAssertEqual(sub.timeOffsetNanos, 169333)
+        XCTAssertEqual(sub.data?.objectValue?["status"], 404)
+        XCTAssertEqual(sub.data?.objectValue?["report"], "Request was not matched")
+    }
+
+    func testMatchResultDecodesSubEvents() throws {
+        let raw = #"{"distance":0.2,"diffDescriptions":[],"subEvents":[{"type":"REQUEST_NOT_MATCHED","data":{"report":"x"}}]}"#
+        let result = try decode(MatchResult.self, raw)
+        XCTAssertEqual(result.distance, 0.2)
+        XCTAssertEqual(result.subEvents?.first?.type, "REQUEST_NOT_MATCHED")
+        XCTAssertEqual(result.subEvents?.first?.data?.objectValue?["report"], "x")
+    }
+
+    // MARK: - SnapshotResult (mappings vs ids output formats)
+
+    func testSnapshotResultDecodesMappingsAndIds() throws {
+        // Default output: a mappings array.
+        let mappingsForm = try decode(SnapshotResult.self, #"{"mappings":[{"request":{"url":"/a","method":"GET"},"response":{"status":200}}]}"#)
+        XCTAssertEqual(mappingsForm.mappings?.count, 1)
+        XCTAssertNil(mappingsForm.ids)
+
+        // outputFormat="ids": an ids array instead (previously silently dropped).
+        let idsForm = try decode(SnapshotResult.self, #"{"ids":["11111111-1111-1111-1111-111111111111","22222222-2222-2222-2222-222222222222"]}"#)
+        XCTAssertEqual(idsForm.ids?.count, 2)
+        XCTAssertEqual(idsForm.ids?.first, "11111111-1111-1111-1111-111111111111")
+        XCTAssertNil(idsForm.mappings)
+    }
 }

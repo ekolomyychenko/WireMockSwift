@@ -33,7 +33,9 @@ public struct WebhookDefinition: Sendable {
     public enum Delay: Sendable, Hashable {
         case fixed(milliseconds: Int)
         case uniform(lower: Int, upper: Int)
-        case lognormal(median: Double, sigma: Double)
+        /// `maxValue` optionally caps the sampled delay (milliseconds), matching
+        /// the `LogNormal` distribution's optional `maxValue` field.
+        case lognormal(median: Double, sigma: Double, maxValue: Double? = nil)
 
         var asJSON: JSONValue {
             switch self {
@@ -41,8 +43,10 @@ public struct WebhookDefinition: Sendable {
                 return ["type": "fixed", "milliseconds": .int(milliseconds)]
             case let .uniform(lower, upper):
                 return ["type": "uniform", "lower": .int(lower), "upper": .int(upper)]
-            case let .lognormal(median, sigma):
-                return ["type": "lognormal", "median": .double(median), "sigma": .double(sigma)]
+            case let .lognormal(median, sigma, maxValue):
+                var fields: [String: JSONValue] = ["type": "lognormal", "median": .double(median), "sigma": .double(sigma)]
+                if let maxValue { fields["maxValue"] = .double(maxValue) }
+                return .object(fields)
             }
         }
     }

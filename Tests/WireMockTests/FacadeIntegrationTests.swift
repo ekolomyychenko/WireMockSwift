@@ -86,6 +86,36 @@ final class FacadeIntegrationTests: XCTestCase {
         XCTAssertFalse(remaining.contains { $0.id == id }, "serve event should be removed")
     }
 
+    func testGetServeEventsFilteredByMatchingStub() throws {
+        let stubA = try wireMock.stubFor(get(urlEqualTo("/mstub-a")).willReturn(ok()))
+        try wireMock.stubFor(get(urlEqualTo("/mstub-b")).willReturn(ok()))
+        let idA = try XCTUnwrap(stubA.id)
+        _ = try WireMockFixture.hit("mstub-a")
+        _ = try WireMockFixture.hit("mstub-b")
+
+        // matchingStub filters the journal to events served by that stub only.
+        let filtered = try wireMock.getServeEvents(matchingStub: idA)
+        XCTAssertFalse(filtered.isEmpty)
+        XCTAssertTrue(filtered.allSatisfy { $0.request.url == "/mstub-a" },
+                      "matchingStub should return only events matched by stub A")
+        // Sanity: unfiltered sees both.
+        XCTAssertTrue(try wireMock.getAllServeEvents().contains { $0.request.url == "/mstub-b" })
+    }
+
+    // MARK: Snapshot ids output format
+
+    func testTakeSnapshotIdsReturnsGeneratedIds() throws {
+        // Only proxied requests are snapshotted; proxy to a dead path so the
+        // forwarded request is recorded (and loop-broken) without a real backend.
+        let deadTarget = WireMockFixture.baseURL.absoluteString + "/nowhere"
+        try wireMock.stubFor(get(urlEqualTo("/viaproxy")).willReturn(aResponse().proxiedFrom(deadTarget)))
+        _ = try WireMockFixture.hit("viaproxy")
+
+        let ids = try wireMock.takeSnapshotIds()
+        XCTAssertFalse(ids.isEmpty, "outputFormat=ids should return the generated stub ids")
+        XCTAssertTrue(ids.allSatisfy { UUID(uuidString: $0) != nil }, "each id should be a UUID")
+    }
+
     // MARK: Near misses
 
     func testFindNearMissesForRequest() throws {

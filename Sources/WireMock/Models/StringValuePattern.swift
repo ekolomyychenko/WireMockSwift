@@ -99,10 +99,10 @@ extension StringValuePattern {
 
     /// Matches any value (WireMock's `anything()` / `AnythingPattern`).
     public static var anything: Self {
-        // `(always)` is the canonical operand the Java DSL emits; the value is
-        // ignored by the server but keeps Swift- and Java-authored mappings
-        // byte-identical when diffed.
-        .init(["anything": "(always)"])
+        // `AnythingPattern.getAnything()` serialises the literal "anything"
+        // (the internal "(always)" default operand is never written to the
+        // wire), so this matches what a Java-authored mapping round-trips to.
+        .init(["anything": "anything"])
     }
 
     public static func equalToJson(

@@ -170,6 +170,31 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(params["delay"], ["type": "uniform", "lower": 5, "upper": 9])
     }
 
+    func testWebhookLogNormalDelayEncodesMaxValueOnlyWhenSet() throws {
+        // Without maxValue: the key is omitted (preserves prior behaviour).
+        let plain = WebhookDefinition(method: .post, url: "http://x", delay: .lognormal(median: 90, sigma: 0.1))
+            .asServeEventListener()
+        XCTAssertEqual(try json(plain).objectValue?["parameters"]?.objectValue?["delay"],
+                       ["type": "lognormal", "median": 90.0, "sigma": 0.1])
+
+        // With maxValue: it caps the sampled delay, matching LogNormal.maxValue.
+        let capped = WebhookDefinition(method: .post, url: "http://x", delay: .lognormal(median: 90, sigma: 0.1, maxValue: 300))
+            .asServeEventListener()
+        XCTAssertEqual(try json(capped).objectValue?["parameters"]?.objectValue?["delay"],
+                       ["type": "lognormal", "median": 90.0, "sigma": 0.1, "maxValue": 300.0])
+    }
+
+    func testWithHeadersReplacesRatherThanMerges() throws {
+        // Java's withHeaders(HttpHeaders) reassigns the whole list, so a header
+        // set by a prior withHeader is discarded — not merged.
+        let response = aResponse()
+            .withHeader("X-Keep", "1")
+            .withHeaders(["X-New": "2"])
+        let headers = try XCTUnwrap(try json(response.definition).objectValue?["headers"]?.objectValue)
+        XCTAssertEqual(headers, ["X-New": "2"])
+        XCTAssertNil(headers["X-Keep"])
+    }
+
     /// String literal shorthand for a request matcher equals `.equalTo`.
     func testStringLiteralMatcher() throws {
         let stub = get(urlEqualTo("/x")).withHeader("Accept", "application/json").willReturn(ok()).build()
@@ -193,7 +218,9 @@ final class GoldenEncodingTests: XCTestCase {
     }
 
     func testAnythingAndRedirectEncode() throws {
-        XCTAssertEqual(try json(StringValuePattern.anything), ["anything": "(always)"])
+        // AnythingPattern serialises the literal "anything" (what Java emits),
+        // not the internal "(always)" default operand.
+        XCTAssertEqual(try json(StringValuePattern.anything), ["anything": "anything"])
         let redirect = temporaryRedirect(to: "/new")
         XCTAssertEqual(try json(redirect.definition), ["status": 302, "headers": ["Location": "/new"]])
         XCTAssertEqual(try json(jsonResponse(["ok": true], status: 201).definition),
@@ -583,7 +610,8 @@ final class GoldenEncodingTests: XCTestCase {
         let resp = try XCTUnwrap(try json(stub).objectValue?["response"]?.objectValue)
         XCTAssertEqual(resp["proxyBaseUrl"], "http://backend")
         XCTAssertEqual(resp["additionalProxyRequestHeaders"], ["X-One": "a", "X-Multi": ["a", "b"]])
-        XCTAssertEqual(resp["removeProxyRequestHeaders"], ["X-Drop"])
+        // Java lower-cases the removed header name (key.toLowerCase()).
+        XCTAssertEqual(resp["removeProxyRequestHeaders"], ["x-drop"])
         XCTAssertEqual(resp["proxyUrlPrefixToRemove"], "/prefix")
     }
 

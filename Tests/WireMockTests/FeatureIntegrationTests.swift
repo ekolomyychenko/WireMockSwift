@@ -126,6 +126,27 @@ final class FeatureIntegrationTests: XCTestCase {
         XCTAssertEqual(received, 1, "webhook callback should have hit /receiver")
     }
 
+    func testWebhookLogNormalMaxValueAccepted() throws {
+        // The server must accept a webhook whose lognormal delay carries maxValue,
+        // and round-trip the field back on the stored mapping.
+        let created = try wireMock.stubFor(
+            post(urlEqualTo("/fire-capped"))
+                .withWebhook(WebhookDefinition(
+                    method: .post,
+                    url: base.appendingPathComponent("receiver").absoluteString,
+                    body: "ping",
+                    delay: .lognormal(median: 100, sigma: 0.1, maxValue: 300)
+                ))
+                .willReturn(ok())
+        )
+        let id = try XCTUnwrap(created.id)
+        let fetched = try wireMock.getStubMapping(id: id)
+        let listener = try XCTUnwrap(fetched.serveEventListeners?.first)
+        let delay = try XCTUnwrap(listener.parameters?["delay"]?.objectValue)
+        XCTAssertEqual(delay["maxValue"], 300)
+        XCTAssertEqual(delay["type"], "lognormal")
+    }
+
     func testWebhookJsonBodyDeliveredAsBody() throws {
         try wireMock.stubFor(post(urlEqualTo("/receiver2")).willReturn(ok()))
         try wireMock.stubFor(

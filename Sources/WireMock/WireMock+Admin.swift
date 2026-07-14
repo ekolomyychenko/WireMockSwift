@@ -40,12 +40,19 @@ extension WireMock {
         return result.requests
     }
 
-    /// Serve events with server-side filtering (`limit`, `since`, unmatched-only).
-    public func getServeEvents(limit: Int? = nil, since: String? = nil, unmatchedOnly: Bool = false) throws -> [ServeEvent] {
+    /// Serve events with server-side filtering (`limit`, `since`, unmatched-only,
+    /// or by the stub mapping that matched them).
+    public func getServeEvents(
+        limit: Int? = nil,
+        since: String? = nil,
+        unmatchedOnly: Bool = false,
+        matchingStub: UUID? = nil
+    ) throws -> [ServeEvent] {
         var query: [URLQueryItem] = []
         if let limit { query.append(URLQueryItem(name: "limit", value: String(limit))) }
         if let since { query.append(URLQueryItem(name: "since", value: since)) }
         if unmatchedOnly { query.append(URLQueryItem(name: "unmatched", value: "true")) }
+        if let matchingStub { query.append(URLQueryItem(name: "matchingStub", value: matchingStub.uuidString)) }
         let result = try admin.get("requests", query: query, as: GetServeEventsResult.self)
         if result.requestJournalDisabled == true { throw WireMockError.requestJournalDisabled }
         return result.requests
@@ -210,6 +217,15 @@ extension WireMock {
     @discardableResult
     public func takeSnapshot(_ spec: RecordSpec = RecordSpec()) throws -> [StubMapping] {
         try admin.send("POST", "recordings/snapshot", body: spec, as: SnapshotResult.self).mappings ?? []
+    }
+
+    /// Like `takeSnapshot`, but requests `outputFormat = "ids"` and returns the
+    /// generated stub-mapping ids instead of the full mappings.
+    @discardableResult
+    public func takeSnapshotIds(_ spec: RecordSpec = RecordSpec()) throws -> [String] {
+        var spec = spec
+        spec.outputFormat = "ids"
+        return try admin.send("POST", "recordings/snapshot", body: spec, as: SnapshotResult.self).ids ?? []
     }
 }
 

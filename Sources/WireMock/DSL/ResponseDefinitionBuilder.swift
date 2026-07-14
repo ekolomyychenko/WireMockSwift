@@ -54,8 +54,11 @@ public struct ResponseDefinitionBuilder: Sendable {
         }
     }
 
+    /// Replaces the entire response header set (Java `withHeaders(HttpHeaders)`
+    /// reassigns the list, discarding anything set by a prior `withHeader`). Use
+    /// `withHeader` to add to the set incrementally.
     public func withHeaders(_ headers: [String: HeaderValue]) -> Self {
-        mutating { $0.headers = ($0.headers ?? [:]).merging(headers) { _, new in new } }
+        mutating { $0.headers = headers }
     }
 
     public func withFixedDelay(_ milliseconds: Int) -> Self {
@@ -154,8 +157,10 @@ public struct ProxyResponseDefinitionBuilder: Sendable {
     }
 
     /// Removes a header from the proxied request (Java: `withRemoveRequestHeader`).
+    /// The name is lower-cased to match Java, which normalises it with
+    /// `key.toLowerCase()` before adding it to the list.
     public func withRemoveRequestHeader(_ name: String) -> Self {
-        mutating { $0.removeProxyRequestHeaders = ($0.removeProxyRequestHeaders ?? []) + [name] }
+        mutating { $0.removeProxyRequestHeaders = ($0.removeProxyRequestHeaders ?? []) + [name.lowercased()] }
     }
 
     /// Strips a leading path prefix before proxying.
