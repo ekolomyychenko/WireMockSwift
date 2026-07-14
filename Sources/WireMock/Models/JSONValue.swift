@@ -75,14 +75,20 @@ public enum JSONValue: Codable, Hashable, Sendable {
             self = .bool(value)
         } else if let value = try? container.decode(Int.self) {
             self = .int(value)
-        } else if let value = try? container.decode(Decimal.self) {
-            // Precision-preserving: `Decimal` reads the raw number token rather
-            // than routing through `Double`, so >Int64 ints and long decimals
-            // survive. `Double` remains only for values outside `Decimal`'s
-            // range (e.g. a huge exponent).
-            self = .decimal(value)
-        } else if let value = try? container.decode(Double.self) {
-            self = .double(value)
+        } else if let dbl = try? container.decode(Double.self) {
+            // Confirmed numeric (a non-number would have failed the Double
+            // decode). Prefer a precision-preserving `Decimal` — it reads the raw
+            // number token rather than routing through `Double`, so >Int64 ints
+            // and long decimals survive. `Decimal` is attempted only *after*
+            // Double succeeds: decoding `Decimal` from a non-number value traps
+            // (rather than throwing cleanly) on the older Darwin Foundation, so
+            // it must never be tried on a string/bool/array/object. Fall back to
+            // `.double` for numbers outside `Decimal`'s range (e.g. `1e128`).
+            if let dec = try? container.decode(Decimal.self) {
+                self = .decimal(dec)
+            } else {
+                self = .double(dbl)
+            }
         } else if let value = try? container.decode(String.self) {
             self = .string(value)
         } else if let value = try? container.decode([JSONValue].self) {

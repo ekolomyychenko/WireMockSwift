@@ -10,14 +10,6 @@ import FoundationNetworking
 /// attached, the request-journal-disabled guard, and error-status surfacing.
 final class ClientUnitTests: XCTestCase {
 
-    // TEMPORARY: skip the whole class to confirm whether the URLProtocol-based
-    // mock session is the source of the CI-only (macOS 14 / Swift 6.0) signal-5
-    // process crash. If CI goes green with this, the client-layer unit tests get
-    // reworked to not rely on async URLSession + a custom URLProtocol.
-    override func setUpWithError() throws {
-        throw XCTSkip("temporarily disabled to isolate a CI-only signal-5 crash")
-    }
-
     private var session: URLSession?
 
     private func makeClient(authorization: AdminAuthorization? = nil) -> WireMock {
