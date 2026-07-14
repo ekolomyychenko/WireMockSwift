@@ -12,7 +12,7 @@
 - ✅ Полный набор матчеров запросов, все опции ответов, сбои и задержки, сценарии, проксирование,
   запись/воспроизведение, верификация, near-misses, настройки, файлы, метаданные и вебхуки
 - ✅ Покрывает всю задокументированную поверхность Admin API `/__admin`
-- ✅ `async/await`, `Sendable` при строгой конкурентности Swift 6, macOS + Linux + iOS
+- ✅ Синхронный API (как Java WireMock) + `callAsync` для `async`-контекста; `Sendable` под строгой конкурентностью Swift 6; macOS + Linux + iOS
 - ✅ Тестовые наборы golden-JSON + live-server; запасной выход через сырой JSON для всего немоделированного
 
 > **Статус:** ранняя разработка (0.x), первый релиз — `0.1.0`. API ещё может меняться.
@@ -77,16 +77,16 @@ import WireMock
 
 let wireMock = WireMock(baseURL: URL(string: "http://localhost:8080")!)
 
-try await wireMock.stubFor(
+try wireMock.stubFor(
     get(urlEqualTo("/hello"))
         .willReturn(okForJson(["message": "world"]))
 )
 
 // ... ваш тестируемый код обращается к http://localhost:8080/hello ...
 
-try await wireMock.verify(getRequestedFor(urlEqualTo("/hello")))
+try wireMock.verify(getRequestedFor(urlEqualTo("/hello")))
 
-try await wireMock.resetAll()   // чистое состояние между тестами
+try wireMock.resetAll()   // чистое состояние между тестами
 ```
 
 ## Запуск сервера WireMock
@@ -126,7 +126,7 @@ docker run --rm -p 8080:8080 wiremock/wiremock:3.13.2
 Стабы строятся выразительным DSL со значимыми типами, повторяющим Java `MappingBuilder` из WireMock:
 
 ```swift
-try await wireMock.stubFor(
+try wireMock.stubFor(
     post(urlPathEqualTo("/things"))
         .withHeader("Content-Type", equalTo("application/json"))
         .withQueryParam("verbose", equalTo("true"))
@@ -213,22 +213,22 @@ aResponse()
 
 ```swift
 // Хотя бы раз:
-try await wireMock.verify(postRequestedFor(urlEqualTo("/things")))
+try wireMock.verify(postRequestedFor(urlEqualTo("/things")))
 
 // Точные / относительные счётчики — бросает VerificationError, если не выполнено:
-try await wireMock.verify(.exactly(3), getRequestedFor(urlEqualTo("/ping")))
-try await wireMock.verify(.moreThanOrExactly(1), getRequestedFor(urlEqualTo("/ping")))
-try await wireMock.verify(.lessThan(5), getRequestedFor(urlEqualTo("/ping")))
+try wireMock.verify(.exactly(3), getRequestedFor(urlEqualTo("/ping")))
+try wireMock.verify(.moreThanOrExactly(1), getRequestedFor(urlEqualTo("/ping")))
+try wireMock.verify(.lessThan(5), getRequestedFor(urlEqualTo("/ping")))
 
 // Запросы к журналу:
-let count   = try await wireMock.count(getRequestedFor(urlEqualTo("/ping")))
-let matched = try await wireMock.findAll(postRequestedFor(urlEqualTo("/things")))
-let events  = try await wireMock.getAllServeEvents()
-let unmatched = try await wireMock.getUnmatchedRequests()
-let nearMisses = try await wireMock.findNearMissesForAllUnmatched()
+let count   = try wireMock.count(getRequestedFor(urlEqualTo("/ping")))
+let matched = try wireMock.findAll(postRequestedFor(urlEqualTo("/things")))
+let events  = try wireMock.getAllServeEvents()
+let unmatched = try wireMock.getUnmatchedRequests()
+let nearMisses = try wireMock.findNearMissesForAllUnmatched()
 
-try await wireMock.resetRequests()                                   // очистить журнал
-try await wireMock.removeServeEvents(matching: getRequestedFor(urlEqualTo("/ping")))
+try wireMock.resetRequests()                                   // очистить журнал
+try wireMock.removeServeEvents(matching: getRequestedFor(urlEqualTo("/ping")))
 ```
 
 `RequestPatternBuilder` поддерживает те же критерии, что и создание стабов (`withHeader`, `withoutHeader`,
@@ -237,27 +237,27 @@ try await wireMock.removeServeEvents(matching: getRequestedFor(urlEqualTo("/ping
 ## Сценарии (управление состоянием)
 
 ```swift
-try await wireMock.stubFor(
+try wireMock.stubFor(
     get(urlEqualTo("/next")).inScenario("flow")
         .whenScenarioStateIs("Started").willSetStateTo("step-2")
         .willReturn(ok("first"))
 )
-try await wireMock.stubFor(
+try wireMock.stubFor(
     get(urlEqualTo("/next")).inScenario("flow")
         .whenScenarioStateIs("step-2").willReturn(ok("second"))
 )
 
-let scenarios = try await wireMock.getAllScenarios()
-try await wireMock.setScenarioState(name: "flow", state: "step-2")
-try await wireMock.resetScenario(name: "flow")     // один сценарий
-try await wireMock.resetAllScenarios()             // все
+let scenarios = try wireMock.getAllScenarios()
+try wireMock.setScenarioState(name: "flow", state: "step-2")
+try wireMock.resetScenario(name: "flow")     // один сценарий
+try wireMock.resetAllScenarios()             // все
 ```
 
 ## Проксирование, сбои и задержки
 
 ```swift
 // Проксировать несовпавший/выбранный трафик на реальный бэкенд:
-try await wireMock.stubFor(
+try wireMock.stubFor(
     any(urlPathMatching("/api/.*")).willReturn(
         aResponse().proxiedFrom("https://api.example.com")
             .withProxyUrlPrefixToRemove("/api")
@@ -275,38 +275,38 @@ aResponse().withUniformRandomDelay(lower: 15, upper: 25)
 aResponse().withChunkedDribbleDelay(numberOfChunks: 5, totalDuration: 1000)
 
 // Глобально (применяется к каждому ответу):
-try await wireMock.setGlobalFixedDelay(200)
+try wireMock.setGlobalFixedDelay(200)
 ```
 
 ## Запись, файлы, метаданные и настройки
 
 ```swift
-try await wireMock.startRecording(targetBaseUrl: "https://api.example.com")
+try wireMock.startRecording(targetBaseUrl: "https://api.example.com")
 // ... прогоните трафик через прокси ...
-let generated = try await wireMock.stopRecording()   // [StubMapping]
-let status = try await wireMock.getRecordingStatus()
-let snapshot = try await wireMock.takeSnapshot()
+let generated = try wireMock.stopRecording()   // [StubMapping]
+let status = try wireMock.getRecordingStatus()
+let snapshot = try wireMock.takeSnapshot()
 // ⚠️ `targetBaseUrl` должен указывать на ОТДЕЛЬНЫЙ апстрим — направив его обратно на
 //    тот же экземпляр WireMock, вы создадите петлю самопроксирования, которая зависает.
 
 // __files:
-try await wireMock.putFile(named: "body.json", text: #"{"hi":true}"#, contentType: "application/json")
-let names = try await wireMock.listFiles()
-let data = try await wireMock.getFile(named: "body.json")
-try await wireMock.deleteFile(named: "body.json")
+try wireMock.putFile(named: "body.json", text: #"{"hi":true}"#, contentType: "application/json")
+let names = try wireMock.listFiles()
+let data = try wireMock.getFile(named: "body.json")
+try wireMock.deleteFile(named: "body.json")
 // Примечание: WireMock 3.x не выполняет percent-decode сегментов пути, поэтому имена
 // сценариев и __files должны быть URL-безопасными — имя с пробелами/`%`/юникодом
 // хранится и адресуется в закодированной форме (например, "a b.json" → "a%20b.json").
 
 // Метаданные и массовый импорт:
-let stubs = try await wireMock.findStubsByMetadata(matchingJsonPath("$.team", equalTo("payments")))
-try await wireMock.removeStubsByMetadata(matchingJsonPath("$.team", equalTo("payments")))
-try await wireMock.importMappings([stub1, stub2])
+let stubs = try wireMock.findStubsByMetadata(matchingJsonPath("$.team", equalTo("payments")))
+try wireMock.removeStubsByMetadata(matchingJsonPath("$.team", equalTo("payments")))
+try wireMock.importMappings([stub1, stub2])
 
 // Настройки:
-try await wireMock.updateGlobalSettings(GlobalSettings(fixedDelay: 100))
-let settings = try await wireMock.getGlobalSettings()   // расширенные настройки — в .extended (вложенный ключ `extended`)
-let health = try await wireMock.getHealth()
+try wireMock.updateGlobalSettings(GlobalSettings(fixedDelay: 100))
+let settings = try wireMock.getGlobalSettings()   // расширенные настройки — в .extended (вложенный ключ `extended`)
+let health = try wireMock.getHealth()
 ```
 
 ## Вебхуки
@@ -314,7 +314,7 @@ let health = try await wireMock.getHealth()
 Инициируйте исходящий HTTP-вызов при срабатывании стаба (встроенный слушатель `webhook`):
 
 ```swift
-try await wireMock.stubFor(
+try wireMock.stubFor(
     post(urlEqualTo("/order")).willReturn(ok()).withWebhook(
         WebhookDefinition(
             method: .post,
@@ -333,12 +333,12 @@ try await wireMock.stubFor(
 по-прежнему можно зарегистрировать из сырого JSON, так что вы никогда не заблокированы:
 
 ```swift
-try await wireMock.register(raw: #"""
+try wireMock.register(raw: #"""
 { "request": { "method": "GET", "url": "/raw" },
   "response": { "status": 200, "body": "ok" } }
 """#)
 
-try await wireMock.register(json: ["request": ["method": "GET", "url": "/x"],
+try wireMock.register(json: ["request": ["method": "GET", "url": "/x"],
                                    "response": ["status": 204]])
 ```
 
@@ -376,60 +376,41 @@ let wireMock = WireMock(baseURL: URL(string: "http://ci-host:8080")!,
 
 ## Использование в тестах
 
-Клиент в первую очередь `async` — каждый вызов идёт по сети к admin-API сервера. Сбрасывайте состояние
-в каждом тесте для изоляции (сбрасывайте **сервер** через `resetAll()`, а не клиент — всё состояние там).
+Клиент **синхронный** (как Java WireMock): вызовы блокирующие, что в тестах безвредно — вы всё равно
+ждёте каждый шаг последовательно. Никакого `async`/`await` в обычных тестах не нужно. Сбрасывайте
+**сервер** через `resetAll()` (а не клиент — всё состояние там).
 
-### Async (рекомендуется)
-
-XCTest нативно поддерживает `async`-тесты: пометьте метод (и `setUp`) как `async throws` и зовите через
-`try await`.
+### Синхронно (основной способ)
 
 ```swift
 final class CheckoutTests: XCTestCase {
     let wireMock = WireMock(baseURL: URL(string: "http://localhost:8080")!)
 
-    override func setUp() async throws { try await wireMock.resetAll() }
+    override func setUpWithError() throws { try wireMock.resetAll() }
 
-    func testCheckout() async throws {
-        try await wireMock.stubFor(get(urlEqualTo("/cart")).willReturn(okForJson(["items": 2])))
+    func testCheckout() throws {
+        try wireMock.stubFor(get(urlEqualTo("/cart")).willReturn(okForJson(["items": 2])))
         // ... прогоните приложение, затем ...
-        try await wireMock.verify(getRequestedFor(urlEqualTo("/cart")))
+        try wireMock.verify(getRequestedFor(urlEqualTo("/cart")))
     }
 }
 ```
 
-> Если компилятор ругается `'async' call in a function that does not support concurrency` — значит
-> вызывающая функция не `async`. Добавьте `async` в её сигнатуру (`func testX() async throws`) и зовите
-> `try await wireMock.…` (`try` — потому что бросает, `await` — потому что `async`).
+### Из `async`-контекста (опционально)
 
-### Синхронно (без `async`)
-
-Если вы застряли в **синхронном** контексте, который нельзя сделать `async` (например, обычный helper),
-используйте мост `WireMockSync.run` — он блокирует вызывающий поток с таймаутом, пока работа не завершится.
+Если позвать клиент нужно **из `async`-кода**, оберните вызов в `callAsync` — он уводит блокирующую
+работу на фоновую очередь и не блокирует Swift-concurrency (cooperative) поток:
 
 ```swift
-final class CheckoutSyncTests: XCTestCase {
-    let wireMock = WireMock(baseURL: URL(string: "http://localhost:8080")!)
-
-    override func setUp() {
-        try! WireMockSync.run { try await wireMock.resetAll() }
-    }
-
-    func testCheckout() throws {                       // синхронный тест — без async
-        try WireMockSync.run {
-            try await wireMock.stubFor(get(urlEqualTo("/cart")).willReturn(okForJson(["items": 2])))
-        }
-        // ... прогоните приложение, затем ...
-        try WireMockSync.run {
-            try await wireMock.verify(getRequestedFor(urlEqualTo("/cart")))
-        }
-    }
+func testCheckout() async throws {
+    try await wireMock.callAsync { try $0.stubFor(get(urlEqualTo("/cart")).willReturn(okForJson(["items": 2]))) }
+    // ... прогоните приложение, затем ...
+    try await wireMock.callAsync { try $0.verify(getRequestedFor(urlEqualTo("/cart"))) }
 }
 ```
 
-> `WireMockSync.run` **блокирует** поток (по умолчанию таймаут 30 с) — **никогда** не вызывайте его из
-> `async`-контекста (там всегда `try await`). В XCTest предпочитайте async-вариант выше; `.run` — это
-> запасной путь для кода, который нельзя сделать `async`.
+> Прямой вызов синхронного метода из `async`-контекста заблокирует cooperative-поток — из `async`
+> используйте `callAsync`. В обычных (синхронных) тестах он не нужен.
 
 ### Логирование (Allure и т.п.)
 
@@ -491,10 +472,10 @@ import XCTest
 import WireMock
 
 final class PingUITests: XCTestCase {
-    func testAppRendersStubbedResponse() async throws {
+    func testAppRendersStubbedResponse() throws {
         let wireMock = WireMock(baseURL: URL(string: "http://localhost:8080")!)
-        try await wireMock.resetAll()
-        try await wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(ok("pong")))
+        try wireMock.resetAll()
+        try wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(ok("pong")))
 
         let app = XCUIApplication()
         app.launchEnvironment["WIREMOCK_URL"] = "http://localhost:8080"
@@ -502,9 +483,9 @@ final class PingUITests: XCTestCase {
 
         let label = app.staticTexts["result"]
         XCTAssertTrue(label.waitForExistence(timeout: 10))
-        await fulfillment(of: [expectation(for: NSPredicate(format: "label == %@", "pong"),
-                                           evaluatedWith: label)], timeout: 10)
-        try await wireMock.verify(getRequestedFor(urlEqualTo("/ping")))
+        wait(for: [expectation(for: NSPredicate(format: "label == %@", "pong"),
+                               evaluatedWith: label)], timeout: 10)
+        try wireMock.verify(getRequestedFor(urlEqualTo("/ping")))
     }
 }
 ```

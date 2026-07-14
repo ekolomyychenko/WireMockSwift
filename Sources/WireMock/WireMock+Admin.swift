@@ -4,99 +4,99 @@ import Foundation
 
 extension WireMock {
     /// Counts journalled requests matching the builder.
-    public func count(_ builder: RequestPatternBuilder) async throws -> Int {
-        try await countRequests(matching: builder.pattern)
+    public func count(_ builder: RequestPatternBuilder) throws -> Int {
+        try countRequests(matching: builder.pattern)
     }
 
     /// Asserts at least one request matched (`verify(pattern)` in Java).
-    public func verify(_ builder: RequestPatternBuilder) async throws {
-        try await verify(.moreThanOrExactly(1), builder)
+    public func verify(_ builder: RequestPatternBuilder) throws {
+        try verify(.moreThanOrExactly(1), builder)
     }
 
     /// Asserts exactly `count` requests matched (`verify(count, pattern)` in Java).
-    public func verify(_ count: Int, _ builder: RequestPatternBuilder) async throws {
-        try await verify(.exactly(count), builder)
+    public func verify(_ count: Int, _ builder: RequestPatternBuilder) throws {
+        try verify(.exactly(count), builder)
     }
 
     /// Asserts the matching-request count satisfies `strategy`.
-    public func verify(_ strategy: CountMatchingStrategy, _ builder: RequestPatternBuilder) async throws {
-        let actual = try await count(builder)
+    public func verify(_ strategy: CountMatchingStrategy, _ builder: RequestPatternBuilder) throws {
+        let actual = try count(builder)
         guard strategy.isSatisfied(by: actual) else {
             throw VerificationError(expected: strategy.description, actual: actual)
         }
     }
 
     /// Returns all journalled requests matching the builder.
-    public func findAll(_ builder: RequestPatternBuilder) async throws -> [LoggedRequest] {
-        let result = try await admin.send("POST", "requests/find", body: builder.pattern, as: FindRequestsResult.self)
+    public func findAll(_ builder: RequestPatternBuilder) throws -> [LoggedRequest] {
+        let result = try admin.send("POST", "requests/find", body: builder.pattern, as: FindRequestsResult.self)
         if result.requestJournalDisabled == true { throw WireMockError.requestJournalDisabled }
         return result.requests
     }
 
     /// All serve events in the journal (most recent first).
-    public func getAllServeEvents() async throws -> [ServeEvent] {
-        let result = try await admin.get("requests", as: GetServeEventsResult.self)
+    public func getAllServeEvents() throws -> [ServeEvent] {
+        let result = try admin.get("requests", as: GetServeEventsResult.self)
         if result.requestJournalDisabled == true { throw WireMockError.requestJournalDisabled }
         return result.requests
     }
 
     /// Serve events with server-side filtering (`limit`, `since`, unmatched-only).
-    public func getServeEvents(limit: Int? = nil, since: String? = nil, unmatchedOnly: Bool = false) async throws -> [ServeEvent] {
+    public func getServeEvents(limit: Int? = nil, since: String? = nil, unmatchedOnly: Bool = false) throws -> [ServeEvent] {
         var query: [URLQueryItem] = []
         if let limit { query.append(URLQueryItem(name: "limit", value: String(limit))) }
         if let since { query.append(URLQueryItem(name: "since", value: since)) }
         if unmatchedOnly { query.append(URLQueryItem(name: "unmatched", value: "true")) }
-        let result = try await admin.get("requests", query: query, as: GetServeEventsResult.self)
+        let result = try admin.get("requests", query: query, as: GetServeEventsResult.self)
         if result.requestJournalDisabled == true { throw WireMockError.requestJournalDisabled }
         return result.requests
     }
 
     /// A single serve event by id.
-    public func getServeEvent(id: UUID) async throws -> ServeEvent {
-        try await admin.get("requests/\(id.uuidString)", as: ServeEvent.self)
+    public func getServeEvent(id: UUID) throws -> ServeEvent {
+        try admin.get("requests/\(id.uuidString)", as: ServeEvent.self)
     }
 
     /// Removes a single serve event from the journal.
-    public func removeServeEvent(id: UUID) async throws {
-        try await admin.send("DELETE", "requests/\(id.uuidString)")
+    public func removeServeEvent(id: UUID) throws {
+        try admin.send("DELETE", "requests/\(id.uuidString)")
     }
 
     /// Clears the entire request journal.
-    public func resetRequests() async throws {
-        try await admin.send("DELETE", "requests")
+    public func resetRequests() throws {
+        try admin.send("DELETE", "requests")
     }
 
     /// Removes journalled events matching the pattern; returns the removed events.
     @discardableResult
-    public func removeServeEvents(matching builder: RequestPatternBuilder) async throws -> [ServeEvent] {
-        try await admin.send("POST", "requests/remove", body: builder.pattern, as: RemovedServeEventsResult.self).serveEvents
+    public func removeServeEvents(matching builder: RequestPatternBuilder) throws -> [ServeEvent] {
+        try admin.send("POST", "requests/remove", body: builder.pattern, as: RemovedServeEventsResult.self).serveEvents
     }
 
     /// Removes journalled events whose originating stub matches the metadata matcher.
-    public func removeServeEventsByMetadata(_ matcher: StringValuePattern) async throws {
-        try await admin.send("POST", "requests/remove-by-metadata", body: matcher)
+    public func removeServeEventsByMetadata(_ matcher: StringValuePattern) throws {
+        try admin.send("POST", "requests/remove-by-metadata", body: matcher)
     }
 
     /// Requests received that matched no stub.
-    public func getUnmatchedRequests() async throws -> [LoggedRequest] {
-        try await admin.get("requests/unmatched", as: FindRequestsResult.self).requests
+    public func getUnmatchedRequests() throws -> [LoggedRequest] {
+        try admin.get("requests/unmatched", as: FindRequestsResult.self).requests
     }
 
     // MARK: Near misses
 
     /// The closest-matching stubs for every request that matched nothing.
-    public func findNearMissesForAllUnmatched() async throws -> [NearMiss] {
-        try await admin.get("requests/unmatched/near-misses", as: FindNearMissesResult.self).nearMisses
+    public func findNearMissesForAllUnmatched() throws -> [NearMiss] {
+        try admin.get("requests/unmatched/near-misses", as: FindNearMissesResult.self).nearMisses
     }
 
     /// The closest-matching stubs for a specific logged request.
-    public func findNearMisses(for request: LoggedRequest) async throws -> [NearMiss] {
-        try await admin.send("POST", "near-misses/request", body: request, as: FindNearMissesResult.self).nearMisses
+    public func findNearMisses(for request: LoggedRequest) throws -> [NearMiss] {
+        try admin.send("POST", "near-misses/request", body: request, as: FindNearMissesResult.self).nearMisses
     }
 
     /// The requests that came closest to matching the given pattern.
-    public func findNearMisses(for builder: RequestPatternBuilder) async throws -> [NearMiss] {
-        try await admin.send("POST", "near-misses/request-pattern", body: builder.pattern, as: FindNearMissesResult.self).nearMisses
+    public func findNearMisses(for builder: RequestPatternBuilder) throws -> [NearMiss] {
+        try admin.send("POST", "near-misses/request-pattern", body: builder.pattern, as: FindNearMissesResult.self).nearMisses
     }
 }
 
@@ -104,24 +104,24 @@ extension WireMock {
 
 extension WireMock {
     /// All scenarios and their current states.
-    public func getAllScenarios() async throws -> [Scenario] {
-        try await admin.get("scenarios", as: GetScenariosResult.self).scenarios
+    public func getAllScenarios() throws -> [Scenario] {
+        try admin.get("scenarios", as: GetScenariosResult.self).scenarios
     }
 
     /// Resets every scenario back to its initial (`Started`) state.
-    public func resetAllScenarios() async throws {
-        try await admin.send("POST", "scenarios/reset")
+    public func resetAllScenarios() throws {
+        try admin.send("POST", "scenarios/reset")
     }
 
     /// Forces a single scenario into the given state.
-    public func setScenarioState(name: String, state: String) async throws {
+    public func setScenarioState(name: String, state: String) throws {
         struct StateBody: Encodable { let state: String }
-        try await admin.send("PUT", "scenarios/\(name)/state", body: StateBody(state: state))
+        try admin.send("PUT", "scenarios/\(name)/state", body: StateBody(state: state))
     }
 
     /// Resets a single scenario back to its initial (`Started`) state.
-    public func resetScenario(name: String) async throws {
-        try await admin.send("PUT", "scenarios/\(name)/state")
+    public func resetScenario(name: String) throws {
+        try admin.send("PUT", "scenarios/\(name)/state")
     }
 }
 
@@ -129,25 +129,25 @@ extension WireMock {
 
 extension WireMock {
     /// Replaces the global settings (delay distribution, proxy pass-through, …).
-    public func updateGlobalSettings(_ settings: GlobalSettings) async throws {
-        try await admin.send("POST", "settings", body: settings)
+    public func updateGlobalSettings(_ settings: GlobalSettings) throws {
+        try admin.send("POST", "settings", body: settings)
     }
 
     /// Applies a fixed delay (ms) to every response server-wide.
-    public func setGlobalFixedDelay(_ milliseconds: Int) async throws {
-        try await updateGlobalSettings(GlobalSettings(fixedDelay: milliseconds))
+    public func setGlobalFixedDelay(_ milliseconds: Int) throws {
+        try updateGlobalSettings(GlobalSettings(fixedDelay: milliseconds))
     }
 
     /// Applies a random delay distribution to every response server-wide.
-    public func setGlobalRandomDelay(_ distribution: DelayDistribution) async throws {
-        try await updateGlobalSettings(GlobalSettings(delayDistribution: distribution))
+    public func setGlobalRandomDelay(_ distribution: DelayDistribution) throws {
+        try updateGlobalSettings(GlobalSettings(delayDistribution: distribution))
     }
 
     /// Reads the current global settings. `GET /__admin/settings` wraps the
     /// object under a `settings` key; this unwraps it for you.
-    public func getGlobalSettings() async throws -> GlobalSettings {
+    public func getGlobalSettings() throws -> GlobalSettings {
         struct Wrapper: Decodable { let settings: GlobalSettings }
-        return try await admin.get("settings", as: Wrapper.self).settings
+        return try admin.get("settings", as: Wrapper.self).settings
     }
 }
 
@@ -155,14 +155,14 @@ extension WireMock {
 
 extension WireMock {
     /// The server health endpoint (`GET /__admin/health`), returned verbatim.
-    public func getHealth() async throws -> JSONValue {
-        try await admin.get("health", as: JSONValue.self)
+    public func getHealth() throws -> JSONValue {
+        try admin.get("health", as: JSONValue.self)
     }
 
     /// The running server's version (`GET /__admin/version`).
-    public func getVersion() async throws -> String? {
+    public func getVersion() throws -> String? {
         struct VersionResult: Decodable { let version: String? }
-        return try await admin.get("version", as: VersionResult.self).version
+        return try admin.get("version", as: VersionResult.self).version
     }
 }
 
@@ -170,13 +170,13 @@ extension WireMock {
 
 extension WireMock {
     /// Stub mappings that have never been matched by any request.
-    public func findUnmatchedStubMappings() async throws -> [StubMapping] {
-        try await admin.get("mappings/unmatched", as: ListStubMappingsResult.self).mappings
+    public func findUnmatchedStubMappings() throws -> [StubMapping] {
+        try admin.get("mappings/unmatched", as: ListStubMappingsResult.self).mappings
     }
 
     /// Deletes all stub mappings that have never been matched.
-    public func removeUnmatchedStubMappings() async throws {
-        try await admin.send("DELETE", "mappings/unmatched")
+    public func removeUnmatchedStubMappings() throws {
+        try admin.send("DELETE", "mappings/unmatched")
     }
 }
 
@@ -185,31 +185,31 @@ extension WireMock {
 extension WireMock {
     /// Starts recording, proxying traffic to `spec.targetBaseUrl` and capturing
     /// it as stubs. Point the target at a SEPARATE upstream (self-proxy hangs).
-    public func startRecording(_ spec: RecordSpec) async throws {
-        try await admin.send("POST", "recordings/start", body: spec)
+    public func startRecording(_ spec: RecordSpec) throws {
+        try admin.send("POST", "recordings/start", body: spec)
     }
 
     /// Starts recording against an upstream base URL with default options.
-    public func startRecording(targetBaseUrl: String) async throws {
-        try await startRecording(RecordSpec(targetBaseUrl: targetBaseUrl))
+    public func startRecording(targetBaseUrl: String) throws {
+        try startRecording(RecordSpec(targetBaseUrl: targetBaseUrl))
     }
 
     /// Stops recording and returns the stub mappings generated from the traffic.
     @discardableResult
-    public func stopRecording() async throws -> [StubMapping] {
-        try await admin.send("POST", "recordings/stop", body: EmptyBody(), as: SnapshotResult.self).mappings ?? []
+    public func stopRecording() throws -> [StubMapping] {
+        try admin.send("POST", "recordings/stop", body: EmptyBody(), as: SnapshotResult.self).mappings ?? []
     }
 
     /// The recorder state (`"NeverStarted"`, `"Recording"`, `"Stopped"`).
-    public func getRecordingStatus() async throws -> String? {
-        try await admin.get("recordings/status", as: RecordingStatusResult.self).status
+    public func getRecordingStatus() throws -> String? {
+        try admin.get("recordings/status", as: RecordingStatusResult.self).status
     }
 
     /// Generates stubs from the requests already in the journal, without an
     /// active recording session; returns the generated mappings.
     @discardableResult
-    public func takeSnapshot(_ spec: RecordSpec = RecordSpec()) async throws -> [StubMapping] {
-        try await admin.send("POST", "recordings/snapshot", body: spec, as: SnapshotResult.self).mappings ?? []
+    public func takeSnapshot(_ spec: RecordSpec = RecordSpec()) throws -> [StubMapping] {
+        try admin.send("POST", "recordings/snapshot", body: spec, as: SnapshotResult.self).mappings ?? []
     }
 }
 
@@ -217,8 +217,8 @@ extension WireMock {
 
 extension WireMock {
     /// Lists file names under `__files`.
-    public func listFiles() async throws -> [String] {
-        let data = try await admin.send("GET", "files")
+    public func listFiles() throws -> [String] {
+        let data = try admin.send("GET", "files")
         // The server has returned both a bare array and a `{ "files": [...] }`
         // wrapper across versions — accept either.
         if let array = try? JSONDecoder().decode([String].self, from: data) {
@@ -235,23 +235,23 @@ extension WireMock {
     }
 
     /// Fetches the raw bytes of a `__files` entry.
-    public func getFile(named name: String) async throws -> Data {
-        try await admin.send("GET", "files/\(name)")
+    public func getFile(named name: String) throws -> Data {
+        try admin.send("GET", "files/\(name)")
     }
 
     /// Uploads binary data as a `__files` entry (served via `withBodyFile`).
-    public func putFile(named name: String, data: Data, contentType: String = "application/octet-stream") async throws {
-        try await admin.sendData("PUT", "files/\(name)", body: data, contentType: contentType)
+    public func putFile(named name: String, data: Data, contentType: String = "application/octet-stream") throws {
+        try admin.sendData("PUT", "files/\(name)", body: data, contentType: contentType)
     }
 
     /// Uploads text as a `__files` entry (served via `withBodyFile`).
-    public func putFile(named name: String, text: String, contentType: String = "text/plain") async throws {
-        try await putFile(named: name, data: Data(text.utf8), contentType: contentType)
+    public func putFile(named name: String, text: String, contentType: String = "text/plain") throws {
+        try putFile(named: name, data: Data(text.utf8), contentType: contentType)
     }
 
     /// Deletes a `__files` entry.
-    public func deleteFile(named name: String) async throws {
-        try await admin.send("DELETE", "files/\(name)")
+    public func deleteFile(named name: String) throws {
+        try admin.send("DELETE", "files/\(name)")
     }
 }
 
@@ -259,13 +259,13 @@ extension WireMock {
 
 extension WireMock {
     /// Finds stubs whose `metadata` satisfies the matcher (e.g. a JSONPath match).
-    public func findStubsByMetadata(_ matcher: StringValuePattern) async throws -> [StubMapping] {
-        try await admin.send("POST", "mappings/find-by-metadata", body: matcher, as: ListStubMappingsResult.self).mappings
+    public func findStubsByMetadata(_ matcher: StringValuePattern) throws -> [StubMapping] {
+        try admin.send("POST", "mappings/find-by-metadata", body: matcher, as: ListStubMappingsResult.self).mappings
     }
 
     /// Removes stubs whose `metadata` satisfies the matcher.
-    public func removeStubsByMetadata(_ matcher: StringValuePattern) async throws {
-        try await admin.send("POST", "mappings/remove-by-metadata", body: matcher)
+    public func removeStubsByMetadata(_ matcher: StringValuePattern) throws {
+        try admin.send("POST", "mappings/remove-by-metadata", body: matcher)
     }
 
     /// How `importMappings` treats a mapping whose id already exists.
@@ -285,13 +285,13 @@ extension WireMock {
         _ mappings: [StubMapping],
         duplicatePolicy: DuplicatePolicy? = nil,
         deleteAllNotInImport: Bool? = nil
-    ) async throws {
+    ) throws {
         struct ImportOptions: Encodable { let duplicatePolicy: String?; let deleteAllNotInImport: Bool? }
         struct ImportBody: Encodable { let mappings: [StubMapping]; let importOptions: ImportOptions? }
         let options = (duplicatePolicy != nil || deleteAllNotInImport != nil)
             ? ImportOptions(duplicatePolicy: duplicatePolicy?.rawValue, deleteAllNotInImport: deleteAllNotInImport)
             : nil
-        try await admin.send("POST", "mappings/import", body: ImportBody(mappings: mappings, importOptions: options))
+        try admin.send("POST", "mappings/import", body: ImportBody(mappings: mappings, importOptions: options))
     }
 }
 

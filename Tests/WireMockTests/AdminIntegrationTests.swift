@@ -10,226 +10,226 @@ import FoundationNetworking
 final class AdminIntegrationTests: XCTestCase {
     private var wireMock: WireMock!
 
-    override func setUp() async throws {
-        wireMock = try await WireMockFixture.clientOrSkip()
+    override func setUpWithError() throws {
+        wireMock = try WireMockFixture.clientOrSkip()
     }
 
-    override func tearDown() async throws {
+    override func tearDownWithError() throws {
         if wireMock != nil {
             // `POST /__admin/reset` does NOT clear a global fixed delay, so a test
             // that sets one (and fails before its own cleanup) would leak it into
             // every subsequent test. Reset it explicitly.
-            try? await wireMock.setGlobalFixedDelay(0)
-            try? await wireMock.resetAll()
+            try? wireMock.setGlobalFixedDelay(0)
+            try? wireMock.resetAll()
         }
     }
 
     // MARK: Verification & journal
 
-    func testVerifyCountStrategies() async throws {
-        try await wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(ok()))
-        for _ in 0..<3 { try await WireMockFixture.hit("ping") }
+    func testVerifyCountStrategies() throws {
+        try wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(ok()))
+        for _ in 0..<3 { try WireMockFixture.hit("ping") }
 
-        try await wireMock.verify(getRequestedFor(urlEqualTo("/ping")))
-        try await wireMock.verify(.exactly(3), getRequestedFor(urlEqualTo("/ping")))
-        try await wireMock.verify(.moreThanOrExactly(2), getRequestedFor(urlEqualTo("/ping")))
-        try await wireMock.verify(.lessThan(4), getRequestedFor(urlEqualTo("/ping")))
+        try wireMock.verify(getRequestedFor(urlEqualTo("/ping")))
+        try wireMock.verify(.exactly(3), getRequestedFor(urlEqualTo("/ping")))
+        try wireMock.verify(.moreThanOrExactly(2), getRequestedFor(urlEqualTo("/ping")))
+        try wireMock.verify(.lessThan(4), getRequestedFor(urlEqualTo("/ping")))
 
         do {
-            try await wireMock.verify(.exactly(1), getRequestedFor(urlEqualTo("/ping")))
+            try wireMock.verify(.exactly(1), getRequestedFor(urlEqualTo("/ping")))
             XCTFail("Expected verification to fail")
         } catch let error as VerificationError {
             XCTAssertEqual(error.actual, 3)
         }
     }
 
-    func testFindAllAndServeEvents() async throws {
-        try await wireMock.stubFor(post(urlEqualTo("/collect")).willReturn(ok()))
-        try await WireMockFixture.hit("collect", method: "POST", body: Data("hello".utf8))
+    func testFindAllAndServeEvents() throws {
+        try wireMock.stubFor(post(urlEqualTo("/collect")).willReturn(ok()))
+        try WireMockFixture.hit("collect", method: "POST", body: Data("hello".utf8))
 
-        let matched = try await wireMock.findAll(postRequestedFor(urlEqualTo("/collect")))
+        let matched = try wireMock.findAll(postRequestedFor(urlEqualTo("/collect")))
         XCTAssertEqual(matched.count, 1)
         XCTAssertEqual(matched.first?.body, "hello")
 
-        let events = try await wireMock.getAllServeEvents()
+        let events = try wireMock.getAllServeEvents()
         XCTAssertTrue(events.contains { $0.request.url == "/collect" })
     }
 
-    func testUnmatchedAndNearMisses() async throws {
-        try await wireMock.stubFor(get(urlEqualTo("/expected")).willReturn(ok()))
-        _ = try await WireMockFixture.hit("expectd") // typo -> unmatched
+    func testUnmatchedAndNearMisses() throws {
+        try wireMock.stubFor(get(urlEqualTo("/expected")).willReturn(ok()))
+        _ = try WireMockFixture.hit("expectd") // typo -> unmatched
 
-        let unmatched = try await wireMock.getUnmatchedRequests()
+        let unmatched = try wireMock.getUnmatchedRequests()
         XCTAssertTrue(unmatched.contains { $0.url == "/expectd" })
 
-        let nearMisses = try await wireMock.findNearMissesForAllUnmatched()
+        let nearMisses = try wireMock.findNearMissesForAllUnmatched()
         XCTAssertFalse(nearMisses.isEmpty)
     }
 
-    func testResetRequests() async throws {
-        try await wireMock.stubFor(get(urlEqualTo("/x")).willReturn(ok()))
-        try await WireMockFixture.hit("x")
-        let before = try await wireMock.count(getRequestedFor(urlEqualTo("/x")))
+    func testResetRequests() throws {
+        try wireMock.stubFor(get(urlEqualTo("/x")).willReturn(ok()))
+        try WireMockFixture.hit("x")
+        let before = try wireMock.count(getRequestedFor(urlEqualTo("/x")))
         XCTAssertEqual(before, 1)
-        try await wireMock.resetRequests()
-        let after = try await wireMock.count(getRequestedFor(urlEqualTo("/x")))
+        try wireMock.resetRequests()
+        let after = try wireMock.count(getRequestedFor(urlEqualTo("/x")))
         XCTAssertEqual(after, 0)
     }
 
     // MARK: Matchers (contract-verifying)
 
-    func testQueryParamRegexMatcherMatchesOnServer() async throws {
-        try await wireMock.stubFor(
+    func testQueryParamRegexMatcherMatchesOnServer() throws {
+        try wireMock.stubFor(
             get(urlPathEqualTo("/num")).withQueryParam("n", matching("[0-9]+")).willReturn(ok("digits"))
         )
-        let matched = try await WireMockFixture.hit("num?n=20")
+        let matched = try WireMockFixture.hit("num?n=20")
         XCTAssertEqual(matched.1.statusCode, 200)
-        let unmatched = try await WireMockFixture.hit("num?n=abc")
+        let unmatched = try WireMockFixture.hit("num?n=abc")
         XCTAssertEqual(unmatched.1.statusCode, 404)
     }
 
-    func testJsonPathBodyMatcherMatchesOnServer() async throws {
-        try await wireMock.stubFor(
+    func testJsonPathBodyMatcherMatchesOnServer() throws {
+        try wireMock.stubFor(
             post(urlEqualTo("/j")).withRequestBody(matchingJsonPath("$.name")).willReturn(ok())
         )
-        let hit = try await WireMockFixture.hit("j", method: "POST", headers: ["Content-Type": "application/json"], body: Data(#"{"name":"bob"}"#.utf8))
+        let hit = try WireMockFixture.hit("j", method: "POST", headers: ["Content-Type": "application/json"], body: Data(#"{"name":"bob"}"#.utf8))
         XCTAssertEqual(hit.1.statusCode, 200)
-        let miss = try await WireMockFixture.hit("j", method: "POST", headers: ["Content-Type": "application/json"], body: Data(#"{"age":1}"#.utf8))
+        let miss = try WireMockFixture.hit("j", method: "POST", headers: ["Content-Type": "application/json"], body: Data(#"{"age":1}"#.utf8))
         XCTAssertEqual(miss.1.statusCode, 404)
     }
 
     // MARK: Scenarios
 
-    func testStatefulScenario() async throws {
-        try await wireMock.stubFor(
+    func testStatefulScenario() throws {
+        try wireMock.stubFor(
             get(urlEqualTo("/state")).inScenario("s").whenScenarioStateIs("Started")
                 .willSetStateTo("second").willReturn(ok("first"))
         )
-        try await wireMock.stubFor(
+        try wireMock.stubFor(
             get(urlEqualTo("/state")).inScenario("s").whenScenarioStateIs("second")
                 .willReturn(ok("second"))
         )
 
-        var (data, response) = try await WireMockFixture.hit("state")
+        var (data, response) = try WireMockFixture.hit("state")
         XCTAssertEqual(String(data: data, encoding: .utf8), "first")
         XCTAssertEqual(response.statusCode, 200)
 
-        (data, _) = try await WireMockFixture.hit("state")
+        (data, _) = try WireMockFixture.hit("state")
         XCTAssertEqual(String(data: data, encoding: .utf8), "second")
 
-        let scenarios = try await wireMock.getAllScenarios()
+        let scenarios = try wireMock.getAllScenarios()
         XCTAssertTrue(scenarios.contains { $0.name == "s" })
 
-        try await wireMock.resetAllScenarios()
-        (data, _) = try await WireMockFixture.hit("state")
+        try wireMock.resetAllScenarios()
+        (data, _) = try WireMockFixture.hit("state")
         XCTAssertEqual(String(data: data, encoding: .utf8), "first", "reset should return to Started")
     }
 
     // MARK: Settings
 
-    func testGlobalFixedDelay() async throws {
-        try await wireMock.stubFor(get(urlEqualTo("/slow")).willReturn(ok()))
-        try await wireMock.setGlobalFixedDelay(400)
+    func testGlobalFixedDelay() throws {
+        try wireMock.stubFor(get(urlEqualTo("/slow")).willReturn(ok()))
+        try wireMock.setGlobalFixedDelay(400)
         let start = Date()
-        _ = try await WireMockFixture.hit("slow")
+        _ = try WireMockFixture.hit("slow")
         XCTAssertGreaterThan(Date().timeIntervalSince(start), 0.3)
-        try await wireMock.setGlobalFixedDelay(0)
+        try wireMock.setGlobalFixedDelay(0)
     }
 
     // MARK: Recording lifecycle
 
-    func testRecordingLifecycle() async throws {
+    func testRecordingLifecycle() throws {
         // Initial status isn't asserted: recording state is not cleared by
         // resetAll, so it depends on test ordering. We assert the transitions.
-        try await wireMock.startRecording(targetBaseUrl: "http://localhost:9999")
-        let recording = try await wireMock.getRecordingStatus()
+        try wireMock.startRecording(targetBaseUrl: "http://localhost:9999")
+        let recording = try wireMock.getRecordingStatus()
         XCTAssertEqual(recording, "Recording")
-        _ = try await wireMock.stopRecording()
-        let stopped = try await wireMock.getRecordingStatus()
+        _ = try wireMock.stopRecording()
+        let stopped = try wireMock.getRecordingStatus()
         XCTAssertEqual(stopped, "Stopped")
     }
 
-    func testSnapshotEndpoint() async throws {
-        try await wireMock.stubFor(get(urlEqualTo("/rec")).willReturn(ok("recorded")))
-        try await WireMockFixture.hit("rec")
+    func testSnapshotEndpoint() throws {
+        try wireMock.stubFor(get(urlEqualTo("/rec")).willReturn(ok("recorded")))
+        try WireMockFixture.hit("rec")
         // Requests already served by a stub are not re-snapshotted; the call
         // must still succeed and decode to a (here empty) mapping list.
-        let snapshot = try await wireMock.takeSnapshot()
+        let snapshot = try wireMock.takeSnapshot()
         XCTAssertTrue(snapshot.isEmpty)
     }
 
     // MARK: Files
 
-    func testFileLifecycle() async throws {
-        try await wireMock.putFile(named: "greeting.json", text: #"{"hi":true}"#, contentType: "application/json")
+    func testFileLifecycle() throws {
+        try wireMock.putFile(named: "greeting.json", text: #"{"hi":true}"#, contentType: "application/json")
 
-        try await wireMock.stubFor(
+        try wireMock.stubFor(
             get(urlEqualTo("/file")).willReturn(aResponse().withStatus(200).withBodyFile("greeting.json"))
         )
-        let (data, response) = try await WireMockFixture.hit("file")
+        let (data, response) = try WireMockFixture.hit("file")
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: data), ["hi": true])
 
-        let fetched = try await wireMock.getFile(named: "greeting.json")
+        let fetched = try wireMock.getFile(named: "greeting.json")
         XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: fetched), ["hi": true])
 
-        try await wireMock.deleteFile(named: "greeting.json")
+        try wireMock.deleteFile(named: "greeting.json")
     }
 
     // MARK: Metadata
 
-    func testMetadataFindAndRemove() async throws {
-        try await wireMock.stubFor(
+    func testMetadataFindAndRemove() throws {
+        try wireMock.stubFor(
             get(urlEqualTo("/meta")).withMetadata(["team": "payments"]).willReturn(ok())
         )
         let matcher = StringValuePattern.matchingJsonPath("$.team", equalTo("payments"))
-        let found = try await wireMock.findStubsByMetadata(matcher)
+        let found = try wireMock.findStubsByMetadata(matcher)
         XCTAssertEqual(found.count, 1)
 
-        try await wireMock.removeStubsByMetadata(matcher)
-        let remaining = try await wireMock.findStubsByMetadata(matcher).count
+        try wireMock.removeStubsByMetadata(matcher)
+        let remaining = try wireMock.findStubsByMetadata(matcher).count
         XCTAssertEqual(remaining, 0)
     }
 
     // MARK: Import & raw escape hatch
 
-    func testImportMappings() async throws {
+    func testImportMappings() throws {
         let stub = get(urlEqualTo("/imported")).willReturn(ok("yes")).build()
-        try await wireMock.importMappings([stub])
-        let (data, _) = try await WireMockFixture.hit("imported")
+        try wireMock.importMappings([stub])
+        let (data, _) = try WireMockFixture.hit("imported")
         XCTAssertEqual(String(data: data, encoding: .utf8), "yes")
     }
 
-    func testImportWithDeleteAllNotInImport() async throws {
-        try await wireMock.stubFor(get(urlEqualTo("/old")).willReturn(ok()))
+    func testImportWithDeleteAllNotInImport() throws {
+        try wireMock.stubFor(get(urlEqualTo("/old")).willReturn(ok()))
         // Importing with deleteAllNotInImport must drop the pre-existing /old stub.
-        try await wireMock.importMappings(
+        try wireMock.importMappings(
             [get(urlEqualTo("/new")).willReturn(ok("new")).build()],
             duplicatePolicy: .overwrite,
             deleteAllNotInImport: true
         )
-        let newStatus = try await WireMockFixture.hit("new").1.statusCode
-        let oldStatus = try await WireMockFixture.hit("old").1.statusCode
+        let newStatus = try WireMockFixture.hit("new").1.statusCode
+        let oldStatus = try WireMockFixture.hit("old").1.statusCode
         XCTAssertEqual(newStatus, 200)
         XCTAssertEqual(oldStatus, 404, "deleteAllNotInImport should remove /old")
     }
 
-    func testRemoveStubByPattern() async throws {
-        try await wireMock.stubFor(get(urlEqualTo("/byebye")).willReturn(ok()))
-        let before = try await WireMockFixture.hit("byebye").1.statusCode
+    func testRemoveStubByPattern() throws {
+        try wireMock.stubFor(get(urlEqualTo("/byebye")).willReturn(ok()))
+        let before = try WireMockFixture.hit("byebye").1.statusCode
         XCTAssertEqual(before, 200)
         // Remove it by re-describing the stub, without knowing its id.
-        try await wireMock.removeStub(get(urlEqualTo("/byebye")).willReturn(ok()))
-        let after = try await WireMockFixture.hit("byebye").1.statusCode
+        try wireMock.removeStub(get(urlEqualTo("/byebye")).willReturn(ok()))
+        let after = try WireMockFixture.hit("byebye").1.statusCode
         XCTAssertEqual(after, 404)
     }
 
-    func testRawRegister() async throws {
-        try await wireMock.register(raw: #"""
+    func testRawRegister() throws {
+        try wireMock.register(raw: #"""
         { "request": { "method": "GET", "url": "/raw" },
           "response": { "status": 200, "body": "raw-ok" } }
         """#)
-        let (data, _) = try await WireMockFixture.hit("raw")
+        let (data, _) = try WireMockFixture.hit("raw")
         XCTAssertEqual(String(data: data, encoding: .utf8), "raw-ok")
     }
 }

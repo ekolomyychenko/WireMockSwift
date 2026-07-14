@@ -109,8 +109,8 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         _ method: String,
         _ path: String,
         query: [URLQueryItem] = []
-    ) async throws -> Data {
-        try await perform(method, path, query: query, body: nil)
+    ) throws -> Data {
+        try perform(method, path, query: query, body: nil)
     }
 
     /// Sends a raw body (e.g. a file's bytes) with an explicit content type.
@@ -120,8 +120,37 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         _ path: String,
         body: Data?,
         contentType: String?
-    ) async throws -> Data {
-        try await perform(method, path, query: [], body: body, contentType: contentType)
+    ) throws -> Data {
+        try perform(method, path, query: [], body: body, contentType: contentType)
+    }
+
+    /// Runs a request synchronously, blocking the calling thread until URLSession
+    /// completes on its own queue (safe from the main thread — no deadlock). A
+    /// safety wait a bit past the request timeout guards against a stuck task.
+    private func syncData(for request: URLRequest) throws -> (Data, URLResponse) {
+        final class Holder: @unchecked Sendable { var result: Result<(Data, URLResponse), Error>? }
+        let holder = Holder()
+        let semaphore = DispatchSemaphore(value: 0)
+        let task = session.dataTask(with: request) { data, response, error in
+            if let error {
+                holder.result = .failure(error)
+            } else if let data, let response {
+                holder.result = .success((data, response))
+            } else {
+                holder.result = .failure(WireMockError.transport(underlying: "No data and no error"))
+            }
+            semaphore.signal()
+        }
+        task.resume()
+        if semaphore.wait(timeout: .now() + timeout + 10) == .timedOut {
+            task.cancel()
+            throw WireMockError.transport(underlying: "Request timed out after \(timeout)s")
+        }
+        switch holder.result {
+        case .success(let pair): return pair
+        case .failure(let error): throw error
+        case nil: throw WireMockError.transport(underlying: "Request produced no result")
+        }
     }
 
     /// Transport core: builds the URL, sends, checks the status code.
@@ -131,7 +160,7 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         query: [URLQueryItem],
         body: Data?,
         contentType: String? = "application/json"
-    ) async throws -> Data {
+    ) throws -> Data {
         guard var components = URLComponents(
             url: baseURL.appendingPathComponent("__admin").appendingPathComponent(path),
             resolvingAgainstBaseURL: false
@@ -172,12 +201,10 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try syncData(for: request)
+        } catch let error as WireMockError {
+            throw error
         } catch {
-            // Preserve cancellation as cancellation rather than mislabelling it
-            // a transport failure (loses the type for cancelled callers).
-            if error is CancellationError { throw error }
-            if let urlError = error as? URLError, urlError.code == .cancelled { throw CancellationError() }
             throw WireMockError.transport(underlying: String(describing: error))
         }
 
@@ -200,9 +227,9 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         query: [URLQueryItem] = [],
         body: Body,
         as: Response.Type
-    ) async throws -> Response {
+    ) throws -> Response {
         let payload = try Self.encoder.encode(body)
-        let data = try await perform(method, path, query: query, body: payload)
+        let data = try perform(method, path, query: query, body: payload)
         return try decode(data)
     }
 
@@ -212,9 +239,9 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         _ path: String,
         query: [URLQueryItem] = [],
         body: Body
-    ) async throws {
+    ) throws {
         let payload = try Self.encoder.encode(body)
-        _ = try await perform(method, path, query: query, body: payload)
+        _ = try perform(method, path, query: query, body: payload)
     }
 
     /// Sends a bodyless request and decodes the response.
@@ -222,8 +249,8 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         _ path: String,
         query: [URLQueryItem] = [],
         as: Response.Type
-    ) async throws -> Response {
-        let data = try await perform("GET", path, query: query, body: nil)
+    ) throws -> Response {
+        let data = try perform("GET", path, query: query, body: nil)
         return try decode(data)
     }
 

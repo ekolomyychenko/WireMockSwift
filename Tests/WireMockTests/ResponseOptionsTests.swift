@@ -12,18 +12,18 @@ final class ResponseOptionsTests: XCTestCase {
     private var port: UInt16 { UInt16(WireMockFixture.baseURL.port ?? 8080) }
     private var host: String { WireMockFixture.baseURL.host ?? "127.0.0.1" }
 
-    override func setUp() async throws {
-        wireMock = try await WireMockFixture.clientOrSkip()
+    override func setUpWithError() throws {
+        wireMock = try WireMockFixture.clientOrSkip()
     }
 
-    override func tearDown() async throws {
-        if wireMock != nil { try? await wireMock.resetAll() }
+    override func tearDownWithError() throws {
+        if wireMock != nil { try? wireMock.resetAll() }
     }
 
     // MARK: withStatusMessage — observed on the wire (URLSession hides the phrase)
 
-    func testStatusMessageOnTheWire() async throws {
-        try await wireMock.stubFor(
+    func testStatusMessageOnTheWire() throws {
+        try wireMock.stubFor(
             get(urlEqualTo("/teapot")).willReturn(aResponse().withStatus(418).withStatusMessage("I am a teapot"))
         )
         let statusLine = try RawHTTP.statusLine(path: "/teapot", host: host, port: port)
@@ -34,8 +34,8 @@ final class ResponseOptionsTests: XCTestCase {
 
     // MARK: multi-value response headers (multiple Set-Cookie)
 
-    func testMultipleSetCookieHeadersOnTheWire() async throws {
-        try await wireMock.stubFor(
+    func testMultipleSetCookieHeadersOnTheWire() throws {
+        try wireMock.stubFor(
             get(urlEqualTo("/cookies")).willReturn(ok().withHeader("Set-Cookie", ["a=1", "b=2"]))
         )
         let cookies = try RawHTTP.headerValues("Set-Cookie", path: "/cookies", host: host, port: port)
@@ -46,24 +46,24 @@ final class ResponseOptionsTests: XCTestCase {
 
     // MARK: withBodyFile
 
-    func testBodyFileServed() async throws {
-        try await wireMock.putFile(named: "resp.json", text: #"{"served":"from-file"}"#, contentType: "application/json")
-        try await wireMock.stubFor(
+    func testBodyFileServed() throws {
+        try wireMock.putFile(named: "resp.json", text: #"{"served":"from-file"}"#, contentType: "application/json")
+        try wireMock.stubFor(
             get(urlEqualTo("/bf")).willReturn(aResponse().withStatus(200).withBodyFile("resp.json"))
         )
-        let (data, response) = try await WireMockFixture.hit("bf")
+        let (data, response) = try WireMockFixture.hit("bf")
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: data), ["served": "from-file"])
-        try await wireMock.deleteFile(named: "resp.json")
+        try wireMock.deleteFile(named: "resp.json")
     }
 
     // MARK: withJsonBody + content type
 
-    func testJsonBodyContentType() async throws {
-        try await wireMock.stubFor(
+    func testJsonBodyContentType() throws {
+        try wireMock.stubFor(
             get(urlEqualTo("/jb")).willReturn(okForJson(["id": 7, "ok": true]))
         )
-        let (data, response) = try await WireMockFixture.hit("jb")
+        let (data, response) = try WireMockFixture.hit("jb")
         XCTAssertEqual(response.statusCode, 200)
         let contentType = response.value(forHTTPHeaderField: "Content-Type") ?? ""
         XCTAssertTrue(contentType.contains("application/json"), "Content-Type was: \(contentType)")
@@ -72,12 +72,12 @@ final class ResponseOptionsTests: XCTestCase {
 
     // MARK: withUniformRandomDelay (lifecycle + lower bound)
 
-    func testUniformRandomDelayLifecycle() async throws {
-        try await wireMock.stubFor(
+    func testUniformRandomDelayLifecycle() throws {
+        try wireMock.stubFor(
             get(urlEqualTo("/ud")).willReturn(ok("delayed").withUniformRandomDelay(lower: 300, upper: 500))
         )
         let start = Date()
-        let (data, response) = try await WireMockFixture.hit("ud")
+        let (data, response) = try WireMockFixture.hit("ud")
         let elapsed = Date().timeIntervalSince(start)
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(String(data: data, encoding: .utf8), "delayed")
@@ -87,12 +87,12 @@ final class ResponseOptionsTests: XCTestCase {
 
     // MARK: withChunkedDribbleDelay (lifecycle + body intact + timing)
 
-    func testChunkedDribbleDelayLifecycle() async throws {
-        try await wireMock.stubFor(
+    func testChunkedDribbleDelayLifecycle() throws {
+        try wireMock.stubFor(
             get(urlEqualTo("/cd")).willReturn(ok("streamed-body").withChunkedDribbleDelay(numberOfChunks: 5, totalDuration: 400))
         )
         let start = Date()
-        let (data, response) = try await WireMockFixture.hit("cd")
+        let (data, response) = try WireMockFixture.hit("cd")
         let elapsed = Date().timeIntervalSince(start)
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(String(data: data, encoding: .utf8), "streamed-body", "dribble must not corrupt the body")
@@ -101,15 +101,15 @@ final class ResponseOptionsTests: XCTestCase {
 
     // MARK: withTransformerParameter (consumed by response-template)
 
-    func testTransformerParameter() async throws {
-        try await wireMock.stubFor(
+    func testTransformerParameter() throws {
+        try wireMock.stubFor(
             get(urlEqualTo("/tp")).willReturn(
                 ok("greeting={{parameters.greeting}}")
                     .withTransformers("response-template")
                     .withTransformerParameter("greeting", "hello")
             )
         )
-        let (data, _) = try await WireMockFixture.hit("tp")
+        let (data, _) = try WireMockFixture.hit("tp")
         XCTAssertEqual(String(data: data, encoding: .utf8), "greeting=hello")
     }
 }

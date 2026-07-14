@@ -32,37 +32,37 @@ final class ClientUnitTests: XCTestCase {
 
     // MARK: - Authorization header attachment
 
-    func testBasicAuthorizationHeaderIsAttached() async throws {
+    func testBasicAuthorizationHeaderIsAttached() throws {
         MockURLProtocol.respond { _ in (200, #"{"requests":[]}"#) }
         let client = makeClient(authorization: .basic(username: "admin", password: "s3cret"))
-        _ = try await client.getAllServeEvents()
+        _ = try client.getAllServeEvents()
 
         let sent = try XCTUnwrap(MockURLProtocol.lastRequest?.value(forHTTPHeaderField: "Authorization"))
         let expected = "Basic " + Data("admin:s3cret".utf8).base64EncodedString()
         XCTAssertEqual(sent, expected, "the admin request must carry the Basic auth header")
     }
 
-    func testBearerAuthorizationHeaderIsAttached() async throws {
+    func testBearerAuthorizationHeaderIsAttached() throws {
         MockURLProtocol.respond { _ in (200, #"{"requests":[]}"#) }
         let client = makeClient(authorization: .bearer(token: "tok-123"))
-        _ = try await client.getAllServeEvents()
+        _ = try client.getAllServeEvents()
         XCTAssertEqual(MockURLProtocol.lastRequest?.value(forHTTPHeaderField: "Authorization"), "Bearer tok-123")
     }
 
-    func testNoAuthorizationHeaderWhenUnconfigured() async throws {
+    func testNoAuthorizationHeaderWhenUnconfigured() throws {
         MockURLProtocol.respond { _ in (200, #"{"requests":[]}"#) }
         let client = makeClient(authorization: nil)
-        _ = try await client.getAllServeEvents()
+        _ = try client.getAllServeEvents()
         XCTAssertNil(MockURLProtocol.lastRequest?.value(forHTTPHeaderField: "Authorization"))
     }
 
     // MARK: - Request journal disabled guard
 
-    func testGetAllServeEventsThrowsWhenJournalDisabled() async throws {
+    func testGetAllServeEventsThrowsWhenJournalDisabled() throws {
         MockURLProtocol.respond { _ in (200, #"{"requests":[],"requestJournalDisabled":true}"#) }
         let client = makeClient()
         do {
-            _ = try await client.getAllServeEvents()
+            _ = try client.getAllServeEvents()
             XCTFail("expected .requestJournalDisabled")
         } catch let error as WireMockError {
             guard case .requestJournalDisabled = error else {
@@ -71,12 +71,12 @@ final class ClientUnitTests: XCTestCase {
         }
     }
 
-    func testCountRequestsThrowsWhenJournalDisabled() async throws {
+    func testCountRequestsThrowsWhenJournalDisabled() throws {
         // Distinct DTO (CountResult) and HTTP verb (POST requests/count).
         MockURLProtocol.respond { _ in (200, #"{"count":-1,"requestJournalDisabled":true}"#) }
         let client = makeClient()
         do {
-            _ = try await client.countRequests(matching: getRequestedFor(anyUrl).pattern)
+            _ = try client.countRequests(matching: getRequestedFor(anyUrl).pattern)
             XCTFail("expected .requestJournalDisabled")
         } catch let error as WireMockError {
             guard case .requestJournalDisabled = error else {
@@ -85,20 +85,20 @@ final class ClientUnitTests: XCTestCase {
         }
     }
 
-    func testCountRequestsReturnsCountWhenJournalEnabled() async throws {
+    func testCountRequestsReturnsCountWhenJournalEnabled() throws {
         MockURLProtocol.respond { _ in (200, #"{"count":3}"#) }
         let client = makeClient()
-        let count = try await client.countRequests(matching: getRequestedFor(anyUrl).pattern)
+        let count = try client.countRequests(matching: getRequestedFor(anyUrl).pattern)
         XCTAssertEqual(count, 3)
     }
 
     // MARK: - Error status surfacing
 
-    func testNon2xxSurfacesStatusAndBody() async throws {
+    func testNon2xxSurfacesStatusAndBody() throws {
         MockURLProtocol.respond { _ in (422, "the server said no") }
         let client = makeClient()
         do {
-            _ = try await client.getAllServeEvents()
+            _ = try client.getAllServeEvents()
             XCTFail("expected .unexpectedStatus")
         } catch let error as WireMockError {
             guard case .unexpectedStatus(let code, let body) = error else {
@@ -109,11 +109,11 @@ final class ClientUnitTests: XCTestCase {
         }
     }
 
-    func testDecodingFailureSurfacesAsDecodingFailed() async throws {
+    func testDecodingFailureSurfacesAsDecodingFailed() throws {
         MockURLProtocol.respond { _ in (200, "not json at all") }
         let client = makeClient()
         do {
-            _ = try await client.getAllServeEvents()
+            _ = try client.getAllServeEvents()
             XCTFail("expected .decodingFailed")
         } catch let error as WireMockError {
             guard case .decodingFailed = error else {

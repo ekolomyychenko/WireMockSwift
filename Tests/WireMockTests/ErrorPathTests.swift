@@ -11,19 +11,19 @@ final class ErrorPathTests: XCTestCase {
     private var wireMock: WireMock!
     private let randomID = UUID()
 
-    override func setUp() async throws {
-        wireMock = try await WireMockFixture.clientOrSkip()
+    override func setUpWithError() throws {
+        wireMock = try WireMockFixture.clientOrSkip()
     }
 
-    override func tearDown() async throws {
-        if wireMock != nil { try? await wireMock.resetAll() }
+    override func tearDownWithError() throws {
+        if wireMock != nil { try? wireMock.resetAll() }
     }
 
     // MARK: Client-side validation (no network)
 
-    func testRegisterRawWithInvalidJSONThrows() async throws {
+    func testRegisterRawWithInvalidJSONThrows() throws {
         do {
-            try await wireMock.register(raw: "{ this is not valid json ")
+            try wireMock.register(raw: "{ this is not valid json ")
             XCTFail("register(raw:) should reject invalid JSON")
         } catch let error as WireMockError {
             guard case .decodingFailed = error else {
@@ -34,17 +34,17 @@ final class ErrorPathTests: XCTestCase {
 
     // MARK: Unmatched request -> 404
 
-    func testUnmatchedRequestReturns404() async throws {
-        try await wireMock.stubFor(get(urlEqualTo("/known")).willReturn(ok()))
-        let (_, response) = try await WireMockFixture.hit("unknown")
+    func testUnmatchedRequestReturns404() throws {
+        try wireMock.stubFor(get(urlEqualTo("/known")).willReturn(ok()))
+        let (_, response) = try WireMockFixture.hit("unknown")
         XCTAssertEqual(response.statusCode, 404, "an unstubbed path must return 404")
     }
 
     // MARK: Admin 404 -> unexpectedStatus
 
-    func testGetStubMappingUnknownIDThrows404() async throws {
+    func testGetStubMappingUnknownIDThrows404() throws {
         do {
-            _ = try await wireMock.getStubMapping(id: randomID)
+            _ = try wireMock.getStubMapping(id: randomID)
             XCTFail("getStubMapping with an unknown id should throw")
         } catch let error as WireMockError {
             guard case .unexpectedStatus(let code, _) = error else {
@@ -54,10 +54,10 @@ final class ErrorPathTests: XCTestCase {
         }
     }
 
-    func testEditStubMappingUnknownIDThrows404() async throws {
+    func testEditStubMappingUnknownIDThrows404() throws {
         let mapping = get(urlEqualTo("/x")).willReturn(ok()).build()
         do {
-            _ = try await wireMock.editStubMapping(id: randomID, mapping)
+            _ = try wireMock.editStubMapping(id: randomID, mapping)
             XCTFail("editStubMapping with an unknown id should throw")
         } catch let error as WireMockError {
             guard case .unexpectedStatus(let code, _) = error else {
@@ -67,9 +67,9 @@ final class ErrorPathTests: XCTestCase {
         }
     }
 
-    func testGetServeEventUnknownIDThrows404() async throws {
+    func testGetServeEventUnknownIDThrows404() throws {
         do {
-            _ = try await wireMock.getServeEvent(id: randomID)
+            _ = try wireMock.getServeEvent(id: randomID)
             XCTFail("getServeEvent with an unknown id should throw")
         } catch let error as WireMockError {
             guard case .unexpectedStatus(let code, _) = error else {
@@ -81,7 +81,7 @@ final class ErrorPathTests: XCTestCase {
 
     // MARK: Admin 422 -> unexpectedStatus (unknown match operator)
 
-    func testRegisteringUnknownMatchOperatorThrows422() async throws {
+    func testRegisteringUnknownMatchOperatorThrows422() throws {
         // An unknown match operator is validated and rejected by the server with
         // HTTP 422 — the raw escape hatch lets us drive that error path. Asserts
         // the server's status and (non-empty) error body surface to the caller.
@@ -93,7 +93,7 @@ final class ErrorPathTests: XCTestCase {
         }
         """#
         do {
-            try await wireMock.register(raw: raw)
+            try wireMock.register(raw: raw)
             XCTFail("registering an unknown match operator should be rejected with 422")
         } catch let error as WireMockError {
             guard case .unexpectedStatus(let code, let body) = error else {
