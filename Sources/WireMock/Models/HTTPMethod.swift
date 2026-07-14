@@ -9,8 +9,10 @@ import Foundation
 /// request(.report, urlEqualTo("/x"))
 /// request("REPORT", urlEqualTo("/x"))  // still works via the string literal
 /// ```
-public struct HTTPMethod: RawRepresentable, Codable, Sendable, Hashable, ExpressibleByStringLiteral {
+public struct HTTPMethod: RawRepresentable, Codable, Sendable, Hashable, ExpressibleByStringLiteral, CustomStringConvertible {
     public let rawValue: String
+
+    public var description: String { rawValue }   // "GET", "POST", … (like Java RequestMethod)
 
     public init(rawValue: String) { self.rawValue = rawValue }
     public init(stringLiteral value: String) { self.rawValue = value }

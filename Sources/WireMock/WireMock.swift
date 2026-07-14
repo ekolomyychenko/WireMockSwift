@@ -15,9 +15,13 @@ import FoundationNetworking
 ///
 /// The `init?(scheme:host:port:)` convenience is failable — it returns `nil`
 /// on a malformed host/port rather than trapping.
-public struct WireMock: Sendable {
+public struct WireMock: Sendable, CustomStringConvertible {
     /// The underlying admin API client.
     public let admin: AdminClient
+
+    public var description: String {
+        "WireMock(baseURL: \(admin.baseURL.absoluteString), authorized: \(admin.isAuthorized))"
+    }
 
     /// Creates a client over a pre-built admin API client.
     public init(admin: AdminClient) {

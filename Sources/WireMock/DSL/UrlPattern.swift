@@ -23,6 +23,22 @@ public struct UrlPattern: Sendable, Hashable {
     }
 }
 
+extension UrlPattern: CustomStringConvertible {
+    /// Readable `wireKey=value` (e.g. `urlPath=/things`), or `anyUrl`.
+    public var description: String {
+        let key: String
+        switch kind {
+        case .url: key = "url"
+        case .urlPattern: key = "urlPattern"
+        case .urlPath: key = "urlPath"
+        case .urlPathPattern: key = "urlPathPattern"
+        case .urlPathTemplate: key = "urlPathTemplate"
+        case .any: return "anyUrl"
+        }
+        return "\(key)=\(value ?? "")"
+    }
+}
+
 /// Match the full URL (path + query) exactly.
 public func urlEqualTo(_ url: String) -> UrlPattern { .init(kind: .url, value: url) }
 /// Match the full URL (path + query) by regex.

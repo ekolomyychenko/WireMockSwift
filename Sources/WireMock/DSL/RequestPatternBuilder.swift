@@ -102,7 +102,7 @@ public func anyRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(
 public func requestedFor(_ method: HTTPMethod, _ url: UrlPattern) -> RequestPatternBuilder { .init(method: method, url: url) }
 
 /// How a verified request count is checked.
-public enum CountMatchingStrategy: Sendable {
+public enum CountMatchingStrategy: Sendable, CustomStringConvertible {
     case exactly(Int)
     case lessThan(Int)
     case lessThanOrExactly(Int)
@@ -119,7 +119,7 @@ public enum CountMatchingStrategy: Sendable {
         }
     }
 
-    var description: String {
+    public var description: String {
         switch self {
         case .exactly(let n): return "exactly \(n)"
         case .lessThan(let n): return "less than \(n)"

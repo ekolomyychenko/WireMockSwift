@@ -118,6 +118,37 @@ extension JSONValue: ExpressibleByDictionaryLiteral {
     }
 }
 
+// MARK: - Description (compact JSON, like Java toString)
+
+extension JSONValue: CustomStringConvertible {
+    /// The value rendered as compact JSON (e.g. `{"id":1}`), for logging.
+    /// Uses `JSONSerialization` with `.fragmentsAllowed` so a bare scalar
+    /// (`"x"`, `1`, `true`) renders too — `JSONEncoder` would reject a
+    /// top-level fragment on the older Darwin Foundation.
+    public var description: String {
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: foundationObject,
+            options: [.fragmentsAllowed, .sortedKeys, .withoutEscapingSlashes]
+        ), let string = String(data: data, encoding: .utf8) else {
+            return "null"
+        }
+        return string
+    }
+
+    /// Bridges to the Foundation object graph `JSONSerialization` expects.
+    private var foundationObject: Any {
+        switch self {
+        case .null: return NSNull()
+        case .bool(let value): return value
+        case .int(let value): return value
+        case .double(let value): return value
+        case .string(let value): return value
+        case .array(let value): return value.map(\.foundationObject)
+        case .object(let value): return value.mapValues(\.foundationObject)
+        }
+    }
+}
+
 // MARK: - Convenience accessors
 
 extension JSONValue {

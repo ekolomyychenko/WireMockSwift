@@ -3,9 +3,16 @@ import Foundation
 /// A response header value: either a single value or multiple values
 /// (e.g. multiple `Set-Cookie` headers). Encodes as a bare string or a JSON
 /// array of strings, matching WireMock.
-public enum HeaderValue: Codable, Sendable, Hashable, ExpressibleByStringLiteral, ExpressibleByArrayLiteral {
+public enum HeaderValue: Codable, Sendable, Hashable, ExpressibleByStringLiteral, ExpressibleByArrayLiteral, CustomStringConvertible {
     case single(String)
     case multiple([String])
+
+    public var description: String {
+        switch self {
+        case .single(let value): return value
+        case .multiple(let values): return "[" + values.joined(separator: ", ") + "]"
+        }
+    }
 
     public init(stringLiteral value: String) { self = .single(value) }
     public init(arrayLiteral elements: String...) { self = .multiple(elements) }
@@ -97,7 +104,7 @@ public struct ChunkedDribbleDelay: Codable, Sendable, Hashable {
 }
 
 /// Low-level connection faults WireMock can simulate.
-public enum Fault: Codable, Sendable, Hashable {
+public enum Fault: Codable, Sendable, Hashable, CustomStringConvertible {
     case emptyResponse
     case malformedResponseChunk
     case randomDataThenClose
@@ -106,6 +113,8 @@ public enum Fault: Codable, Sendable, Hashable {
     /// decoding a newer server's mapping (e.g. inside a bulk `listAllStubMappings`)
     /// never fails.
     case other(String)
+
+    public var description: String { wireValue }   // "EMPTY_RESPONSE", …
 
     private var wireValue: String {
         switch self {

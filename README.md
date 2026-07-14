@@ -431,6 +431,20 @@ final class CheckoutSyncTests: XCTestCase {
 > `async`-контекста (там всегда `try await`). В XCTest предпочитайте async-вариант выше; `.run` — это
 > запасной путь для кода, который нельзя сделать `async`.
 
+### Логирование (Allure и т.п.)
+
+Все публичные типы имеют `description` в формате Java WireMock `toString()`: контейнеры
+(`StubMapping`, `LoggedRequest`, `ServeEvent`, `RequestPattern`, `ResponseDefinition`, `NearMiss`, …)
+печатаются как их JSON, leaf-типы — голым значением (`HTTPMethod` → `GET`, `Fault` → `EMPTY_RESPONSE`).
+Так что `"\(stub)"` / `String(describing: loggedRequest)` дают читаемую строку для step-имён и вложений,
+а не рефлексивный дамп. Секреты не светятся: `AdminAuthorization`/`WireMock`/`AdminClient` маскируют
+креды в своих описаниях.
+
+```swift
+Allure.step("Стаб: \(stub)") { … }                 // JSON стаба
+XCTContext.runActivity(named: "\(loggedRequest)") { … }
+```
+
 ## Непрерывная интеграция
 
 Сервер — это Java-процесс, поэтому **он всегда запускается на CI-хосте** — никогда внутри симулятора или

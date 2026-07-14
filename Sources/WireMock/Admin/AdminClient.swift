@@ -40,11 +40,21 @@ public enum WireMockError: Error, Sendable, CustomStringConvertible {
 /// Credentials for a WireMock admin API secured with `--admin-api-basic-auth`
 /// (or a bearer/custom scheme). Applied as an `Authorization` header on every
 /// admin request.
-public enum AdminAuthorization: Sendable {
+public enum AdminAuthorization: Sendable, CustomStringConvertible {
     case basic(username: String, password: String)
     case bearer(token: String)
     /// A raw `Authorization` header value, verbatim.
     case header(value: String)
+
+    /// Masks the secret so credentials don't land in logs/reports; the username
+    /// is shown for `basic`. (Change here if you ever want the raw value.)
+    public var description: String {
+        switch self {
+        case .basic(let username, _): return "basic(username: \(username), password: ***)"
+        case .bearer: return "bearer(token: ***)"
+        case .header: return "header(value: ***)"
+        }
+    }
 
     var headerValue: String {
         switch self {
@@ -58,11 +68,18 @@ public enum AdminAuthorization: Sendable {
     }
 }
 
-public struct AdminClient: Sendable {
+public struct AdminClient: Sendable, CustomStringConvertible {
     public let baseURL: URL
     private let session: URLSession
     private let timeout: TimeInterval
     private let authorization: AdminAuthorization?
+
+    /// Whether an admin `Authorization` is configured (no secret exposed).
+    public var isAuthorized: Bool { authorization != nil }
+
+    public var description: String {
+        "AdminClient(baseURL: \(baseURL.absoluteString), authorized: \(isAuthorized))"
+    }
 
     /// - Parameters:
     ///   - baseURL: The server root, e.g. `http://localhost:8080`.
