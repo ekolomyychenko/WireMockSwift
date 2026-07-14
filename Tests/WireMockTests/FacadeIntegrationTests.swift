@@ -136,8 +136,11 @@ final class FacadeIntegrationTests: XCTestCase {
         // A pattern for a slightly different URL should report the served
         // request as a near miss.
         let misses = try wireMock.findNearMisses(for: getRequestedFor(urlEqualTo("/exacts")))
-        XCTAssertFalse(misses.isEmpty)
-        XCTAssertNotNil(misses.first?.request)
+        // Pin identities: the served /exact request must near-miss the /exacts
+        // pattern — presence alone would pass even if the wrong request came back.
+        XCTAssertEqual(misses.first?.request?.url, "/exact", "the served request must be the near miss")
+        XCTAssertEqual(misses.first?.requestPattern?.url, "/exacts", "the queried pattern must be echoed back")
+        XCTAssertNotNil(misses.first?.matchResult?.distance, "a near miss must carry a distance")
     }
 
     // MARK: Scenarios

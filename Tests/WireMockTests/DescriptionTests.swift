@@ -8,15 +8,11 @@ import XCTest
 /// into an equal object.
 final class DescriptionTests: XCTestCase {
 
-    private func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
-        try JSONDecoder().decode(T.self, from: Data(json.utf8))
-    }
-
     /// The description is complete, valid JSON that reconstructs the same value.
     private func assertRoundTrips<T: Codable & Hashable & CustomStringConvertible>(_ value: T,
                                                                                    file: StaticString = #filePath,
                                                                                    line: UInt = #line) throws {
-        let again = try decode(T.self, value.description)
+        let again = try WireMockFixture.decode(T.self, value.description)
         XCTAssertEqual(value, again, "description is not faithful JSON for \(T.self)", file: file, line: line)
     }
 
@@ -51,22 +47,39 @@ final class DescriptionTests: XCTestCase {
     }
 
     func testCountMatchingStrategyDescription() {
+        // All five cases pinned so a wrong rendering can't slip through.
         XCTAssertEqual(CountMatchingStrategy.exactly(3).description, "exactly 3")
         XCTAssertEqual("\(CountMatchingStrategy.lessThan(4))", "less than 4")
+        XCTAssertEqual(CountMatchingStrategy.lessThanOrExactly(2).description, "less than or exactly 2")
+        XCTAssertEqual(CountMatchingStrategy.moreThan(5).description, "more than 5")
         XCTAssertEqual("\(CountMatchingStrategy.moreThanOrExactly(1))", "more than or exactly 1")
     }
 
     func testUrlPatternDescription() {
-        XCTAssertEqual(urlPathEqualTo("/things").description, "urlPath=/things")
+        // All six kinds pinned (each maps to a distinct wire key).
         XCTAssertEqual(urlEqualTo("/x?q=1").description, "url=/x?q=1")
+        XCTAssertEqual(urlMatching("/a.*").description, "urlPattern=/a.*")
+        XCTAssertEqual(urlPathEqualTo("/things").description, "urlPath=/things")
+        XCTAssertEqual(urlPathMatching("/a.*").description, "urlPathPattern=/a.*")
+        XCTAssertEqual(urlPathTemplate("/things/{id}").description, "urlPathTemplate=/things/{id}")
         XCTAssertEqual(anyUrl.description, "anyUrl")
     }
 
     func testAuthorizationDescriptionMasksSecret() {
-        let desc = AdminAuthorization.basic(username: "admin", password: "s3cr3t").description
-        XCTAssertFalse(desc.contains("s3cr3t"), "password must not leak: \(desc)")
-        XCTAssertTrue(desc.contains("admin") && desc.contains("***"))
-        XCTAssertFalse(AdminAuthorization.bearer(token: "tok123").description.contains("tok123"))
+        // Pin the exact masked forms (a gutted description would still pass a
+        // mere "does not contain the secret" check), and keep the explicit
+        // leak-guards as belt-and-suspenders.
+        let basic = AdminAuthorization.basic(username: "admin", password: "s3cr3t")
+        XCTAssertEqual(basic.description, "basic(username: admin, password: ***)")
+        XCTAssertFalse(basic.description.contains("s3cr3t"), "password must not leak")
+
+        let bearer = AdminAuthorization.bearer(token: "tok123")
+        XCTAssertEqual(bearer.description, "bearer(token: ***)")
+        XCTAssertFalse(bearer.description.contains("tok123"), "token must not leak")
+
+        let header = AdminAuthorization.header(value: "raw-secret")
+        XCTAssertEqual(header.description, "header(value: ***)")
+        XCTAssertFalse(header.description.contains("raw-secret"), "header value must not leak")
     }
 
     func testFacadeDescriptionShowsBaseURLNotSecrets() {
@@ -102,7 +115,7 @@ final class DescriptionTests: XCTestCase {
     }
 
     func testLoggedRequestDescriptionRoundTrips() throws {
-        let logged = try decode(LoggedRequest.self, #"""
+        let logged = try WireMockFixture.decode(LoggedRequest.self, #"""
         {"url":"/form","method":"POST","headers":{"Content-Type":"application/json"},
          "body":"{}","queryParams":{},"protocol":"HTTP/1.1"}
         """#)
@@ -110,12 +123,12 @@ final class DescriptionTests: XCTestCase {
     }
 
     func testServeEventAndNearMissDescriptionRoundTrip() throws {
-        let event = try decode(ServeEvent.self, #"""
+        let event = try WireMockFixture.decode(ServeEvent.self, #"""
         {"request":{"url":"/x","method":"GET"},"wasMatched":true}
         """#)
         try assertRoundTrips(event)
 
-        let nearMiss = try decode(NearMiss.self, #"""
+        let nearMiss = try WireMockFixture.decode(NearMiss.self, #"""
         {"request":{"url":"/x","method":"GET"},
          "matchResult":{"distance":0.25,"diffDescriptions":[{"expected":"/y","actual":"/x"}]}}
         """#)

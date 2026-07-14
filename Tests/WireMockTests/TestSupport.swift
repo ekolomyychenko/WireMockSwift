@@ -31,6 +31,11 @@ enum WireMockFixture {
             throw XCTSkip("No WireMock server reachable at \(baseURL): \(error)")
         }
         try wireMock.resetAll()
+        // resetAll() clears mappings and the journal but NOT a leaked global
+        // delay distribution or an in-progress recording, so establish a truly
+        // clean baseline here rather than trusting the previous suite's tearDown.
+        try? wireMock.setGlobalFixedDelay(0)
+        _ = try? wireMock.stopRecording()
         return wireMock
     }
 
@@ -80,5 +85,50 @@ enum WireMockFixture {
         case .failure(let error): throw error
         case nil: throw WireMockError.transport(underlying: "Request produced no result")
         }
+    }
+}
+
+// MARK: - Shared test assertions / codecs
+
+extension WireMockFixture {
+    /// Decodes JSON text into a `Decodable` (shared by the pure-decode suites).
+    static func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
+        try JSONDecoder().decode(T.self, from: Data(json.utf8))
+    }
+
+    /// Encodes an `Encodable` to JSON text.
+    static func encode<T: Encodable>(_ value: T) throws -> String {
+        String(decoding: try JSONEncoder().encode(value), as: UTF8.self)
+    }
+
+    /// Asserts a request matched a stub (HTTP 200). Forwards `file`/`line` so a
+    /// failure points at the call site, not this helper.
+    static func assertMatch(
+        _ result: (Data, HTTPURLResponse), _ message: String = "",
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertEqual(result.1.statusCode, 200, "expected match. \(message)", file: file, line: line)
+    }
+
+    /// Asserts a request matched no stub (HTTP 404).
+    static func assertMiss(
+        _ result: (Data, HTTPURLResponse), _ message: String = "",
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertEqual(result.1.statusCode, 404, "expected no match. \(message)", file: file, line: line)
+    }
+
+    /// Runs `body` and asserts it took at least `minSeconds`. A **lower** bound
+    /// only — extra load can only make it slower, so this never flakes upward.
+    @discardableResult
+    static func assertTakesAtLeast<T>(
+        _ minSeconds: TimeInterval, _ message: String = "",
+        file: StaticString = #filePath, line: UInt = #line,
+        _ body: () throws -> T
+    ) rethrows -> T {
+        let start = Date()
+        let result = try body()
+        XCTAssertGreaterThan(Date().timeIntervalSince(start), minSeconds, message, file: file, line: line)
+        return result
     }
 }

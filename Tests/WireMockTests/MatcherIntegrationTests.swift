@@ -22,13 +22,6 @@ final class MatcherIntegrationTests: XCTestCase {
         if wireMock != nil { try? wireMock.resetAll() }
     }
 
-    private func assertMatch(_ result: (Data, HTTPURLResponse), _ message: String = "") {
-        XCTAssertEqual(result.1.statusCode, 200, "expected match. \(message)")
-    }
-    private func assertMiss(_ result: (Data, HTTPURLResponse), _ message: String = "") {
-        XCTAssertEqual(result.1.statusCode, 404, "expected no match. \(message)")
-    }
-
     // MARK: binaryEqualTo
 
     func testBinaryEqualTo() throws {
@@ -36,8 +29,8 @@ final class MatcherIntegrationTests: XCTestCase {
         try wireMock.stubFor(
             post(urlEqualTo("/bin")).withRequestBody(binaryEqualTo(payload.base64EncodedString())).willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("bin", method: "POST", body: payload))
-        assertMiss(try WireMockFixture.hit("bin", method: "POST", body: Data("goodbye".utf8)))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("bin", method: "POST", body: payload))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("bin", method: "POST", body: Data("goodbye".utf8)))
     }
 
     // MARK: equalToJson flags
@@ -48,9 +41,9 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withRequestBody(equalToJson(["items": [1, 2, 3]], ignoreArrayOrder: true))
                 .willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("aj", method: "POST", headers: jsonHeaders, body: Data(#"{"items":[3,2,1]}"#.utf8)),
+        WireMockFixture.assertMatch(try WireMockFixture.hit("aj", method: "POST", headers: jsonHeaders, body: Data(#"{"items":[3,2,1]}"#.utf8)),
                     "reordered array should still match with ignoreArrayOrder")
-        assertMiss(try WireMockFixture.hit("aj", method: "POST", headers: jsonHeaders, body: Data(#"{"items":[1,2]}"#.utf8)),
+        WireMockFixture.assertMiss(try WireMockFixture.hit("aj", method: "POST", headers: jsonHeaders, body: Data(#"{"items":[1,2]}"#.utf8)),
                    "missing element must not match")
     }
 
@@ -60,9 +53,9 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withRequestBody(equalToJson(["a": 1], ignoreExtraElements: true))
                 .willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("ee", method: "POST", headers: jsonHeaders, body: Data(#"{"a":1,"b":2}"#.utf8)),
+        WireMockFixture.assertMatch(try WireMockFixture.hit("ee", method: "POST", headers: jsonHeaders, body: Data(#"{"a":1,"b":2}"#.utf8)),
                     "extra key allowed with ignoreExtraElements")
-        assertMiss(try WireMockFixture.hit("ee", method: "POST", headers: jsonHeaders, body: Data(#"{"a":2}"#.utf8)),
+        WireMockFixture.assertMiss(try WireMockFixture.hit("ee", method: "POST", headers: jsonHeaders, body: Data(#"{"a":2}"#.utf8)),
                    "wrong value must not match")
     }
 
@@ -72,9 +65,9 @@ final class MatcherIntegrationTests: XCTestCase {
         try wireMock.stubFor(
             get(urlEqualTo("/ci")).withHeader("X-Env", equalToIgnoreCase("PROD")).willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("ci", headers: ["X-Env": "prod"]))
-        assertMatch(try WireMockFixture.hit("ci", headers: ["X-Env": "Prod"]))
-        assertMiss(try WireMockFixture.hit("ci", headers: ["X-Env": "staging"]))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("ci", headers: ["X-Env": "prod"]))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("ci", headers: ["X-Env": "Prod"]))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("ci", headers: ["X-Env": "staging"]))
     }
 
     // MARK: notMatching / notContaining
@@ -83,16 +76,16 @@ final class MatcherIntegrationTests: XCTestCase {
         try wireMock.stubFor(
             get(urlPathEqualTo("/nm")).withQueryParam("q", notMatching("[0-9]+")).willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("nm?q=abc"), "non-numeric passes doesNotMatch")
-        assertMiss(try WireMockFixture.hit("nm?q=123"), "numeric fails doesNotMatch")
+        WireMockFixture.assertMatch(try WireMockFixture.hit("nm?q=abc"), "non-numeric passes doesNotMatch")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("nm?q=123"), "numeric fails doesNotMatch")
     }
 
     func testNotContainingQueryParam() throws {
         try wireMock.stubFor(
             get(urlPathEqualTo("/nc")).withQueryParam("q", notContaining("bad")).willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("nc?q=good"))
-        assertMiss(try WireMockFixture.hit("nc?q=verybad"))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("nc?q=good"))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("nc?q=verybad"))
     }
 
     // MARK: absent (header must be absent)
@@ -101,8 +94,8 @@ final class MatcherIntegrationTests: XCTestCase {
         try wireMock.stubFor(
             get(urlEqualTo("/ab")).withoutHeader("X-Trace").willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("ab"), "no header -> matches absent")
-        assertMiss(try WireMockFixture.hit("ab", headers: ["X-Trace": "1"]), "present header must fail absent")
+        WireMockFixture.assertMatch(try WireMockFixture.hit("ab"), "no header -> matches absent")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("ab", headers: ["X-Trace": "1"]), "present header must fail absent")
     }
 
     // MARK: matchesJsonSchema
@@ -116,10 +109,10 @@ final class MatcherIntegrationTests: XCTestCase {
         try wireMock.stubFor(
             post(urlEqualTo("/js")).withRequestBody(matchingJsonSchema(schema, version: .v202012)).willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("js", method: "POST", headers: jsonHeaders, body: Data(#"{"name":"bob"}"#.utf8)))
-        assertMiss(try WireMockFixture.hit("js", method: "POST", headers: jsonHeaders, body: Data(#"{"name":5}"#.utf8)),
+        WireMockFixture.assertMatch(try WireMockFixture.hit("js", method: "POST", headers: jsonHeaders, body: Data(#"{"name":"bob"}"#.utf8)))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("js", method: "POST", headers: jsonHeaders, body: Data(#"{"name":5}"#.utf8)),
                    "wrong type violates schema")
-        assertMiss(try WireMockFixture.hit("js", method: "POST", headers: jsonHeaders, body: Data(#"{}"#.utf8)),
+        WireMockFixture.assertMiss(try WireMockFixture.hit("js", method: "POST", headers: jsonHeaders, body: Data(#"{}"#.utf8)),
                    "missing required violates schema")
     }
 
@@ -131,9 +124,9 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withRequestBody(StringValuePattern.equalToXml("<msg><id>${xmlunit.ignore}</id></msg>", enablePlaceholders: true))
                 .willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("xp", method: "POST", headers: xmlHeaders, body: Data("<msg><id>anything</id></msg>".utf8)),
+        WireMockFixture.assertMatch(try WireMockFixture.hit("xp", method: "POST", headers: xmlHeaders, body: Data("<msg><id>anything</id></msg>".utf8)),
                     "placeholder ignores the id value")
-        assertMiss(try WireMockFixture.hit("xp", method: "POST", headers: xmlHeaders, body: Data("<msg><name>x</name></msg>".utf8)),
+        WireMockFixture.assertMiss(try WireMockFixture.hit("xp", method: "POST", headers: xmlHeaders, body: Data("<msg><name>x</name></msg>".utf8)),
                    "different structure must not match")
     }
 
@@ -147,10 +140,10 @@ final class MatcherIntegrationTests: XCTestCase {
         )
         let matched = try WireMockFixture.hit("xn", method: "POST", headers: xmlHeaders,
             body: Data(#"<t:note xmlns:t="urn:test"><t:to>Bob</t:to></t:note>"#.utf8))
-        assertMatch(matched)
+        WireMockFixture.assertMatch(matched)
         let missed = try WireMockFixture.hit("xn", method: "POST", headers: xmlHeaders,
             body: Data(#"<t:note xmlns:t="urn:test"><t:to>Alice</t:to></t:note>"#.utf8))
-        assertMiss(missed)
+        WireMockFixture.assertMiss(missed)
     }
 
     // MARK: before / after / equalToDateTime
@@ -160,20 +153,20 @@ final class MatcherIntegrationTests: XCTestCase {
         try wireMock.stubFor(
             get(urlPathEqualTo("/before")).withQueryParam("d", before("2030-01-01T00:00:00Z")).willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("before?d=2020-06-01T00:00:00Z"))
-        assertMiss(try WireMockFixture.hit("before?d=2040-06-01T00:00:00Z"))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("before?d=2020-06-01T00:00:00Z"))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("before?d=2040-06-01T00:00:00Z"))
 
         try wireMock.stubFor(
             get(urlPathEqualTo("/after")).withQueryParam("d", after("2020-01-01T00:00:00Z")).willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("after?d=2025-06-01T00:00:00Z"))
-        assertMiss(try WireMockFixture.hit("after?d=2010-06-01T00:00:00Z"))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("after?d=2025-06-01T00:00:00Z"))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("after?d=2010-06-01T00:00:00Z"))
 
         try wireMock.stubFor(
             get(urlPathEqualTo("/eq")).withQueryParam("d", equalToDateTime("2020-01-01T00:00:00Z")).willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("eq?d=2020-01-01T00:00:00Z"))
-        assertMiss(try WireMockFixture.hit("eq?d=2020-01-02T00:00:00Z"))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("eq?d=2020-01-01T00:00:00Z"))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("eq?d=2020-01-02T00:00:00Z"))
     }
 
     // MARK: and / or / not (logical combinators)
@@ -184,9 +177,9 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withQueryParam("q", and(containing("foo"), notContaining("bar")))
                 .willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("and?q=foobaz"))
-        assertMiss(try WireMockFixture.hit("and?q=foobar"), "contains bar -> fails AND")
-        assertMiss(try WireMockFixture.hit("and?q=baz"), "missing foo -> fails AND")
+        WireMockFixture.assertMatch(try WireMockFixture.hit("and?q=foobaz"))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("and?q=foobar"), "contains bar -> fails AND")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("and?q=baz"), "missing foo -> fails AND")
     }
 
     func testOrCombinator() throws {
@@ -195,9 +188,9 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withQueryParam("q", or(equalTo("red"), equalTo("blue")))
                 .willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("or?q=red"))
-        assertMatch(try WireMockFixture.hit("or?q=blue"))
-        assertMiss(try WireMockFixture.hit("or?q=green"))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("or?q=red"))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("or?q=blue"))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("or?q=green"))
     }
 
     func testNotCombinator() throws {
@@ -206,8 +199,8 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withQueryParam("q", not(equalTo("secret")))
                 .willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("not?q=public"))
-        assertMiss(try WireMockFixture.hit("not?q=secret"))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("not?q=public"))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("not?q=secret"))
     }
 
     // MARK: hasExactly — wrong count must NOT match
@@ -218,9 +211,9 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withQueryParam("id", .hasExactly([equalTo("1"), equalTo("2")]))
                 .willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("he?id=1&id=2"))
-        assertMiss(try WireMockFixture.hit("he?id=1&id=2&id=3"), "3 values != exactly 2")
-        assertMiss(try WireMockFixture.hit("he?id=1"), "1 value != exactly 2")
+        WireMockFixture.assertMatch(try WireMockFixture.hit("he?id=1&id=2"))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("he?id=1&id=2&id=3"), "3 values != exactly 2")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("he?id=1"), "1 value != exactly 2")
     }
 
     // MARK: urlPathTemplate + pathParameters
@@ -231,8 +224,8 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withPathParam("id", matching("[0-9]+"))
                 .willReturn(ok("thing"))
         )
-        assertMatch(try WireMockFixture.hit("things/42"))
-        assertMiss(try WireMockFixture.hit("things/abc"), "non-numeric path param must not match")
+        WireMockFixture.assertMatch(try WireMockFixture.hit("things/42"))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("things/abc"), "non-numeric path param must not match")
     }
 
     // MARK: formParameters
@@ -244,8 +237,8 @@ final class MatcherIntegrationTests: XCTestCase {
                 .willReturn(ok())
         )
         let formHeaders = ["Content-Type": "application/x-www-form-urlencoded"]
-        assertMatch(try WireMockFixture.hit("form", method: "POST", headers: formHeaders, body: Data("name=bob&age=3".utf8)))
-        assertMiss(try WireMockFixture.hit("form", method: "POST", headers: formHeaders, body: Data("name=alice".utf8)))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("form", method: "POST", headers: formHeaders, body: Data("name=bob&age=3".utf8)))
+        WireMockFixture.assertMiss(try WireMockFixture.hit("form", method: "POST", headers: formHeaders, body: Data("name=alice".utf8)))
     }
 
     // MARK: host / port / scheme
@@ -261,14 +254,14 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withScheme("http")
                 .willReturn(ok("hp"))
         )
-        assertMatch(try WireMockFixture.hit("hp"))
+        WireMockFixture.assertMatch(try WireMockFixture.hit("hp"))
 
         // Negative: a wrong port on the same request must not match.
         try wireMock.resetAll()
         try wireMock.stubFor(
             get(urlPathEqualTo("/hp")).withPort(1).willReturn(ok())
         )
-        assertMiss(try WireMockFixture.hit("hp"), "wrong port must not match")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("hp"), "wrong port must not match")
     }
 
     // MARK: multipart ALL vs ANY
@@ -294,9 +287,9 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withMultipartRequestBody(MultipartValuePattern(matchingType: .all, bodyPatterns: [containing("target")]))
                 .willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("all", method: "POST", headers: headers, body: twoParts("target a", "target b")),
+        WireMockFixture.assertMatch(try WireMockFixture.hit("all", method: "POST", headers: headers, body: twoParts("target a", "target b")),
                     "ALL matches when every part contains target")
-        assertMiss(try WireMockFixture.hit("all", method: "POST", headers: headers, body: twoParts("target a", "other b")),
+        WireMockFixture.assertMiss(try WireMockFixture.hit("all", method: "POST", headers: headers, body: twoParts("target a", "other b")),
                    "ALL fails when one part lacks target")
 
         // ANY: at least one part must contain "target".
@@ -306,9 +299,9 @@ final class MatcherIntegrationTests: XCTestCase {
                 .withMultipartRequestBody(MultipartValuePattern(matchingType: .any, bodyPatterns: [containing("target")]))
                 .willReturn(ok())
         )
-        assertMatch(try WireMockFixture.hit("any", method: "POST", headers: headers, body: twoParts("target a", "other b")),
+        WireMockFixture.assertMatch(try WireMockFixture.hit("any", method: "POST", headers: headers, body: twoParts("target a", "other b")),
                     "ANY matches when at least one part contains target")
-        assertMiss(try WireMockFixture.hit("any", method: "POST", headers: headers, body: twoParts("other a", "other b")),
+        WireMockFixture.assertMiss(try WireMockFixture.hit("any", method: "POST", headers: headers, body: twoParts("other a", "other b")),
                    "ANY fails when no part contains target")
     }
 }

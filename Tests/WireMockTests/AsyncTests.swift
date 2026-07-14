@@ -10,6 +10,12 @@ final class AsyncTests: XCTestCase {
 
     private let wireMock = WireMock(baseURL: URL(string: "http://stub.local:8080")!)
 
+    override func tearDownWithError() throws {
+        // The live test registers a stub on the shared server; reset it so the
+        // suite doesn't leak state (it can't reuse the stub.local client above).
+        try? WireMock(baseURL: WireMockFixture.baseURL).resetAll()
+    }
+
     func testCallAsyncReturnsValue() async throws {
         let value = try await wireMock.callAsync { _ in 42 }
         XCTAssertEqual(value, 42)
@@ -34,8 +40,12 @@ final class AsyncTests: XCTestCase {
     /// Live-server smoke test: drive a real stub+verify from an async context.
     func testCallAsyncStubAndVerifyLive() async throws {
         let client = try WireMockFixture.clientOrSkip()
-        try await client.callAsync { try $0.stubFor(get(urlEqualTo("/async")).willReturn(ok("ok"))) }
-        _ = try WireMockFixture.hit("async")
+        try await client.callAsync { _ = try $0.stubFor(get(urlEqualTo("/async")).willReturn(ok("ok"))) }
+        // Pin the served response: a stub that never registered (404) or a wrong
+        // body would otherwise pass, since verify alone can't prove it served.
+        let (data, response) = try WireMockFixture.hit("async")
+        XCTAssertEqual(response.statusCode, 200, "stub must have registered and served through the async bridge")
+        XCTAssertEqual(String(data: data, encoding: .utf8), "ok")
         try await client.callAsync { try $0.verify(getRequestedFor(urlEqualTo("/async"))) }
     }
 }

@@ -35,9 +35,13 @@ final class ErrorPathTests: XCTestCase {
     // MARK: Unmatched request -> 404
 
     func testUnmatchedRequestReturns404() throws {
-        try wireMock.stubFor(get(urlEqualTo("/known")).willReturn(ok()))
-        let (_, response) = try WireMockFixture.hit("unknown")
-        XCTAssertEqual(response.statusCode, 404, "an unstubbed path must return 404")
+        try wireMock.stubFor(get(urlEqualTo("/known")).willReturn(ok("served")))
+        // Positive control: the stub actually serves, so the 404 below is proven
+        // to come from non-matching, not a dead stub or a broken server.
+        let matched = try WireMockFixture.hit("known")
+        WireMockFixture.assertMatch(matched)
+        XCTAssertEqual(String(data: matched.0, encoding: .utf8), "served")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("unknown"), "an unstubbed path must return 404")
     }
 
     // MARK: Admin 404 -> unexpectedStatus
@@ -100,7 +104,10 @@ final class ErrorPathTests: XCTestCase {
                 return XCTFail("expected .unexpectedStatus, got \(error)")
             }
             XCTAssertEqual(code, 422)
-            XCTAssertFalse(body.isEmpty, "the server's error body should be surfaced")
+            // Prove it's the operator-validation error that surfaced, not just
+            // some non-empty payload. (Version-tolerant: not pinning exact JSON.)
+            XCTAssertTrue(body.contains("not a valid match operation"),
+                          "the operator-rejection message should surface to the caller: \(body)")
         }
     }
 }

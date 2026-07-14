@@ -76,13 +76,10 @@ final class ResponseOptionsTests: XCTestCase {
         try wireMock.stubFor(
             get(urlEqualTo("/ud")).willReturn(ok("delayed").withUniformRandomDelay(lower: 300, upper: 500))
         )
-        let start = Date()
-        let (data, response) = try WireMockFixture.hit("ud")
-        let elapsed = Date().timeIntervalSince(start)
+        // Uniform lower bound is 300ms; require a real delay (lower bound only).
+        let (data, response) = try WireMockFixture.assertTakesAtLeast(0.25) { try WireMockFixture.hit("ud") }
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(String(data: data, encoding: .utf8), "delayed")
-        // Uniform lower bound is 300ms; allow slack but require a real delay.
-        XCTAssertGreaterThan(elapsed, 0.25, "uniform delay lower bound not honoured (elapsed \(elapsed)s)")
     }
 
     // MARK: withChunkedDribbleDelay (lifecycle + body intact + timing)
@@ -91,12 +88,18 @@ final class ResponseOptionsTests: XCTestCase {
         try wireMock.stubFor(
             get(urlEqualTo("/cd")).willReturn(ok("streamed-body").withChunkedDribbleDelay(numberOfChunks: 5, totalDuration: 400))
         )
-        let start = Date()
-        let (data, response) = try WireMockFixture.hit("cd")
-        let elapsed = Date().timeIntervalSince(start)
-        XCTAssertEqual(response.statusCode, 200)
-        XCTAssertEqual(String(data: data, encoding: .utf8), "streamed-body", "dribble must not corrupt the body")
-        XCTAssertGreaterThan(elapsed, 0.3, "chunked dribble should spread the body over ~400ms (elapsed \(elapsed)s)")
+        // Read over a raw socket so we can see the body arrive incrementally.
+        // The distinguishing behaviour of a *dribble* (vs. a plain fixed delay,
+        // which arrives in one shot) is that bytes land across multiple reads
+        // spread over the duration — assert that, not just the total elapsed.
+        let (raw, chunks) = try RawHTTP.recvTimeline(path: "/cd", host: host, port: port)
+        XCTAssertTrue(raw.hasPrefix("HTTP/1.1 200"), "status line: \(raw.prefix(24))")
+        XCTAssertTrue(raw.contains("streamed-body"), "dribble must not corrupt the body")
+        XCTAssertGreaterThanOrEqual(chunks.count, 2,
+            "dribble should deliver over multiple reads, not one shot; got \(chunks.count)")
+        let span = chunks.last!.offset - chunks.first!.offset
+        XCTAssertGreaterThan(span, 0.15,
+            "body should be spread across time (span \(span)s of ~400ms) — a fixed delay would span ~0")
     }
 
     // MARK: withTransformerParameter (consumed by response-template)

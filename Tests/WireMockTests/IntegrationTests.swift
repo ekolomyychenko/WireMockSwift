@@ -15,20 +15,12 @@ import FoundationNetworking
 /// ```
 final class IntegrationTests: XCTestCase {
     private var wireMock: WireMock!
-    private var baseURL: URL!
 
     override func setUpWithError() throws {
-        let urlString = ProcessInfo.processInfo.environment["WIREMOCK_URL"] ?? "http://localhost:8080"
-        baseURL = URL(string: urlString)!
-        wireMock = WireMock(baseURL: baseURL)
-
-        // Skip the whole suite if no server is listening.
-        do {
-            _ = try wireMock.listAllStubMappings()
-        } catch {
-            throw XCTSkip("No WireMock server reachable at \(urlString): \(error)")
-        }
-        try wireMock.resetAll()
+        // Use the shared bootstrap so this suite inherits the WIREMOCK_REQUIRED=1
+        // fail-fast guard — otherwise it would silently XCTSkip in CI while every
+        // other live suite fails on a missing server.
+        wireMock = try WireMockFixture.clientOrSkip()
     }
 
     override func tearDownWithError() throws {

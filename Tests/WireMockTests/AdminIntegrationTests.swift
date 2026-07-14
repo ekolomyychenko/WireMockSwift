@@ -20,6 +20,9 @@ final class AdminIntegrationTests: XCTestCase {
             // that sets one (and fails before its own cleanup) would leak it into
             // every subsequent test. Reset it explicitly.
             try? wireMock.setGlobalFixedDelay(0)
+            // resetAll() doesn't stop an in-progress recording, so if a recording
+            // test aborts before its own stop, clear it here (best-effort).
+            _ = try? wireMock.stopRecording()
             try? wireMock.resetAll()
         }
     }
@@ -62,8 +65,14 @@ final class AdminIntegrationTests: XCTestCase {
         let unmatched = try wireMock.getUnmatchedRequests()
         XCTAssertTrue(unmatched.contains { $0.url == "/expectd" })
 
+        // Pin the near-miss content: it must describe the /expectd request and
+        // point at the /expected stub — non-emptiness alone would pass even if
+        // the linkage were dropped or the wrong request were returned.
         let nearMisses = try wireMock.findNearMissesForAllUnmatched()
-        XCTAssertFalse(nearMisses.isEmpty)
+        XCTAssertEqual(nearMisses.count, 1)
+        XCTAssertEqual(nearMisses.first?.request?.url, "/expectd")
+        XCTAssertEqual(nearMisses.first?.stubMapping?.request.url, "/expected")
+        XCTAssertNotNil(nearMisses.first?.matchResult?.distance)
     }
 
     func testResetRequests() throws {
@@ -83,9 +92,9 @@ final class AdminIntegrationTests: XCTestCase {
             get(urlPathEqualTo("/num")).withQueryParam("n", matching("[0-9]+")).willReturn(ok("digits"))
         )
         let matched = try WireMockFixture.hit("num?n=20")
-        XCTAssertEqual(matched.1.statusCode, 200)
+        WireMockFixture.assertMatch(matched)
         let unmatched = try WireMockFixture.hit("num?n=abc")
-        XCTAssertEqual(unmatched.1.statusCode, 404)
+        WireMockFixture.assertMiss(unmatched)
     }
 
     func testJsonPathBodyMatcherMatchesOnServer() throws {
@@ -93,9 +102,9 @@ final class AdminIntegrationTests: XCTestCase {
             post(urlEqualTo("/j")).withRequestBody(matchingJsonPath("$.name")).willReturn(ok())
         )
         let hit = try WireMockFixture.hit("j", method: "POST", headers: ["Content-Type": "application/json"], body: Data(#"{"name":"bob"}"#.utf8))
-        XCTAssertEqual(hit.1.statusCode, 200)
+        WireMockFixture.assertMatch(hit)
         let miss = try WireMockFixture.hit("j", method: "POST", headers: ["Content-Type": "application/json"], body: Data(#"{"age":1}"#.utf8))
-        XCTAssertEqual(miss.1.statusCode, 404)
+        WireMockFixture.assertMiss(miss)
     }
 
     // MARK: Scenarios
@@ -130,9 +139,7 @@ final class AdminIntegrationTests: XCTestCase {
     func testGlobalFixedDelay() throws {
         try wireMock.stubFor(get(urlEqualTo("/slow")).willReturn(ok()))
         try wireMock.setGlobalFixedDelay(400)
-        let start = Date()
-        _ = try WireMockFixture.hit("slow")
-        XCTAssertGreaterThan(Date().timeIntervalSince(start), 0.3)
+        try WireMockFixture.assertTakesAtLeast(0.3) { _ = try WireMockFixture.hit("slow") }
         try wireMock.setGlobalFixedDelay(0)
     }
 
@@ -174,6 +181,13 @@ final class AdminIntegrationTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: fetched), ["hi": true])
 
         try wireMock.deleteFile(named: "greeting.json")
+        // The delete must actually remove the file — fetching it now 404s.
+        XCTAssertThrowsError(try wireMock.getFile(named: "greeting.json"), "deleted file should be gone") { error in
+            guard case WireMockError.unexpectedStatus(let code, _) = error else {
+                return XCTFail("expected unexpectedStatus, got \(error)")
+            }
+            XCTAssertEqual(code, 404)
+        }
     }
 
     // MARK: Metadata

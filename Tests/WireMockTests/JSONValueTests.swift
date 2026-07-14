@@ -12,29 +12,28 @@ import XCTest
 /// background decode path. See the README limitations note.
 final class JSONValueTests: XCTestCase {
 
-    private func decode(_ json: String) throws -> JSONValue {
-        try JSONDecoder().decode(JSONValue.self, from: Data(json.utf8))
-    }
-
-    private func encode(_ value: JSONValue) throws -> String {
-        String(decoding: try JSONEncoder().encode(value), as: UTF8.self)
-    }
-
     func testNumericEqualityIsByMagnitude() throws {
         // JSON has one number type: 1 and 1.0 are the same value.
         XCTAssertEqual(JSONValue.int(1), JSONValue.double(1.0))
-        XCTAssertEqual(JSONValue.int(90), try decode("90"))
-        XCTAssertEqual(JSONValue.double(1.5), try decode("1.5"))
+        XCTAssertEqual(JSONValue.int(90), try WireMockFixture.decode(JSONValue.self, "90"))
+        XCTAssertEqual(JSONValue.double(1.5), try WireMockFixture.decode(JSONValue.self, "1.5"))
+        // Negatives: magnitude must actually be compared, and cross-kind stays
+        // unequal — kills a `==` that returns true unconditionally or ignores
+        // magnitude, and pins the `default: return false` branch.
+        XCTAssertNotEqual(JSONValue.int(1), JSONValue.double(2.0))
+        XCTAssertNotEqual(JSONValue.int(1), JSONValue.double(1.5))
+        XCTAssertNotEqual(JSONValue.int(1), JSONValue.string("1"))
+        XCTAssertNotEqual(JSONValue.bool(true), JSONValue.int(1))
     }
 
     func testEqualNumbersHashEqual() throws {
-        let set: Set<JSONValue> = [.int(1), .double(1.0), try decode("1")]
+        let set: Set<JSONValue> = [.int(1), .double(1.0), try WireMockFixture.decode(JSONValue.self, "1")]
         XCTAssertEqual(set.count, 1, "1 and 1.0 must collapse to one element")
     }
 
     func testIntegerAndDoubleDecodeToExpectedCases() throws {
-        guard case .int = try decode("42") else { return XCTFail("42 should decode as .int") }
-        guard case .double = try decode("42.5") else { return XCTFail("42.5 should decode as .double") }
+        guard case .int = try WireMockFixture.decode(JSONValue.self, "42") else { return XCTFail("42 should decode as .int") }
+        guard case .double = try WireMockFixture.decode(JSONValue.self, "42.5") else { return XCTFail("42.5 should decode as .double") }
     }
 
     func testStringAndParsingAccessors() throws {
@@ -46,13 +45,13 @@ final class JSONValueTests: XCTestCase {
 
     func testOrdinaryValuesRoundTrip() throws {
         let value: JSONValue = ["a": 1, "b": [true, "x", 2.5], "c": nil]
-        XCTAssertEqual(try decode(encode(value)), value)
+        XCTAssertEqual(try WireMockFixture.decode(JSONValue.self, WireMockFixture.encode(value)), value)
     }
 
     func testBigNumberPrecisionIsDocumentedLossy() throws {
         // Documents the known limitation: a >Int64 integer degrades through Double.
         // (Kept as an explicit contract so a future precision fix has a target.)
-        let decoded = try decode("12345678901234567890")
+        let decoded = try WireMockFixture.decode(JSONValue.self, "12345678901234567890")
         guard case .double = decoded else {
             return XCTFail("a >Int64 integer currently decodes as .double")
         }

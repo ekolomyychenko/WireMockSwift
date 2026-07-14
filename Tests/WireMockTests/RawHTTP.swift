@@ -24,6 +24,10 @@ enum RawHTTP {
         }
     }
 
+    /// One `recv()` that carried body/response bytes: its arrival time (seconds
+    /// since the request was sent) and how many bytes it delivered.
+    struct Chunk { let offset: TimeInterval; let bytes: Int }
+
     /// Sends `GET path` and returns the full raw response (status line, headers,
     /// blank line, body). Uses `Connection: close` so the read completes at EOF.
     static func get(
@@ -32,6 +36,25 @@ enum RawHTTP {
         port: UInt16 = 8080,
         timeoutSeconds: Int = 5
     ) throws -> String {
+        try fetch(path: path, host: host, port: port, timeoutSeconds: timeoutSeconds).raw
+    }
+
+    /// Like `get`, but also returns the arrival timeline of each `recv()` so a
+    /// test can observe that a body is *dribbled* across time (chunked dribble
+    /// delay) rather than delivered in a single read (a plain fixed delay).
+    static func recvTimeline(
+        path: String,
+        host: String = "127.0.0.1",
+        port: UInt16 = 8080,
+        timeoutSeconds: Int = 5
+    ) throws -> (raw: String, chunks: [Chunk]) {
+        let result = try fetch(path: path, host: host, port: port, timeoutSeconds: timeoutSeconds)
+        return (result.raw, result.chunks)
+    }
+
+    private static func fetch(
+        path: String, host: String, port: UInt16, timeoutSeconds: Int
+    ) throws -> (raw: String, chunks: [Chunk]) {
         #if canImport(Darwin)
         let streamType = SOCK_STREAM
         #else
@@ -65,15 +88,18 @@ enum RawHTTP {
         let sent = request.withCString { send(fd, $0, strlen($0), 0) }
         guard sent >= 0 else { throw Failure.send }
 
+        let start = Date()
         var response = Data()
+        var chunks: [Chunk] = []
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
             let n = buffer.withUnsafeMutableBytes { recv(fd, $0.baseAddress, $0.count, 0) }
             if n <= 0 { break }
+            chunks.append(Chunk(offset: Date().timeIntervalSince(start), bytes: n))
             response.append(contentsOf: buffer[0..<n])
         }
         guard !response.isEmpty else { throw Failure.empty }
-        return String(decoding: response, as: UTF8.self)
+        return (String(decoding: response, as: UTF8.self), chunks)
     }
 
     /// The status line (first line) of the response, e.g. `HTTP/1.1 418 I'm a teapot`.

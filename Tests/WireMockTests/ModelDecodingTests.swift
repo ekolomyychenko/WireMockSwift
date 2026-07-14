@@ -10,10 +10,6 @@ import FoundationNetworking
 /// fields survive real traffic.
 final class ModelDecodingTests: XCTestCase {
 
-    private func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
-        try JSONDecoder().decode(T.self, from: Data(json.utf8))
-    }
-
     // MARK: - LoggedRequest
 
     func testLoggedRequestDecodesAllFields() throws {
@@ -39,15 +35,21 @@ final class ModelDecodingTests: XCTestCase {
           "protocol": "HTTP/1.1"
         }
         """#
-        let req = try decode(LoggedRequest.self, raw)
+        let req = try WireMockFixture.decode(LoggedRequest.self, raw)
         XCTAssertEqual(req.url, "/form")
+        XCTAssertEqual(req.absoluteUrl, "http://localhost:8080/form")
         XCTAssertEqual(req.method, "POST")
         XCTAssertEqual(req.scheme, "http")
+        XCTAssertEqual(req.host, "localhost")
         XCTAssertEqual(req.port, 8080)
         XCTAssertEqual(req.clientIp, "127.0.0.1")
+        XCTAssertEqual(req.headers?["Content-Type"], .single("application/x-www-form-urlencoded"))
         XCTAssertEqual(req.cookies?["session"], "abc")
         XCTAssertEqual(req.body, "name=bob&age=3")
+        XCTAssertEqual(req.bodyAsBase64, "bmFtZT1ib2ImYWdlPTM=")
         XCTAssertEqual(req.loggedDate, 1783933594444)
+        XCTAssertEqual(req.loggedDateString, "2026-07-13T00:00:00Z")
+        XCTAssertEqual(req.queryParams?.objectValue?.isEmpty, true)
         XCTAssertEqual(req.browserProxyRequest, false)
         // The wire key is "protocol"; it maps to protocolVersion.
         XCTAssertEqual(req.protocolVersion, "HTTP/1.1")
@@ -58,7 +60,7 @@ final class ModelDecodingTests: XCTestCase {
 
     func testLoggedRequestMultiValueHeaderDecodes() throws {
         let raw = #"{ "url": "/x", "method": "GET", "headers": { "Accept": ["a", "b"] } }"#
-        let req = try decode(LoggedRequest.self, raw)
+        let req = try WireMockFixture.decode(LoggedRequest.self, raw)
         XCTAssertEqual(req.headers?["Accept"], .multiple(["a", "b"]))
     }
 
@@ -66,13 +68,13 @@ final class ModelDecodingTests: XCTestCase {
 
     func testServeEventWasMatchedDecodes() throws {
         let matched = #"{ "id": "11111111-1111-1111-1111-111111111111", "request": { "url": "/a", "method": "GET" }, "wasMatched": true }"#
-        let event = try decode(ServeEvent.self, matched)
+        let event = try WireMockFixture.decode(ServeEvent.self, matched)
         XCTAssertEqual(event.wasMatched, true)
         XCTAssertEqual(event.request.url, "/a")
         XCTAssertEqual(event.id, UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
 
         let unmatched = #"{ "request": { "url": "/b", "method": "GET" }, "wasMatched": false }"#
-        XCTAssertEqual(try decode(ServeEvent.self, unmatched).wasMatched, false)
+        XCTAssertEqual(try WireMockFixture.decode(ServeEvent.self, unmatched).wasMatched, false)
     }
 
     // MARK: - NearMiss / MatchResult
@@ -85,27 +87,27 @@ final class ModelDecodingTests: XCTestCase {
           "matchResult": { "distance": 0.0284900284900 }
         }
         """#
-        let miss = try decode(NearMiss.self, raw)
+        let miss = try WireMockFixture.decode(NearMiss.self, raw)
         XCTAssertEqual(miss.request?.url, "/expectd")
         XCTAssertEqual(miss.requestPattern?.url, "/expected")
+        // Pure-decode test with a literal input → pin the exact value, not a range.
         let distance = try XCTUnwrap(miss.matchResult?.distance)
-        XCTAssertGreaterThan(distance, 0)
-        XCTAssertLessThan(distance, 1)
+        XCTAssertEqual(distance, 0.0284900284900, accuracy: 1e-12)
     }
 
     // MARK: - DelayDistribution
 
     func testDelayDistributionDecodesEachVariant() throws {
-        if case .uniform(let lower, let upper) = try decode(DelayDistribution.self, #"{"type":"uniform","lower":5,"upper":9}"#) {
+        if case .uniform(let lower, let upper) = try WireMockFixture.decode(DelayDistribution.self, #"{"type":"uniform","lower":5,"upper":9}"#) {
             XCTAssertEqual(lower, 5); XCTAssertEqual(upper, 9)
         } else { XCTFail("expected uniform") }
 
-        if case .lognormal(let median, let sigma, let maxValue) = try decode(DelayDistribution.self, #"{"type":"lognormal","median":90,"sigma":0.1}"#) {
+        if case .lognormal(let median, let sigma, let maxValue) = try WireMockFixture.decode(DelayDistribution.self, #"{"type":"lognormal","median":90,"sigma":0.1}"#) {
             XCTAssertEqual(median, 90); XCTAssertEqual(sigma, 0.1); XCTAssertNil(maxValue)
         } else { XCTFail("expected lognormal") }
 
         // An unknown type must be preserved, not throw.
-        if case .other(let raw) = try decode(DelayDistribution.self, #"{"type":"exponential","mean":10}"#) {
+        if case .other(let raw) = try WireMockFixture.decode(DelayDistribution.self, #"{"type":"exponential","mean":10}"#) {
             XCTAssertEqual(raw.objectValue?["mean"], 10)
         } else { XCTFail("expected other") }
     }
@@ -113,15 +115,15 @@ final class ModelDecodingTests: XCTestCase {
     // MARK: - HeaderValue
 
     func testHeaderValueDecodesSingleAndMultiple() throws {
-        XCTAssertEqual(try decode(HeaderValue.self, #""text/plain""#), .single("text/plain"))
-        XCTAssertEqual(try decode(HeaderValue.self, #"["a","b"]"#), .multiple(["a", "b"]))
+        XCTAssertEqual(try WireMockFixture.decode(HeaderValue.self, #""text/plain""#), .single("text/plain"))
+        XCTAssertEqual(try WireMockFixture.decode(HeaderValue.self, #"["a","b"]"#), .multiple(["a", "b"]))
     }
 
     // MARK: - Scenario
 
     func testScenarioDecodesPossibleStates() throws {
         let raw = #"{ "id": "s", "name": "flow", "state": "Started", "possibleStates": ["Started", "next"] }"#
-        let scenario = try decode(Scenario.self, raw)
+        let scenario = try WireMockFixture.decode(Scenario.self, raw)
         XCTAssertEqual(scenario.name, "flow")
         XCTAssertEqual(scenario.state, "Started")
         XCTAssertEqual(scenario.possibleStates, ["Started", "next"])
@@ -177,14 +179,14 @@ final class ModelDecodingTests: XCTestCase {
     func testLoggedRequestDecodesMultiValueCookie() throws {
         // A cookie name may repeat → the server emits an array; single stays a string.
         let raw = #"{"url":"/x","method":"GET","cookies":{"single":"a","multi":["x","y"]}}"#
-        let request = try decode(LoggedRequest.self, raw)
+        let request = try WireMockFixture.decode(LoggedRequest.self, raw)
         XCTAssertEqual(request.cookies?["single"], .single("a"))
         XCTAssertEqual(request.cookies?["multi"], .multiple(["x", "y"]))
     }
 
     func testServeEventDecodesResponseAndTiming() throws {
         let raw = #"{"request":{"url":"/x","method":"GET"},"response":{"status":201,"body":"hi","headers":{"X-A":"1"}},"timing":{"serveTime":5,"totalTime":7}}"#
-        let event = try decode(ServeEvent.self, raw)
+        let event = try WireMockFixture.decode(ServeEvent.self, raw)
         XCTAssertEqual(event.response?.status, 201)
         XCTAssertEqual(event.response?.body, "hi")
         XCTAssertEqual(event.response?.headers?["X-A"], .single("1"))
@@ -194,7 +196,7 @@ final class ModelDecodingTests: XCTestCase {
 
     func testMatchResultDecodesDiffDescriptions() throws {
         let raw = #"{"distance":0.3,"diffDescriptions":[{"expected":"/a","actual":"/b","errorMessage":"URL does not match"}]}"#
-        let result = try decode(MatchResult.self, raw)
+        let result = try WireMockFixture.decode(MatchResult.self, raw)
         XCTAssertEqual(result.distance, 0.3)
         XCTAssertEqual(result.diffDescriptions?.first?.expected, "/a")
         XCTAssertEqual(result.diffDescriptions?.first?.actual, "/b")
@@ -215,7 +217,7 @@ final class ModelDecodingTests: XCTestCase {
           ]
         }
         """#
-        let event = try decode(ServeEvent.self, raw)
+        let event = try WireMockFixture.decode(ServeEvent.self, raw)
         let sub = try XCTUnwrap(event.subEvents?.first)
         XCTAssertEqual(sub.type, "REQUEST_NOT_MATCHED")
         XCTAssertEqual(sub.timeOffsetNanos, 169333)
@@ -225,7 +227,7 @@ final class ModelDecodingTests: XCTestCase {
 
     func testMatchResultDecodesSubEvents() throws {
         let raw = #"{"distance":0.2,"diffDescriptions":[],"subEvents":[{"type":"REQUEST_NOT_MATCHED","data":{"report":"x"}}]}"#
-        let result = try decode(MatchResult.self, raw)
+        let result = try WireMockFixture.decode(MatchResult.self, raw)
         XCTAssertEqual(result.distance, 0.2)
         XCTAssertEqual(result.subEvents?.first?.type, "REQUEST_NOT_MATCHED")
         XCTAssertEqual(result.subEvents?.first?.data?.objectValue?["report"], "x")
@@ -235,12 +237,12 @@ final class ModelDecodingTests: XCTestCase {
 
     func testSnapshotResultDecodesMappingsAndIds() throws {
         // Default output: a mappings array.
-        let mappingsForm = try decode(SnapshotResult.self, #"{"mappings":[{"request":{"url":"/a","method":"GET"},"response":{"status":200}}]}"#)
+        let mappingsForm = try WireMockFixture.decode(SnapshotResult.self, #"{"mappings":[{"request":{"url":"/a","method":"GET"},"response":{"status":200}}]}"#)
         XCTAssertEqual(mappingsForm.mappings?.count, 1)
         XCTAssertNil(mappingsForm.ids)
 
         // outputFormat="ids": an ids array instead (previously silently dropped).
-        let idsForm = try decode(SnapshotResult.self, #"{"ids":["11111111-1111-1111-1111-111111111111","22222222-2222-2222-2222-222222222222"]}"#)
+        let idsForm = try WireMockFixture.decode(SnapshotResult.self, #"{"ids":["11111111-1111-1111-1111-111111111111","22222222-2222-2222-2222-222222222222"]}"#)
         XCTAssertEqual(idsForm.ids?.count, 2)
         XCTAssertEqual(idsForm.ids?.first, "11111111-1111-1111-1111-111111111111")
         XCTAssertNil(idsForm.mappings)

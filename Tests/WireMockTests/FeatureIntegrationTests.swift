@@ -79,9 +79,7 @@ final class FeatureIntegrationTests: XCTestCase {
 
     func testResponseFixedDelay() throws {
         try wireMock.stubFor(get(urlEqualTo("/lag")).willReturn(ok().withFixedDelay(400)))
-        let start = Date()
-        _ = try WireMockFixture.hit("lag")
-        XCTAssertGreaterThan(Date().timeIntervalSince(start), 0.3)
+        try WireMockFixture.assertTakesAtLeast(0.3) { _ = try WireMockFixture.hit("lag") }
     }
 
     // MARK: Multipart
@@ -100,9 +98,9 @@ final class FeatureIntegrationTests: XCTestCase {
         let headers = ["Content-Type": "multipart/form-data; boundary=\(boundary)"]
 
         let matched = try WireMockFixture.hit("upload", method: "POST", headers: headers, body: Data(good.utf8))
-        XCTAssertEqual(matched.1.statusCode, 200)
+        WireMockFixture.assertMatch(matched)
         let missed = try WireMockFixture.hit("upload", method: "POST", headers: headers, body: Data(bad.utf8))
-        XCTAssertEqual(missed.1.statusCode, 404)
+        WireMockFixture.assertMiss(missed)
     }
 
     // MARK: Webhook (fires a callback we can observe)
@@ -184,9 +182,9 @@ final class FeatureIntegrationTests: XCTestCase {
                 .willReturn(ok())
         )
         let matched = try WireMockFixture.hit("multi?id=1&id=2")
-        XCTAssertEqual(matched.1.statusCode, 200)
+        WireMockFixture.assertMatch(matched)
         let missed = try WireMockFixture.hit("multi?id=1")
-        XCTAssertEqual(missed.1.statusCode, 404)
+        WireMockFixture.assertMiss(missed)
     }
 
     // MARK: Cookies & basic auth
@@ -200,18 +198,18 @@ final class FeatureIntegrationTests: XCTestCase {
         )
         let auth = "Basic " + Data("user:pass".utf8).base64EncodedString()
         let good = try WireMockFixture.hit("secure", headers: ["Cookie": "session=abc", "Authorization": auth])
-        XCTAssertEqual(good.1.statusCode, 200)
+        WireMockFixture.assertMatch(good)
         // Drop only the cookie (auth still correct) — isolates the cookie matcher.
         let noCookie = try WireMockFixture.hit("secure", headers: ["Authorization": auth])
-        XCTAssertEqual(noCookie.1.statusCode, 404)
+        WireMockFixture.assertMiss(noCookie)
         // Drop only the auth (cookie still correct) — isolates the basic-auth matcher,
         // which the previous single-negative case never exercised on its own.
         let noAuth = try WireMockFixture.hit("secure", headers: ["Cookie": "session=abc"])
-        XCTAssertEqual(noAuth.1.statusCode, 404, "basic-auth matcher must reject a request with the right cookie but no auth")
+        WireMockFixture.assertMiss(noAuth, "basic-auth matcher must reject a request with the right cookie but no auth")
         // Wrong password, right cookie — the credential is actually checked.
         let wrongAuth = "Basic " + Data("user:WRONG".utf8).base64EncodedString()
         let badAuth = try WireMockFixture.hit("secure", headers: ["Cookie": "session=abc", "Authorization": wrongAuth])
-        XCTAssertEqual(badAuth.1.statusCode, 404, "basic-auth matcher must reject wrong credentials")
+        WireMockFixture.assertMiss(badAuth, "basic-auth matcher must reject wrong credentials")
     }
 
     // MARK: XML / XPath
@@ -224,9 +222,9 @@ final class FeatureIntegrationTests: XCTestCase {
         )
         let headers = ["Content-Type": "application/xml"]
         let matched = try WireMockFixture.hit("xml", method: "POST", headers: headers, body: Data("<note><to>Bob</to></note>".utf8))
-        XCTAssertEqual(matched.1.statusCode, 200)
+        WireMockFixture.assertMatch(matched)
         let missed = try WireMockFixture.hit("xml", method: "POST", headers: headers, body: Data("<note><to>Alice</to></note>".utf8))
-        XCTAssertEqual(missed.1.statusCode, 404)
+        WireMockFixture.assertMiss(missed)
     }
 
     // MARK: Server info & typed settings
@@ -238,9 +236,9 @@ final class FeatureIntegrationTests: XCTestCase {
         try wireMock.updateGlobalSettings(GlobalSettings(fixedDelay: 123))
         let settings = try wireMock.getGlobalSettings()
         XCTAssertEqual(settings.fixedDelay, 123)
-        // Lossless decode: the server always returns proxyPassThrough — it must
-        // be captured, not silently dropped.
-        XCTAssertNotNil(settings.proxyPassThrough)
+        // Lossless decode: the server returns proxyPassThrough=false by default —
+        // pin the value so a decoder reading the wrong key/coercing is caught.
+        XCTAssertEqual(settings.proxyPassThrough, false)
         try wireMock.setGlobalFixedDelay(0)
     }
 
@@ -279,9 +277,9 @@ final class FeatureIntegrationTests: XCTestCase {
                 .willReturn(ok())
         )
         let matched = try WireMockFixture.hit("inc?tag=bright-red&tag=blue")
-        XCTAssertEqual(matched.1.statusCode, 200)
+        WireMockFixture.assertMatch(matched)
         let missed = try WireMockFixture.hit("inc?tag=blue&tag=green")
-        XCTAssertEqual(missed.1.statusCode, 404)
+        WireMockFixture.assertMiss(missed)
     }
 
     // MARK: Response templating (response-template transformer)
@@ -311,7 +309,7 @@ final class FeatureIntegrationTests: XCTestCase {
     func testAnythingMatcher() throws {
         try wireMock.stubFor(get(urlEqualTo("/any")).withHeader("X-Trace", .anything).willReturn(ok()))
         let matched = try WireMockFixture.hit("any", headers: ["X-Trace": "anything-goes"])
-        XCTAssertEqual(matched.1.statusCode, 200)
+        WireMockFixture.assertMatch(matched)
         // No meaningful negative exists: WireMock's `anything` (AnythingPattern)
         // matches every value AND an absent header, so a request omitting X-Trace
         // still returns 200 — dropping the matcher would be behaviourally
@@ -323,20 +321,27 @@ final class FeatureIntegrationTests: XCTestCase {
 
     func testRemoveServeEventsByPattern() throws {
         try wireMock.stubFor(get(urlEqualTo("/rm")).willReturn(ok()))
+        try wireMock.stubFor(get(urlEqualTo("/other")).willReturn(ok()))
         try WireMockFixture.hit("rm")
         try WireMockFixture.hit("rm")
+        try WireMockFixture.hit("other")
         let removed = try wireMock.removeServeEvents(matching: getRequestedFor(urlEqualTo("/rm")))
         XCTAssertEqual(removed.count, 2)
-        let remaining = try wireMock.count(getRequestedFor(urlEqualTo("/rm")))
-        XCTAssertEqual(remaining, 0)
+        XCTAssertEqual(try wireMock.count(getRequestedFor(urlEqualTo("/rm"))), 0)
+        // Selectivity: the pattern must leave the unrelated /other event intact —
+        // a removal that ignored the pattern and cleared everything would fail here.
+        XCTAssertEqual(try wireMock.count(getRequestedFor(urlEqualTo("/other"))), 1)
     }
 
     func testRemoveServeEventsByMetadata() throws {
         try wireMock.stubFor(get(urlEqualTo("/md")).withMetadata(["team": "x"]).willReturn(ok()))
+        try wireMock.stubFor(get(urlEqualTo("/keep")).withMetadata(["team": "y"]).willReturn(ok()))
         try WireMockFixture.hit("md")
+        try WireMockFixture.hit("keep")
         try wireMock.removeServeEventsByMetadata(.matchingJsonPath("$.team", equalTo("x")))
-        let remaining = try wireMock.count(getRequestedFor(urlEqualTo("/md")))
-        XCTAssertEqual(remaining, 0)
+        XCTAssertEqual(try wireMock.count(getRequestedFor(urlEqualTo("/md"))), 0)
+        // Selectivity: the JSONPath predicate must leave the non-matching /keep event.
+        XCTAssertEqual(try wireMock.count(getRequestedFor(urlEqualTo("/keep"))), 1)
     }
 
     // MARK: Parity additions (clientIp, version, unmatched mappings, filtered journal)
