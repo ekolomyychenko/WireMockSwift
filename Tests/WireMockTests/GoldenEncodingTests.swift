@@ -563,11 +563,21 @@ final class GoldenEncodingTests: XCTestCase {
         }
     }
 
-    func testBinaryEqualToDataEncodesBase64() throws {
-        // The Data overload (Java's binaryEqualTo(byte[])) base64-encodes the bytes.
+    // NOTE: temporarily split to isolate a CI-only (macOS 14 / Swift 6.0) signal-5
+    // crash that reproduces on neither macOS 26/Swift 6.3 nor TSan/ASan locally.
+    func testBinaryEqualToDataOverloadRawEncode() throws {
+        // Data overload (Java's binaryEqualTo(byte[])), encoded directly — no json() helper.
+        let raw = String(decoding: try JSONEncoder().encode(binaryEqualTo(Data("hello".utf8))), as: UTF8.self)
+        XCTAssertEqual(raw, #"{"binaryEqualTo":"aGVsbG8="}"#)
+    }
+
+    func testBinaryEqualToStringOverloadRawEncode() throws {
+        let raw = String(decoding: try JSONEncoder().encode(binaryEqualTo("aGVsbG8=")), as: UTF8.self)
+        XCTAssertEqual(raw, #"{"binaryEqualTo":"aGVsbG8="}"#)
+    }
+
+    func testBinaryEqualToDataViaJsonHelper() throws {
         XCTAssertEqual(try json(binaryEqualTo(Data("hello".utf8))), ["binaryEqualTo": "aGVsbG8="])
-        // The String overload keeps taking an already-base64 string, unchanged.
-        XCTAssertEqual(try json(binaryEqualTo("aGVsbG8=")), ["binaryEqualTo": "aGVsbG8="])
     }
 
     func testProxyResponseBuilderEncodesProxyFields() throws {
