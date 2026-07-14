@@ -151,7 +151,7 @@ public struct ResponseDefinition: Codable, Sendable, Hashable {
     public var transformers: [String]?
     public var transformerParameters: [String: JSONValue]?
     public var proxyBaseUrl: String?
-    public var additionalProxyRequestHeaders: [String: String]?
+    public var additionalProxyRequestHeaders: [String: HeaderValue]?
     public var removeProxyRequestHeaders: [String]?
     public var proxyUrlPrefixToRemove: String?
 

@@ -95,7 +95,11 @@ public func patchRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .ini
 public func deleteRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .delete, url: url) }
 public func headRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .head, url: url) }
 public func optionsRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .options, url: url) }
+public func traceRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .trace, url: url) }
 public func anyRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .any, url: url) }
+
+/// Verifies requests for an arbitrary method (mirrors Java `requestedFor(method, url)`).
+public func requestedFor(_ method: HTTPMethod, _ url: UrlPattern) -> RequestPatternBuilder { .init(method: method, url: url) }
 
 /// How a verified request count is checked.
 public enum CountMatchingStrategy: Sendable {

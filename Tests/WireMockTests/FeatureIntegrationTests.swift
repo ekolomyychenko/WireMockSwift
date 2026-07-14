@@ -67,7 +67,7 @@ final class FeatureIntegrationTests: XCTestCase {
             any(urlPathMatching("/gw/.*")).willReturn(
                 aResponse().proxiedFrom(base.absoluteString)
                     .withProxyUrlPrefixToRemove("/gw")
-                    .withAdditionalProxyRequestHeader("X-Injected", "yes")
+                    .withAdditionalRequestHeader("X-Injected", "yes")
             )
         )
         let (data, response) = try await WireMockFixture.hit("gw/up")
@@ -180,8 +180,17 @@ final class FeatureIntegrationTests: XCTestCase {
         let auth = "Basic " + Data("user:pass".utf8).base64EncodedString()
         let good = try await WireMockFixture.hit("secure", headers: ["Cookie": "session=abc", "Authorization": auth])
         XCTAssertEqual(good.1.statusCode, 200)
+        // Drop only the cookie (auth still correct) — isolates the cookie matcher.
         let noCookie = try await WireMockFixture.hit("secure", headers: ["Authorization": auth])
         XCTAssertEqual(noCookie.1.statusCode, 404)
+        // Drop only the auth (cookie still correct) — isolates the basic-auth matcher,
+        // which the previous single-negative case never exercised on its own.
+        let noAuth = try await WireMockFixture.hit("secure", headers: ["Cookie": "session=abc"])
+        XCTAssertEqual(noAuth.1.statusCode, 404, "basic-auth matcher must reject a request with the right cookie but no auth")
+        // Wrong password, right cookie — the credential is actually checked.
+        let wrongAuth = "Basic " + Data("user:WRONG".utf8).base64EncodedString()
+        let badAuth = try await WireMockFixture.hit("secure", headers: ["Cookie": "session=abc", "Authorization": wrongAuth])
+        XCTAssertEqual(badAuth.1.statusCode, 404, "basic-auth matcher must reject wrong credentials")
     }
 
     // MARK: XML / XPath

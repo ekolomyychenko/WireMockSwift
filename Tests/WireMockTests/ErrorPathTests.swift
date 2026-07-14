@@ -79,16 +79,22 @@ final class ErrorPathTests: XCTestCase {
         }
     }
 
-    // MARK: Admin 422 -> unexpectedStatus (4.x-only matcher on 3.x)
+    // MARK: Admin 422 -> unexpectedStatus (unknown match operator)
 
-    func testRegisteringUnsupportedNumericMatcherThrows422() async throws {
-        // equalToNumber is WireMock 4.x-only; 3.13.2 rejects it with 422.
-        let stub = get(urlPathEqualTo("/n"))
-            .withQueryParam("n", .equalToNumber(5))
-            .willReturn(ok()).build()
+    func testRegisteringUnknownMatchOperatorThrows422() async throws {
+        // An unknown match operator is validated and rejected by the server with
+        // HTTP 422 — the raw escape hatch lets us drive that error path. Asserts
+        // the server's status and (non-empty) error body surface to the caller.
+        let raw = #"""
+        {
+          "request": { "method": "GET", "urlPath": "/n",
+            "queryParameters": { "n": { "totallyBogusOperator": "5" } } },
+          "response": { "status": 200 }
+        }
+        """#
         do {
-            _ = try await wireMock.register(stub)
-            XCTFail("registering a 4.x-only numeric matcher should be rejected by 3.x")
+            try await wireMock.register(raw: raw)
+            XCTFail("registering an unknown match operator should be rejected with 422")
         } catch let error as WireMockError {
             guard case .unexpectedStatus(let code, let body) = error else {
                 return XCTFail("expected .unexpectedStatus, got \(error)")

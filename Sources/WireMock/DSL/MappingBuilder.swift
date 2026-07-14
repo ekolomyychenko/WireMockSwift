@@ -127,6 +127,12 @@ public struct MappingBuilder: Sendable {
         }
     }
 
+    /// Attaches a serve-event listener by extension name and parameters
+    /// (mirrors Java's `withServeEventListener(name, parameters)`).
+    public func withServeEventListener(_ name: String, parameters: [String: JSONValue]? = nil) -> Self {
+        withServeEventListener(ServeEventListenerDefinition(name: name, parameters: parameters))
+    }
+
     /// Convenience for the built-in `webhook` listener.
     public func withWebhook(_ webhook: WebhookDefinition) -> Self {
         withServeEventListener(webhook.asServeEventListener())
@@ -179,7 +185,7 @@ public struct MappingBuilder: Sendable {
 
     // MARK: Response
 
-    public func willReturn(_ response: ResponseDefinitionBuilder) -> Self {
+    public func willReturn(_ response: some ResponseDefinitionProviding) -> Self {
         mutating { $0.response = response.definition }
     }
 

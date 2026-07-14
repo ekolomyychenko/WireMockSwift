@@ -75,7 +75,7 @@ java -jar wiremock-standalone-3.13.2.jar --port 8080
 ```swift
 import WireMock
 
-let wireMock = WireMock(host: "localhost", port: 8080)
+let wireMock = WireMock(baseURL: URL(string: "http://localhost:8080")!)
 
 try await wireMock.stubFor(
     get(urlEqualTo("/hello"))
@@ -181,13 +181,12 @@ includes(containing("red"))
 `withHeader("Accept", equalTo("application/json"))` эквивалентны.
 
 > Свободные функции несут **общие** параметры; **расширенные опции** (XML-плейсхолдеры,
-> смещение/усечение datetime, XPath-подматчеры, числовые сравнения) живут только на статических фабриках
+> смещение/усечение datetime, XPath-подматчеры) живут только на статических фабриках
 > `StringValuePattern.`.
 
-> **Числовые матчеры** (`StringValuePattern.equalToNumber/greaterThan/greaterThanOrEqual/lessThan/
-> lessThanOrEqual`) требуют **WireMock 4.0+** — WireMock 3.x отклоняет их с HTTP 422. Они доступны
-> только как явные фабрики, никогда как свободные функции. На 3.x сопоставляйте числа через JSONPath-
-> предикат: `matchingJsonPath("$[?(@.age > 5)]")`.
+> **Числовые матчеры** (`equalToNumber`/`greaterThan`/`lessThan`/…) — это фича **WireMock 4.0+**;
+> сервер 3.13.2 отклоняет их с HTTP 422, поэтому в DSL их нет. На 3.x сопоставляйте числа через
+> JSONPath-предикат: `matchingJsonPath("$[?(@.age > 5)]")`.
 
 ## Ответы
 
@@ -262,7 +261,7 @@ try await wireMock.stubFor(
     any(urlPathMatching("/api/.*")).willReturn(
         aResponse().proxiedFrom("https://api.example.com")
             .withProxyUrlPrefixToRemove("/api")
-            .withAdditionalProxyRequestHeader("X-From", "wiremock")
+            .withAdditionalRequestHeader("X-From", "wiremock")
     )
 )
 
@@ -366,9 +365,10 @@ try await wireMock.register(json: ["request": ["method": "GET", "url": "/x"],
 Если админ-API защищён (`--admin-api-basic-auth`), передайте креды:
 
 ```swift
-let wireMock = WireMock(host: "ci-host", port: 8080,
+let wireMock = WireMock(baseURL: URL(string: "http://ci-host:8080")!,
                         authorization: .basic(username: "admin", password: "s3cret"))
 // также: .bearer(token: "…") или .header(value: "…")
+// Есть и failable-удобство: WireMock(host:port:) -> WireMock? (nil при кривом host/port).
 ```
 
 Для HTTPS с самоподписанным сертификатом внедрите свой `URLSession` с делегатом, доверяющим dev-серту
@@ -380,7 +380,7 @@ let wireMock = WireMock(host: "ci-host", port: 8080,
 
 ```swift
 final class CheckoutTests: XCTestCase {
-    let wireMock = WireMock(host: "localhost", port: 8080)
+    let wireMock = WireMock(baseURL: URL(string: "http://localhost:8080")!)
 
     override func setUp() async throws { try await wireMock.resetAll() }
 

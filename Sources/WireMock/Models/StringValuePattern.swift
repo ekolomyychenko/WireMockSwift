@@ -71,6 +71,12 @@ extension StringValuePattern {
         .init(["binaryEqualTo": .string(base64)])
     }
 
+    /// Matches a request body byte-for-byte against the given bytes (Java's
+    /// `binaryEqualTo(byte[])`). The bytes are Base64-encoded on the wire.
+    public static func binaryEqualTo(_ data: Data) -> Self {
+        .init(["binaryEqualTo": .string(data.base64EncodedString())])
+    }
+
     public static func containing(_ value: String) -> Self {
         .init(["contains": .string(value)])
     }

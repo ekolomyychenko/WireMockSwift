@@ -1,22 +1,14 @@
 import Foundation
 
-// Additional matchers beyond the common string operators: numeric, date/time,
-// JSON-schema, and XML with options. Keys mirror the WireMock contract — mostly
-// 3.x, except the numeric matchers below, which are WireMock 4.0+ (see note).
+// Additional matchers beyond the common string operators: date/time,
+// JSON-schema, and XML with options. Keys mirror the WireMock 3.13.2 contract.
+//
+// NOTE: numeric comparison matchers (equalToNumber/greaterThan/lessThan/…) are
+// intentionally NOT provided — they are a WireMock 4.0+ feature that the 3.13.2
+// server rejects with HTTP 422. On 3.x, compare numbers with a JSONPath
+// predicate instead: `matchingJsonPath("$[?(@.age > 5)]")`.
 
 extension StringValuePattern {
-
-    // MARK: Numeric comparison
-    //
-    // NOTE: numeric comparison matchers require **WireMock 4.0+**. On WireMock
-    // 3.x the server rejects these keys ("not a valid match operation", HTTP
-    // 422). The JSON shape here matches the 4.x contract.
-
-    public static func equalToNumber(_ value: Double) -> Self { .init(["equalToNumber": .double(value)]) }
-    public static func greaterThan(_ value: Double) -> Self { .init(["greaterThanNumber": .double(value)]) }
-    public static func greaterThanOrEqual(_ value: Double) -> Self { .init(["greaterThanEqualNumber": .double(value)]) }
-    public static func lessThan(_ value: Double) -> Self { .init(["lessThanNumber": .double(value)]) }
-    public static func lessThanOrEqual(_ value: Double) -> Self { .init(["lessThanEqualNumber": .double(value)]) }
 
     // MARK: Date / time
 

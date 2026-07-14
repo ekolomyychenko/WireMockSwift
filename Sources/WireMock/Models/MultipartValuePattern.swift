@@ -11,7 +11,9 @@ public struct MultipartValuePattern: Codable, Sendable, Hashable {
     }
 
     public var name: String?
-    /// Matches the part's `filename` (from its `Content-Disposition`).
+    /// Matches the part's filename by exact string equality (WireMock compares
+    /// it verbatim against the part's `Content-Disposition` filename — it is not
+    /// a `StringValuePattern`).
     public var fileName: String?
     public var matchingType: MatchingType?
     public var headers: [String: StringValuePattern]?

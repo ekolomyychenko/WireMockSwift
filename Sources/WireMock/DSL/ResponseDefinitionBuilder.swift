@@ -1,5 +1,11 @@
 import Foundation
 
+/// Anything that can supply a `ResponseDefinition` to `willReturn(_:)` — both
+/// `ResponseDefinitionBuilder` and its proxy variant conform.
+public protocol ResponseDefinitionProviding: Sendable {
+    var definition: ResponseDefinition { get }
+}
+
 /// Fluent builder for a `ResponseDefinition`. Mirrors WireMock's
 /// `ResponseDefinitionBuilder` (`aResponse().withStatus(200).withBody(…)`).
 ///
@@ -105,8 +111,14 @@ public struct ResponseDefinitionBuilder: Sendable {
         }
     }
 
-    public func proxiedFrom(_ proxyBaseUrl: String) -> Self {
-        mutating { $0.proxyBaseUrl = proxyBaseUrl }
+    /// Proxies matching requests to another host. Configure the response
+    /// (status/headers/body) *before* calling this; the returned
+    /// `ProxyResponseDefinitionBuilder` then exposes the proxy-only tweaks
+    /// (mirrors Java, where `proxiedFrom` returns a `ProxyResponseDefinitionBuilder`).
+    public func proxiedFrom(_ proxyBaseUrl: String) -> ProxyResponseDefinitionBuilder {
+        var definition = self.definition
+        definition.proxyBaseUrl = proxyBaseUrl
+        return ProxyResponseDefinitionBuilder(definition: definition)
     }
 
     /// Disables gzip on the response (WireMock does this via a
@@ -114,9 +126,26 @@ public struct ResponseDefinitionBuilder: Sendable {
     public func withGzipDisabled() -> Self {
         withHeader("Content-Encoding", "none")
     }
+}
 
-    /// Adds a header injected into the proxied request (proxy responses only).
-    public func withAdditionalProxyRequestHeader(_ name: String, _ value: String) -> Self {
+/// The proxy-only extension of `ResponseDefinitionBuilder`, returned by
+/// `proxiedFrom(_:)`. Mirrors Java's `ProxyResponseDefinitionBuilder`: the
+/// proxy-request tweaks below are reachable *only* after `proxiedFrom`, so they
+/// can't be called on a non-proxy response.
+public struct ProxyResponseDefinitionBuilder: Sendable {
+    public private(set) var definition: ResponseDefinition
+
+    init(definition: ResponseDefinition) { self.definition = definition }
+
+    private func mutating(_ transform: (inout ResponseDefinition) -> Void) -> Self {
+        var copy = self
+        transform(&copy.definition)
+        return copy
+    }
+
+    /// Adds a header injected into the proxied request
+    /// (Java: `withAdditionalRequestHeader`).
+    public func withAdditionalRequestHeader(_ name: String, _ value: HeaderValue) -> Self {
         mutating {
             var headers = $0.additionalProxyRequestHeaders ?? [:]
             headers[name] = value
@@ -124,16 +153,19 @@ public struct ResponseDefinitionBuilder: Sendable {
         }
     }
 
-    /// Removes a header from the proxied request (proxy responses only).
-    public func withRemoveProxyRequestHeader(_ name: String) -> Self {
+    /// Removes a header from the proxied request (Java: `withRemoveRequestHeader`).
+    public func withRemoveRequestHeader(_ name: String) -> Self {
         mutating { $0.removeProxyRequestHeaders = ($0.removeProxyRequestHeaders ?? []) + [name] }
     }
 
-    /// Strips a leading path prefix before proxying (proxy responses only).
+    /// Strips a leading path prefix before proxying.
     public func withProxyUrlPrefixToRemove(_ prefix: String) -> Self {
         mutating { $0.proxyUrlPrefixToRemove = prefix }
     }
 }
+
+extension ResponseDefinitionBuilder: ResponseDefinitionProviding {}
+extension ProxyResponseDefinitionBuilder: ResponseDefinitionProviding {}
 
 // MARK: - Entry points
 

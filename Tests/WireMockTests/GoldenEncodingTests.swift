@@ -103,13 +103,6 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(decoded.objectValue?["newScenarioState"], "step-2")
     }
 
-    func testNumericMatchers() throws {
-        // WireMock 4.0+ only; exposed as explicit factories, not free functions.
-        XCTAssertEqual(try json(StringValuePattern.greaterThan(3)), ["greaterThanNumber": 3])
-        XCTAssertEqual(try json(StringValuePattern.lessThanOrEqual(10)), ["lessThanEqualNumber": 10])
-        XCTAssertEqual(try json(StringValuePattern.equalToNumber(5)), ["equalToNumber": 5])
-    }
-
     func testDateTimeMatcher() throws {
         let pattern = StringValuePattern.after("2020-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: "days")
         let expected: JSONValue = [
@@ -379,16 +372,6 @@ final class GoldenEncodingTests: XCTestCase {
                        ["equalToDateTime": "2030-01-01T00:00:00Z"])
     }
 
-    // MARK: - Numeric (4.x-only) full set
-
-    func testNumericMatchersFullSet() throws {
-        XCTAssertEqual(try json(StringValuePattern.equalToNumber(5)), ["equalToNumber": 5])
-        XCTAssertEqual(try json(StringValuePattern.greaterThan(3)), ["greaterThanNumber": 3])
-        XCTAssertEqual(try json(StringValuePattern.greaterThanOrEqual(3)), ["greaterThanEqualNumber": 3])
-        XCTAssertEqual(try json(StringValuePattern.lessThan(10)), ["lessThanNumber": 10])
-        XCTAssertEqual(try json(StringValuePattern.lessThanOrEqual(10)), ["lessThanEqualNumber": 10])
-    }
-
     // MARK: - JSON schema
 
     func testMatchingJsonSchemaNoVersionAndRaw() throws {
@@ -572,10 +555,44 @@ final class GoldenEncodingTests: XCTestCase {
             (putRequestedFor(urlEqualTo("/x")), "PUT"), (patchRequestedFor(urlEqualTo("/x")), "PATCH"),
             (deleteRequestedFor(urlEqualTo("/x")), "DELETE"), (headRequestedFor(urlEqualTo("/x")), "HEAD"),
             (optionsRequestedFor(urlEqualTo("/x")), "OPTIONS"), (anyRequestedFor(urlEqualTo("/x")), "ANY"),
+            (traceRequestedFor(urlEqualTo("/x")), "TRACE"),
+            (requestedFor(.put, urlEqualTo("/x")), "PUT"),
         ]
         for (builder, method) in cases {
             XCTAssertEqual(try json(builder.pattern).objectValue?["method"], .string(method), "verb \(method)")
         }
+    }
+
+    func testBinaryEqualToDataEncodesBase64() throws {
+        // The Data overload (Java's binaryEqualTo(byte[])) base64-encodes the bytes.
+        XCTAssertEqual(try json(binaryEqualTo(Data("hello".utf8))), ["binaryEqualTo": "aGVsbG8="])
+        // The String overload keeps taking an already-base64 string, unchanged.
+        XCTAssertEqual(try json(binaryEqualTo("aGVsbG8=")), ["binaryEqualTo": "aGVsbG8="])
+    }
+
+    func testProxyResponseBuilderEncodesProxyFields() throws {
+        // proxiedFrom returns the proxy builder; its Java-named tweaks land on the
+        // right JSON fields, and multi-value additional headers use the array form.
+        let response = aResponse()
+            .proxiedFrom("http://backend")
+            .withAdditionalRequestHeader("X-One", "a")
+            .withAdditionalRequestHeader("X-Multi", ["a", "b"])
+            .withRemoveRequestHeader("X-Drop")
+            .withProxyUrlPrefixToRemove("/prefix")
+        let stub = get(urlEqualTo("/p")).willReturn(response).build()
+        let resp = try XCTUnwrap(try json(stub).objectValue?["response"]?.objectValue)
+        XCTAssertEqual(resp["proxyBaseUrl"], "http://backend")
+        XCTAssertEqual(resp["additionalProxyRequestHeaders"], ["X-One": "a", "X-Multi": ["a", "b"]])
+        XCTAssertEqual(resp["removeProxyRequestHeaders"], ["X-Drop"])
+        XCTAssertEqual(resp["proxyUrlPrefixToRemove"], "/prefix")
+    }
+
+    func testProxyBuilderCarriesForwardBaseResponseConfig() throws {
+        // Base config set before proxiedFrom must survive onto the proxy builder.
+        let response = aResponse().withHeader("X-Base", "kept").proxiedFrom("http://b")
+        let resp = try XCTUnwrap(try json(get(urlEqualTo("/p")).willReturn(response).build()).objectValue?["response"]?.objectValue)
+        XCTAssertEqual(resp["proxyBaseUrl"], "http://b")
+        XCTAssertEqual(resp["headers"]?.objectValue?["X-Base"], "kept")
     }
 
     func testResponseStatusHelpersEncode() throws {

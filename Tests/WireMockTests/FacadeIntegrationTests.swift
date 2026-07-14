@@ -263,8 +263,49 @@ final class FacadeIntegrationTests: XCTestCase {
     func testGetServeEventsSinceWithTimezoneOffset() async throws {
         try await wireMock.stubFor(get(urlEqualTo("/se")).willReturn(ok()))
         try await WireMockFixture.hit("se")
-        // `since` carries a `+hh:mm` offset — exercises the query percent-encoding path.
-        let past = try await wireMock.getServeEvents(since: "2020-01-01T00:00:00+00:00")
-        XCTAssertGreaterThanOrEqual(past.count, 1, "a past `since` must include the recorded event")
+
+        // Exercises the `+`-offset value through AdminClient's query encoding and
+        // asserts the `since` filter semantics both ways. NOTE: the `+`→`%2B`
+        // escaping itself is *defensive* (spec-correctness) — WireMock 3.13.2's
+        // `since` parser accepts a literal `+` too, so that escaping is not
+        // behaviourally observable against this server (a known mutation exception).
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        iso.timeZone = TimeZone(secondsFromGMT: 5 * 3600)
+        let pastWithOffset = iso.string(from: Date().addingTimeInterval(-3600))
+        XCTAssertTrue(pastWithOffset.contains("+05:00"),
+                      "precondition: the timestamp must carry a +offset; got \(pastWithOffset)")
+
+        let events = try await wireMock.getServeEvents(since: pastWithOffset)
+        XCTAssertGreaterThanOrEqual(events.count, 1, "a past `since` must include the recorded event")
+
+        // A genuinely future `since` must exclude it — this is what actually
+        // discriminates a working `since` from an ignored one.
+        let future = try await wireMock.getServeEvents(since: "2999-01-01T00:00:00+00:00")
+        XCTAssertEqual(future.count, 0, "a future `since` must exclude the past event")
+    }
+
+    func testGetServeEventsUnmatchedOnly() async throws {
+        try await wireMock.stubFor(get(urlEqualTo("/matched")).willReturn(ok()))
+        _ = try await WireMockFixture.hit("matched")        // matched
+        _ = try await WireMockFixture.hit("no-such-path")   // unmatched → 404
+
+        let unmatched = try await wireMock.getServeEvents(unmatchedOnly: true)
+        let all = try await wireMock.getServeEvents()
+        XCTAssertGreaterThan(all.count, unmatched.count, "unmatched-only must be a strict subset when a matched event exists")
+        XCTAssertTrue(unmatched.allSatisfy { $0.wasMatched == false }, "every returned event must be unmatched")
+        XCTAssertTrue(unmatched.contains { $0.request.url == "/no-such-path" }, "the unmatched request must be present")
+        XCTAssertFalse(unmatched.contains { $0.request.url == "/matched" }, "the matched request must be excluded")
+    }
+
+    func testRegisterJsonDirectly() async throws {
+        // The register(json:) escape hatch registers a working stub directly.
+        try await wireMock.register(json: [
+            "request": ["method": "GET", "url": "/direct-json"],
+            "response": ["status": 201, "body": "hi"],
+        ])
+        let (data, http) = try await WireMockFixture.hit("direct-json")
+        XCTAssertEqual(http.statusCode, 201)
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), "hi")
     }
 }

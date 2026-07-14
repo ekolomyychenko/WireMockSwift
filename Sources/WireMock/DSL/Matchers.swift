@@ -16,6 +16,12 @@ public func binaryEqualTo(_ base64: String) -> StringValuePattern {
     .binaryEqualTo(base64)
 }
 
+/// Matches a request body byte-for-byte against the given bytes (Java's
+/// `binaryEqualTo(byte[])`). The bytes are Base64-encoded on the wire.
+public func binaryEqualTo(_ data: Data) -> StringValuePattern {
+    .binaryEqualTo(data)
+}
+
 public func containing(_ value: String) -> StringValuePattern {
     .containing(value)
 }
@@ -83,17 +89,12 @@ public func not(_ pattern: StringValuePattern) -> StringValuePattern { .not(patt
 public func hasExactly(_ patterns: StringValuePattern...) -> StringValuePattern { .hasExactly(patterns) }
 public func includes(_ patterns: StringValuePattern...) -> StringValuePattern { .includes(patterns) }
 
-// MARK: Numeric — WireMock 4.0+ only.
+// MARK: Numeric comparison — not available on WireMock 3.13.2.
 //
-// Numeric comparison matchers are intentionally NOT exposed as unqualified free
-// functions — PRIMARILY because they are dead-on-arrival on WireMock 3.x (the
-// server rejects the keys with HTTP 422), so a global `greaterThan`/`lessThan`
-// would be a footgun that always fails at stub-registration time. (The other
-// global matchers — `and`/`or`/`not`/`before`/`after` — DO work on 3.x, so they
-// remain free functions mirroring the Java DSL.) Use the explicit factories
-// when targeting WireMock 4.0+: `StringValuePattern.greaterThan(5)`, etc.
-//
-// On WireMock 3.x, match numbers with a JSONPath predicate instead:
+// Numeric comparison matchers (equalToNumber/greaterThan/lessThan/…) are a
+// WireMock 4.0+ feature; the 3.13.2 server rejects them with HTTP 422. They are
+// therefore not part of this DSL. On 3.x, match numbers with a JSONPath
+// predicate instead:
 //   withRequestBody(matchingJsonPath("$[?(@.age > 5)]"))
 
 // MARK: Date / time

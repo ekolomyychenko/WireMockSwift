@@ -9,9 +9,12 @@ import FoundationNetworking
 /// call `stubFor`, `verify`, `reset`, etc.
 ///
 /// ```swift
-/// let wireMock = WireMock(host: "localhost", port: 8080)
+/// let wireMock = WireMock(baseURL: URL(string: "http://localhost:8080")!)
 /// try await wireMock.stubFor(get(urlEqualTo("/hello")).willReturn(ok("world")))
 /// ```
+///
+/// The `init?(scheme:host:port:)` convenience is failable — it returns `nil`
+/// on a malformed host/port rather than trapping.
 public struct WireMock: Sendable {
     /// The underlying admin API client.
     public let admin: AdminClient
@@ -23,21 +26,24 @@ public struct WireMock: Sendable {
 
     /// Creates a client for a server addressed by scheme/host/port.
     ///
+    /// Returns `nil` if the scheme/host/port don't form a valid URL (e.g. an
+    /// empty or malformed host from config/env) rather than trapping — host and
+    /// port often come from runtime configuration. Use `init(baseURL:)` for full
+    /// control.
+    ///
     /// - Parameters:
     ///   - scheme: `http` or `https`.
     ///   - host: Server host.
     ///   - port: Server port.
     ///   - authorization: Credentials for a secured admin API (`--admin-api-basic-auth`).
     ///   - session: A custom `URLSession` (e.g. with a trust delegate for a self-signed HTTPS cert).
-    public init(scheme: String = "http", host: String = "localhost", port: Int = 8080,
-                authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
+    public init?(scheme: String = "http", host: String = "localhost", port: Int = 8080,
+                 authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
         var components = URLComponents()
         components.scheme = scheme
         components.host = host
         components.port = port
-        guard let url = components.url else {
-            preconditionFailure("WireMock: invalid scheme/host/port — \(scheme)://\(host):\(port). Use init(baseURL:) for full control.")
-        }
+        guard let url = components.url else { return nil }
         self.admin = AdminClient(baseURL: url, session: session, authorization: authorization)
     }
 
