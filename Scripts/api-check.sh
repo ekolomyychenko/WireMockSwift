@@ -41,7 +41,15 @@ xcrun swift-api-digester -diagnose-sdk -baseline-path "$BASELINE" -module WireMo
 
 # The report is section headers (/* … */) and blank lines; any other line is a
 # real API change (e.g. "Func foo(_:) has been removed").
-CHANGES="$(grep -vE '^\s*$|^/\*.*\*/\s*$' "$REPORT" || true)"
+#
+# `SendableMetatype` lines are filtered out: it is a compiler-implicit supertype
+# of `Sendable` (split out in Swift 6.2) that the digester emits only on newer
+# toolchains. The baseline is generated on whatever local toolchain the author
+# runs; CI's may be older/newer, so every `Sendable` type would otherwise report
+# a spurious added/removed `SendableMetatype` conformance. It is never declared,
+# so it is not part of the API contract — and a genuine `Sendable` removal still
+# surfaces its own separate "removed conformance to Sendable" line.
+CHANGES="$(grep -vE '^\s*$|^/\*.*\*/\s*$|SendableMetatype' "$REPORT" || true)"
 if [ -n "$CHANGES" ]; then
   echo "::error::public API changed vs baseline. If intentional, run Scripts/api-check.sh --update and commit."
   echo "--- API changes ---"
