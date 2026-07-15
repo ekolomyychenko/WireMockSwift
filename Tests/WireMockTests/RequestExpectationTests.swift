@@ -90,7 +90,10 @@ final class RequestExpectationTests: WireMockIntegrationCase {
         XCTAssertThrowsError(
             try wireMock.expect(postRequestedFor(urlPathEqualTo("/invalid")))
                 .toHaveJsonBody(matchingSchema: schema)
-        )
+        ) { error in
+            XCTAssertTrue(error is RequestExpectationError, String(describing: error))
+            XCTAssertTrue(String(describing: error).contains("json schema"), String(describing: error))
+        }
     }
 
     func testExtractorAccessors() throws {
@@ -298,7 +301,11 @@ final class RequestExpectationTests: WireMockIntegrationCase {
             try wireMock.expect(getRequestedFor(urlPathEqualTo("/search2")))
                 .toHaveExactlyQueryParams(["page": "1"])
         ) { error in
-            XCTAssertTrue(String(describing: error).contains("debug"), String(describing: error))
+            // Assert the specific "extra key" phrasing, not just that "debug"
+            // appears somewhere (it's also in the request URL echoed in the dump).
+            let message = String(describing: error)
+            XCTAssertTrue(message.contains("Expected exactly query params"), message)
+            XCTAssertTrue(message.contains("but had"), message)
         }
     }
 }

@@ -37,6 +37,9 @@ public struct CapturedRequest: Sendable {
     public func header(_ name: String) -> String? { headers(name).first }
 
     /// The value of a cookie, or `nil` if absent.
+    ///
+    /// Cookie names are matched **case-sensitively** (RFC 6265 cookie names are
+    /// case-sensitive), unlike `header(_:)` where names are case-insensitive.
     public func cookie(_ name: String) -> String? {
         guard let cookies = logged.cookies else { return nil }
         for (key, value) in cookies where key == name {

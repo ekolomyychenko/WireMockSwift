@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `single`/`first`/`last`/`all`/`extract` returning a typed `CapturedRequest` with header/query/cookie/
   body accessors and `extract().jsonPath(...)` for correlating values across requests. Failures throw
   `RequestExpectationError` with a near-miss diff (shortfall) or a dump of every matching request
-  ("too many"). Purely additive — `verify(...)` and `VerificationError` are unchanged.
+  ("too many"). The JSON-from-file overload takes an optional `subdirectory:` (for `.copy`'d resource
+  folders) and reports read failures as `RequestExpectationError`, consistent with the bundle overload.
+  Purely additive — `verify(...)` and `VerificationError` are unchanged.
 
 ## [0.1.0] - 2026-07-15
 

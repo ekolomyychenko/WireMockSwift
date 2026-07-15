@@ -144,7 +144,9 @@ public struct RequestExpectation: Sendable {
         try refine("empty body") { $0.withRequestBody(.absent) }
     }
 
-    /// Requires a non-empty request body (at least one character).
+    /// Requires a non-empty request body (at least one character). Note this
+    /// counts a whitespace-only body (e.g. `" "`) as non-empty — it is a literal
+    /// "≥1 char" check, not a trimmed one.
     @discardableResult
     public func toHaveNonEmptyBody() throws -> RequestExpectation {
         try refine("non-empty body") { $0.withRequestBody(.matching("[\\s\\S]+")) }
@@ -198,21 +200,33 @@ public struct RequestExpectation: Sendable {
         ignoreExtraElements: Bool = false,
         ignoreArrayOrder: Bool = false
     ) throws -> RequestExpectation {
-        let text = try String(contentsOf: url, encoding: .utf8)
+        let text: String
+        do {
+            text = try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            // Wrap the raw Foundation read error so both file overloads fail with
+            // the layer's own error type (the bundle overload already does).
+            throw RequestExpectationError(message: "Cannot read JSON file at \(url.path): \(error.localizedDescription)")
+        }
         return try toHaveJsonBody(equalToRaw: text, ignoreExtraElements: ignoreExtraElements, ignoreArrayOrder: ignoreArrayOrder)
     }
 
     /// Full JSON body comparison against a bundled resource
     /// (e.g. `toHaveJsonBody(equalToFile: "order", bundle: .module)`).
+    ///
+    /// Pass `subdirectory:` when the resource keeps a folder structure in the
+    /// bundle (e.g. `.copy("Fixtures")` in `Package.swift` →
+    /// `subdirectory: "Fixtures"`).
     @discardableResult
     public func toHaveJsonBody(
         equalToFile name: String,
         withExtension ext: String = "json",
+        subdirectory: String? = nil,
         bundle: Bundle,
         ignoreExtraElements: Bool = false,
         ignoreArrayOrder: Bool = false
     ) throws -> RequestExpectation {
-        guard let url = bundle.url(forResource: name, withExtension: ext) else {
+        guard let url = bundle.url(forResource: name, withExtension: ext, subdirectory: subdirectory) else {
             throw RequestExpectationError(message: "JSON fixture '\(name).\(ext)' not found in bundle at \(bundle.bundlePath)")
         }
         return try toHaveJsonBody(equalToFile: url, ignoreExtraElements: ignoreExtraElements, ignoreArrayOrder: ignoreArrayOrder)
@@ -355,6 +369,12 @@ public struct RequestExpectation: Sendable {
 
     /// Builds the failure message: reuses `VerificationError`'s near-miss diff on
     /// a shortfall; dumps every matching request on a "too many" failure.
+    ///
+    /// The `try?` lookups below are best-effort enrichment only. This runs after
+    /// an assertion has already failed (the primary count succeeded), so if the
+    /// journal is disabled here the near-miss/dump simply degrades to the bare
+    /// message rather than masking the real failure with a secondary error — the
+    /// loud `requestJournalDisabled` would have surfaced from the primary `count`.
     private func makeError(_ rb: RequestPatternBuilder, actual: Int, check: String?, spec: CountSpec) -> RequestExpectationError {
         let note = check.map { " (failing check: \($0))" } ?? ""
         if spec.isShortfall(actual) {
