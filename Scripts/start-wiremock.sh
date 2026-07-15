@@ -4,11 +4,18 @@
 # version pin and readiness gate live in exactly one place.
 #
 # Env: WIREMOCK_VERSION (default 3.13.2), WIREMOCK_PORT (default 8080).
-# Writes the server PID to .wiremock.pid for callers that want to stop it.
+#   WIREMOCK_ADMIN_AUTH  — if set (e.g. "user:pass"), start the server with
+#                          `--admin-api-basic-auth` so the admin API requires
+#                          Basic auth; the readiness probe then sends the creds.
+#   WIREMOCK_PID_FILE    — where to write the PID (default .wiremock.pid), so a
+#                          second (auth-enabled) instance doesn't clobber the first.
+# Writes the server PID for callers that want to stop it.
 set -euo pipefail
 
 WIREMOCK_VERSION="${WIREMOCK_VERSION:-3.13.2}"
 PORT="${WIREMOCK_PORT:-8080}"
+PID_FILE="${WIREMOCK_PID_FILE:-.wiremock.pid}"
+ADMIN_AUTH="${WIREMOCK_ADMIN_AUTH:-}"
 JAR="wiremock-standalone-${WIREMOCK_VERSION}.jar"
 URL="https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/${WIREMOCK_VERSION}/${JAR}"
 
@@ -17,14 +24,25 @@ if [ ! -f "$JAR" ]; then
   curl -sSL -o "$JAR" "$URL"
 fi
 
-echo "Starting WireMock $WIREMOCK_VERSION on port $PORT ..."
-java -jar "$JAR" --port "$PORT" --disable-banner &
-echo $! > .wiremock.pid
+# Optional Basic-auth on the admin API. When enabled the readiness probe must
+# authenticate too, so build a matching `curl -u` argument.
+AUTH_ARGS=()
+PROBE_AUTH=()
+if [ -n "$ADMIN_AUTH" ]; then
+  AUTH_ARGS=(--admin-api-basic-auth "$ADMIN_AUTH")
+  PROBE_AUTH=(-u "$ADMIN_AUTH")
+  echo "Starting WireMock $WIREMOCK_VERSION on port $PORT (admin Basic auth enabled) ..."
+else
+  echo "Starting WireMock $WIREMOCK_VERSION on port $PORT ..."
+fi
+
+java -jar "$JAR" --port "$PORT" --disable-banner "${AUTH_ARGS[@]}" &
+echo $! > "$PID_FILE"
 
 for _ in $(seq 1 30); do
-  curl -sf "http://localhost:${PORT}/__admin/health" >/dev/null && break
+  curl -sf "${PROBE_AUTH[@]}" "http://localhost:${PORT}/__admin/health" >/dev/null && break
   sleep 1
 done
-curl -sf "http://localhost:${PORT}/__admin/health" >/dev/null \
+curl -sf "${PROBE_AUTH[@]}" "http://localhost:${PORT}/__admin/health" >/dev/null \
   || { echo "WireMock never became ready on port $PORT" >&2; exit 1; }
 echo "WireMock is ready on port $PORT."

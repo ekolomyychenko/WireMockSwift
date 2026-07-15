@@ -36398,6 +36398,266 @@
             ]
           },
           {
+            "kind": "Var",
+            "name": "transformers",
+            "printedName": "transformers",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "[Swift.String]?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Array",
+                    "printedName": "[Swift.String]",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      }
+                    ],
+                    "usr": "s:Sa"
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:8WireMock17WebhookDefinitionV12transformersSaySSGSgvp",
+            "mangledName": "$s8WireMock17WebhookDefinitionV12transformersSaySSGSgvp",
+            "moduleName": "WireMock",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "[Swift.String]?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Array",
+                        "printedName": "[Swift.String]",
+                        "children": [
+                          {
+                            "kind": "TypeNominal",
+                            "name": "String",
+                            "printedName": "Swift.String",
+                            "usr": "s:SS"
+                          }
+                        ],
+                        "usr": "s:Sa"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:8WireMock17WebhookDefinitionV12transformersSaySSGSgvg",
+                "mangledName": "$s8WireMock17WebhookDefinitionV12transformersSaySSGSgvg",
+                "moduleName": "WireMock",
+                "implicit": true,
+                "declAttributes": [
+                  "Transparent"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "[Swift.String]?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Array",
+                        "printedName": "[Swift.String]",
+                        "children": [
+                          {
+                            "kind": "TypeNominal",
+                            "name": "String",
+                            "printedName": "Swift.String",
+                            "usr": "s:SS"
+                          }
+                        ],
+                        "usr": "s:Sa"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:8WireMock17WebhookDefinitionV12transformersSaySSGSgvs",
+                "mangledName": "$s8WireMock17WebhookDefinitionV12transformersSaySSGSgvs",
+                "moduleName": "WireMock",
+                "implicit": true,
+                "declAttributes": [
+                  "Transparent"
+                ],
+                "accessorKind": "set"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "extraParameters",
+            "printedName": "extraParameters",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "[Swift.String : WireMock.JSONValue]?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Dictionary",
+                    "printedName": "[Swift.String : WireMock.JSONValue]",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      },
+                      {
+                        "kind": "TypeNominal",
+                        "name": "JSONValue",
+                        "printedName": "WireMock.JSONValue",
+                        "usr": "s:8WireMock9JSONValueO"
+                      }
+                    ],
+                    "usr": "s:SD"
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:8WireMock17WebhookDefinitionV15extraParametersSDySSAA9JSONValueOGSgvp",
+            "mangledName": "$s8WireMock17WebhookDefinitionV15extraParametersSDySSAA9JSONValueOGSgvp",
+            "moduleName": "WireMock",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "[Swift.String : WireMock.JSONValue]?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Dictionary",
+                        "printedName": "[Swift.String : WireMock.JSONValue]",
+                        "children": [
+                          {
+                            "kind": "TypeNominal",
+                            "name": "String",
+                            "printedName": "Swift.String",
+                            "usr": "s:SS"
+                          },
+                          {
+                            "kind": "TypeNominal",
+                            "name": "JSONValue",
+                            "printedName": "WireMock.JSONValue",
+                            "usr": "s:8WireMock9JSONValueO"
+                          }
+                        ],
+                        "usr": "s:SD"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:8WireMock17WebhookDefinitionV15extraParametersSDySSAA9JSONValueOGSgvg",
+                "mangledName": "$s8WireMock17WebhookDefinitionV15extraParametersSDySSAA9JSONValueOGSgvg",
+                "moduleName": "WireMock",
+                "implicit": true,
+                "declAttributes": [
+                  "Transparent"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "[Swift.String : WireMock.JSONValue]?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Dictionary",
+                        "printedName": "[Swift.String : WireMock.JSONValue]",
+                        "children": [
+                          {
+                            "kind": "TypeNominal",
+                            "name": "String",
+                            "printedName": "Swift.String",
+                            "usr": "s:SS"
+                          },
+                          {
+                            "kind": "TypeNominal",
+                            "name": "JSONValue",
+                            "printedName": "WireMock.JSONValue",
+                            "usr": "s:8WireMock9JSONValueO"
+                          }
+                        ],
+                        "usr": "s:SD"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:8WireMock17WebhookDefinitionV15extraParametersSDySSAA9JSONValueOGSgvs",
+                "mangledName": "$s8WireMock17WebhookDefinitionV15extraParametersSDySSAA9JSONValueOGSgvs",
+                "moduleName": "WireMock",
+                "implicit": true,
+                "declAttributes": [
+                  "Transparent"
+                ],
+                "accessorKind": "set"
+              }
+            ]
+          },
+          {
             "kind": "TypeDecl",
             "name": "Delay",
             "printedName": "Delay",
@@ -36753,7 +37013,7 @@
           {
             "kind": "Constructor",
             "name": "init",
-            "printedName": "init(method:url:headers:body:base64Body:jsonBody:delay:)",
+            "printedName": "init(method:url:headers:body:base64Body:jsonBody:delay:transformers:extraParameters:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -36853,11 +37113,63 @@
                 ],
                 "hasDefaultArg": true,
                 "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "[Swift.String]?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Array",
+                    "printedName": "[Swift.String]",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      }
+                    ],
+                    "usr": "s:Sa"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "[Swift.String : WireMock.JSONValue]?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Dictionary",
+                    "printedName": "[Swift.String : WireMock.JSONValue]",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      },
+                      {
+                        "kind": "TypeNominal",
+                        "name": "JSONValue",
+                        "printedName": "WireMock.JSONValue",
+                        "usr": "s:8WireMock9JSONValueO"
+                      }
+                    ],
+                    "usr": "s:SD"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sq"
               }
             ],
             "declKind": "Constructor",
-            "usr": "s:8WireMock17WebhookDefinitionV6method3url7headers4body10base64Body04jsonJ05delayAcA10HTTPMethodV_SSSDySSAA11HeaderValueOGSSSgApA9JSONValueOSgAC5DelayOSgtcfc",
-            "mangledName": "$s8WireMock17WebhookDefinitionV6method3url7headers4body10base64Body04jsonJ05delayAcA10HTTPMethodV_SSSDySSAA11HeaderValueOGSSSgApA9JSONValueOSgAC5DelayOSgtcfc",
+            "usr": "s:8WireMock17WebhookDefinitionV6method3url7headers4body10base64Body04jsonJ05delay12transformers15extraParametersAcA10HTTPMethodV_SSSDySSAA11HeaderValueOGSSSgArA9JSONValueOSgAC5DelayOSgSaySSGSgSDySSATGSgtcfc",
+            "mangledName": "$s8WireMock17WebhookDefinitionV6method3url7headers4body10base64Body04jsonJ05delay12transformers15extraParametersAcA10HTTPMethodV_SSSDySSAA11HeaderValueOGSSSgArA9JSONValueOSgAC5DelayOSgSaySSGSgSDySSATGSgtcfc",
             "moduleName": "WireMock",
             "init_kind": "Designated"
           },
@@ -37405,7 +37717,7 @@
           {
             "kind": "Function",
             "name": "listAllStubMappings",
-            "printedName": "listAllStubMappings()",
+            "printedName": "listAllStubMappings(limit:offset:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -37420,11 +37732,41 @@
                   }
                 ],
                 "usr": "s:Sa"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Swift.Int?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Int",
+                    "printedName": "Swift.Int",
+                    "usr": "s:Si"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Swift.Int?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Int",
+                    "printedName": "Swift.Int",
+                    "usr": "s:Si"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sq"
               }
             ],
             "declKind": "Func",
-            "usr": "s:8WireMockAAV19listAllStubMappingsSayAA0E7MappingVGyKF",
-            "mangledName": "$s8WireMockAAV19listAllStubMappingsSayAA0E7MappingVGyKF",
+            "usr": "s:8WireMockAAV19listAllStubMappings5limit6offsetSayAA0E7MappingVGSiSg_AItKF",
+            "mangledName": "$s8WireMockAAV19listAllStubMappings5limit6offsetSayAA0E7MappingVGSiSg_AItKF",
             "moduleName": "WireMock",
             "throwing": true,
             "funcSelfKind": "NonMutating"

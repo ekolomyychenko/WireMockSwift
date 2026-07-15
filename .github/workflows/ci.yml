@@ -25,12 +25,23 @@ jobs:
         # Version pin + readiness gate live in Scripts/start-wiremock.sh, shared
         # with the ios-xcuitest job and local Scripts/test.sh.
         run: Scripts/start-wiremock.sh
+      - name: Start an auth-enabled WireMock (for the admin-auth suite)
+        # A second instance on 8090 with Basic auth required, so
+        # AdminAuthIntegrationTests actually runs (it XCTSkips without this).
+        env:
+          WIREMOCK_PORT: "8090"
+          WIREMOCK_ADMIN_AUTH: "wmadmin:wmsecret"
+          WIREMOCK_PID_FILE: ".wiremock-auth.pid"
+        run: Scripts/start-wiremock.sh
       - name: Build
         run: swift build -Xswiftc -strict-concurrency=complete
       - name: Test (unit + integration) with coverage
         env:
           # Fail (don't skip) the integration suites if the server isn't reachable.
           WIREMOCK_REQUIRED: "1"
+          # Point the admin-auth suite at the auth-enabled instance above.
+          WIREMOCK_AUTH_URL: "http://localhost:8090"
+          WIREMOCK_AUTH_CREDS: "wmadmin:wmsecret"
         run: swift test --enable-code-coverage
       - name: Export code coverage (lcov)
         run: |

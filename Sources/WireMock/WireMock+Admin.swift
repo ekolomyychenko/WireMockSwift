@@ -246,20 +246,10 @@ extension WireMock {
 extension WireMock {
     /// Lists file names under `__files`.
     public func listFiles() throws -> [String] {
-        let data = try admin.send("GET", "files")
         // The server has returned both a bare array and a `{ "files": [...] }`
-        // wrapper across versions — accept either.
-        if let array = try? JSONDecoder().decode([String].self, from: data) {
-            return array
-        }
-        struct Wrapper: Decodable { let files: [String] }
-        if let wrapper = try? JSONDecoder().decode(Wrapper.self, from: data) {
-            return wrapper.files
-        }
-        // Don't silently return "no files" for a body we failed to parse.
-        throw WireMockError.decodingFailed(
-            underlying: "listFiles: unexpected /__admin/files response: \(String(data: data, encoding: .utf8) ?? "<binary>")"
-        )
+        // wrapper across versions — accept either. Routed through the shared
+        // cached decoder/error path (a decode miss surfaces the raw body).
+        try admin.get("files", as: FilesResult.self).files
     }
 
     /// Fetches the raw bytes of a `__files` entry.

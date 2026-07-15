@@ -26,6 +26,15 @@ public struct WebhookDefinition: Sendable {
     public var base64Body: String?
     public var jsonBody: JSONValue?
     public var delay: Delay?
+    /// Transformers applied to the outbound webhook request, e.g.
+    /// `["response-template"]` to template the url/headers/body against the
+    /// original request (Java `WebhookDefinition.withTransformers`).
+    public var transformers: [String]?
+    /// Free-form parameters passed to the webhook (Java `withExtraParameter`).
+    /// Accepted and persisted by the server and consumed by custom/server-side
+    /// webhook transformers; the built-in `response-template` transformer on
+    /// WireMock 3.13.2 does not expose them as template variables.
+    public var extraParameters: [String: JSONValue]?
 
     /// Delay applied before the webhook fires. `uniform`/`lognormal` match the
     /// response delay-distribution shape; `fixed` is a constant-delay form
@@ -58,7 +67,9 @@ public struct WebhookDefinition: Sendable {
         body: String? = nil,
         base64Body: String? = nil,
         jsonBody: JSONValue? = nil,
-        delay: Delay? = nil
+        delay: Delay? = nil,
+        transformers: [String]? = nil,
+        extraParameters: [String: JSONValue]? = nil
     ) {
         self.method = method
         self.url = url
@@ -67,6 +78,8 @@ public struct WebhookDefinition: Sendable {
         self.base64Body = base64Body
         self.jsonBody = jsonBody
         self.delay = delay
+        self.transformers = transformers
+        self.extraParameters = extraParameters
     }
 
     /// Renders this webhook into a `serveEventListeners` entry.
@@ -94,6 +107,12 @@ public struct WebhookDefinition: Sendable {
         }
         if let base64Body { parameters["base64Body"] = .string(base64Body) }
         if let delay { parameters["delay"] = delay.asJSON }
+        if let transformers, !transformers.isEmpty {
+            parameters["transformers"] = .array(transformers.map { .string($0) })
+        }
+        if let extraParameters, !extraParameters.isEmpty {
+            parameters["extraParameters"] = .object(extraParameters)
+        }
         return ServeEventListenerDefinition(name: "webhook", parameters: parameters)
     }
 }

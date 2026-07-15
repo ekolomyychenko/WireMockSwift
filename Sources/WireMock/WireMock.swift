@@ -110,9 +110,17 @@ public struct WireMock: Sendable, CustomStringConvertible {
         try admin.sendData("POST", "mappings", body: data, contentType: "application/json")
     }
 
-    /// Lists all registered stub mappings.
-    public func listAllStubMappings() throws -> [StubMapping] {
-        try admin.get("mappings", as: ListStubMappingsResult.self).mappings
+    /// Lists registered stub mappings.
+    ///
+    /// `limit`/`offset` page the result server-side (Java's
+    /// `GET /__admin/mappings?limit=&offset=`); both default to unset, in which
+    /// case the server returns every mapping. Use `countStubMappings()` for the
+    /// full total independent of the page size.
+    public func listAllStubMappings(limit: Int? = nil, offset: Int? = nil) throws -> [StubMapping] {
+        var query: [URLQueryItem] = []
+        if let limit { query.append(URLQueryItem(name: "limit", value: String(limit))) }
+        if let offset { query.append(URLQueryItem(name: "offset", value: String(offset))) }
+        return try admin.get("mappings", query: query, as: ListStubMappingsResult.self).mappings
     }
 
     /// The total number of registered stub mappings, from the server's

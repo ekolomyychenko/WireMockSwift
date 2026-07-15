@@ -296,4 +296,76 @@ final class ContractIntegrationTests: WireMockIntegrationCase {
         // Wrong query value → no match.
         WireMockFixture.assertMiss(try WireMockFixture.hit("bulk?q1=b", headers: ["X-A": "1", "X-B": "zzz"]))
     }
+
+    // MARK: Stub-mapping pagination (limit/offset) — new typed surface
+
+    func testListStubMappingsPagination() throws {
+        for i in 0..<3 {
+            try wireMock.stubFor(get(urlEqualTo("/pg\(i)")).willReturn(ok()))
+        }
+        // A page smaller than the total returns exactly the page size...
+        XCTAssertEqual(try wireMock.listAllStubMappings(limit: 2).count, 2)
+        // ...offset walks past the first page to the remainder...
+        XCTAssertEqual(try wireMock.listAllStubMappings(limit: 2, offset: 2).count, 1)
+        // ...and the count is the full total, independent of any page size.
+        XCTAssertEqual(try wireMock.countStubMappings(), 3)
+        // No paging args still returns everything.
+        XCTAssertEqual(try wireMock.listAllStubMappings().count, 3)
+    }
+
+    // MARK: Templated webhook (transformers) — new typed surface
+
+    /// `transformers: ["response-template"]` must actually run: the outbound
+    /// webhook body is a Handlebars template over the original request, so a
+    /// green result is behavioural proof the field is honoured, not just accepted.
+    func testTemplatedWebhookSubstitutesOriginalRequest() throws {
+        try wireMock.stubFor(post(urlEqualTo("/wh-receiver")).willReturn(ok()))
+        try wireMock.stubFor(
+            post(urlEqualTo("/wh-fire")).willReturn(ok()).withWebhook(
+                WebhookDefinition(
+                    method: .post,
+                    url: base.appendingPathComponent("wh-receiver").absoluteString,
+                    body: "templated-{{originalRequest.body}}",
+                    transformers: ["response-template"]
+                )
+            )
+        )
+        _ = try WireMockFixture.hit("wh-fire", method: "POST", body: Data("bob".utf8))
+
+        // The webhook is asynchronous; poll for the callback and its templated body.
+        var body: String?
+        for _ in 0..<20 {
+            if let first = try wireMock.findAll(postRequestedFor(urlEqualTo("/wh-receiver"))).first {
+                body = first.body
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertEqual(body, "templated-bob",
+                       "response-template transformer must substitute the original request body")
+    }
+
+    /// `extraParameters` is a real Java `WebhookDefinition.withExtraParameter`
+    /// field; the built-in response-template transformer doesn't surface it (it's
+    /// consumed by custom/server-side webhook transformers), so we prove the
+    /// contract: the server accepts it and round-trips it on the stored mapping.
+    func testWebhookExtraParametersAcceptedAndRoundTripped() throws {
+        let created = try wireMock.stubFor(
+            post(urlEqualTo("/wh-extra")).willReturn(ok()).withWebhook(
+                WebhookDefinition(
+                    method: .post,
+                    url: base.appendingPathComponent("wh-receiver").absoluteString,
+                    body: "x",
+                    transformers: ["response-template"],
+                    extraParameters: ["greeting": "hi", "count": 3]
+                )
+            )
+        )
+        let id = try XCTUnwrap(created.id)
+        let listener = try XCTUnwrap(try wireMock.getStubMapping(id: id).serveEventListeners?.first)
+        XCTAssertEqual(listener.parameters?["transformers"]?.arrayValue, ["response-template"])
+        let extra = try XCTUnwrap(listener.parameters?["extraParameters"]?.objectValue)
+        XCTAssertEqual(extra["greeting"], "hi")
+        XCTAssertEqual(extra["count"], 3)
+    }
 }
