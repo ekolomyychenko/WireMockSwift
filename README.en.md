@@ -13,7 +13,7 @@ Swift.
   record/playback, verification, near-misses, settings, files, metadata and webhooks
 - ✅ Covers the entire documented `/__admin` Admin API surface
 - ✅ Synchronous API (like Java WireMock) + `callAsync` for `async` contexts; `Sendable` under Swift 6
-  strict concurrency; macOS + Linux + iOS
+  strict concurrency; macOS + iOS
 - ✅ Golden-JSON + live-server test suites; a raw-JSON escape hatch for anything not yet modelled
 
 > **Status:** early development (0.x), first release — `0.1.0`. The API may still change.
@@ -46,7 +46,7 @@ Swift.
 
 - Swift 6.0+ (builds clean under `-strict-concurrency=complete`)
 - A running WireMock **3.x** server (Docker image or standalone jar)
-- Platforms: macOS 12+, iOS 15+, tvOS 15+, watchOS 8+ and Linux.
+- Platforms: macOS 12+ and iOS 15+.
 
 ## Installation
 
@@ -508,7 +508,7 @@ the host — unit + integration, an iOS build, and the iOS XCUITest example (all
 
 ## Platform notes
 
-- **The client** (`WireMock`, DSL, verification) runs on all Apple platforms and on Linux.
+- **The client** (`WireMock`, DSL, verification) is supported on macOS and iOS (both exercised in CI).
 - It requires Java **or** Docker on the host that runs the server (the server itself is written in Java).
 
 ## Parity with Java WireMock

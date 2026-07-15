@@ -42,6 +42,25 @@ jobs:
             "$XCTEST/Contents/MacOS/$(basename "$XCTEST" .xctest)" \
             > coverage.lcov
           echo "coverage.lcov: $(grep -c '^SF:' coverage.lcov) files, $(wc -l < coverage.lcov) lines"
+      - name: Enforce coverage threshold
+        # Soft gate on Sources-only line coverage so a big regression fails the
+        # build. The bar sits well below the current ~97% (see the report) to
+        # absorb normal run-to-run jitter, not to chase 100%. Raise it as coverage
+        # climbs; never above the actual number.
+        env:
+          MIN_COVERAGE: "90"
+        run: |
+          BIN=$(swift build --show-bin-path)
+          XCTEST=$(find "$BIN" -name '*.xctest' | head -1)
+          PROF=$(find .build -name default.profdata | head -1)
+          BINPATH="$XCTEST/Contents/MacOS/$(basename "$XCTEST" .xctest)"
+          PCT=$(xcrun llvm-cov export -summary-only -instr-profile "$PROF" "$BINPATH" Sources \
+            | jq '.data[0].totals.lines.percent')
+          echo "Sources line coverage: ${PCT}% (minimum ${MIN_COVERAGE}%)"
+          awk -v c="$PCT" -v t="$MIN_COVERAGE" 'BEGIN { exit (c+0 < t+0) ? 1 : 0 }' || {
+            echo "::error::line coverage ${PCT}% is below the ${MIN_COVERAGE}% minimum"
+            exit 1
+          }
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
