@@ -26,7 +26,7 @@ final class SampleAppUITests: XCTestCase {
         var lastError: Error?
         for attempt in 1...5 {
             do {
-                _ = try await wireMock.listAllStubMappings()
+                _ = try wireMock.listAllStubMappings()
                 lastError = nil
                 break
             } catch {
@@ -45,8 +45,8 @@ final class SampleAppUITests: XCTestCase {
             }
             throw XCTSkip("No WireMock server reachable from the simulator at \(base): \(lastError)")
         }
-        try await wireMock.resetAll()
-        try await wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(ok("pong")))
+        try wireMock.resetAll()
+        try wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(ok("pong")))
 
         // Launch the app pointed at the same server.
         let app = XCUIApplication()
@@ -60,6 +60,6 @@ final class SampleAppUITests: XCTestCase {
         await fulfillment(of: [becomesPong], timeout: 10)
 
         // Verify (from the simulator) that the app actually reached WireMock.
-        try await wireMock.verify(getRequestedFor(urlEqualTo("/ping")))
+        try wireMock.verify(getRequestedFor(urlEqualTo("/ping")))
     }
 }

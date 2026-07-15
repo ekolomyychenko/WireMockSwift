@@ -1,9 +1,12 @@
 import Foundation
 
 /// Anything that can supply a `ResponseDefinition` to `willReturn(_:)` — both
-/// `ResponseDefinitionBuilder` and its proxy variant conform.
+/// `ResponseDefinitionBuilder` and its proxy variant conform. The
+/// `init(definition:)` requirement lets the shared base `with…` methods
+/// (defined in the extension below) rebuild the concrete builder type.
 public protocol ResponseDefinitionProviding: Sendable {
     var definition: ResponseDefinition { get }
+    init(definition: ResponseDefinition)
 }
 
 /// Fluent builder for a `ResponseDefinition`. Mirrors WireMock's
@@ -15,80 +18,69 @@ public struct ResponseDefinitionBuilder: Sendable {
     public private(set) var definition: ResponseDefinition
 
     public init() { self.definition = ResponseDefinition() }
+    public init(definition: ResponseDefinition) { self.definition = definition }
 
-    private func mutating(_ transform: (inout ResponseDefinition) -> Void) -> Self {
-        var copy = self
-        transform(&copy.definition)
-        return copy
+    /// Proxies matching requests to another host. The returned
+    /// `ProxyResponseDefinitionBuilder` adds the proxy-only tweaks while keeping
+    /// every base `with…` method (mirrors Java, where
+    /// `ProxyResponseDefinitionBuilder extends ResponseDefinitionBuilder`), so
+    /// you can configure the response before *or* after `proxiedFrom`.
+    public func proxiedFrom(_ proxyBaseUrl: String) -> ProxyResponseDefinitionBuilder {
+        var definition = self.definition
+        definition.proxyBaseUrl = proxyBaseUrl
+        return ProxyResponseDefinitionBuilder(definition: definition)
+    }
+}
+
+// MARK: - Base fluent methods (shared by both builders, like Java inheritance)
+
+/// The base `ResponseDefinitionBuilder` surface, provided to every
+/// `ResponseDefinitionProviding` so `ProxyResponseDefinitionBuilder` exposes it
+/// too — matching Java, where the proxy builder *extends* the response builder.
+public extension ResponseDefinitionProviding {
+    private func configured(_ transform: (inout ResponseDefinition) -> Void) -> Self {
+        var definition = self.definition
+        transform(&definition)
+        return Self(definition: definition)
     }
 
-    public func withStatus(_ status: Int) -> Self {
-        mutating { $0.status = status }
-    }
+    func withStatus(_ status: Int) -> Self { configured { $0.status = status } }
+    func withStatusMessage(_ message: String) -> Self { configured { $0.statusMessage = message } }
+    func withBody(_ body: String) -> Self { configured { $0.body = body } }
+    func withJsonBody(_ json: JSONValue) -> Self { configured { $0.jsonBody = json } }
+    func withBase64Body(_ base64: String) -> Self { configured { $0.base64Body = base64 } }
+    func withBodyFile(_ fileName: String) -> Self { configured { $0.bodyFileName = fileName } }
 
-    public func withStatusMessage(_ message: String) -> Self {
-        mutating { $0.statusMessage = message }
-    }
-
-    public func withBody(_ body: String) -> Self {
-        mutating { $0.body = body }
-    }
-
-    public func withJsonBody(_ json: JSONValue) -> Self {
-        mutating { $0.jsonBody = json }
-    }
-
-    public func withBase64Body(_ base64: String) -> Self {
-        mutating { $0.base64Body = base64 }
-    }
-
-    public func withBodyFile(_ fileName: String) -> Self {
-        mutating { $0.bodyFileName = fileName }
-    }
-
-    public func withHeader(_ name: String, _ value: HeaderValue) -> Self {
-        mutating {
-            var headers = $0.headers ?? [:]
-            headers[name] = value
-            $0.headers = headers
-        }
+    func withHeader(_ name: String, _ value: HeaderValue) -> Self {
+        configured { var headers = $0.headers ?? [:]; headers[name] = value; $0.headers = headers }
     }
 
     /// Replaces the entire response header set (Java `withHeaders(HttpHeaders)`
     /// reassigns the list, discarding anything set by a prior `withHeader`). Use
     /// `withHeader` to add to the set incrementally.
-    public func withHeaders(_ headers: [String: HeaderValue]) -> Self {
-        mutating { $0.headers = headers }
+    func withHeaders(_ headers: [String: HeaderValue]) -> Self { configured { $0.headers = headers } }
+
+    func withFixedDelay(_ milliseconds: Int) -> Self { configured { $0.fixedDelayMilliseconds = milliseconds } }
+
+    func withLogNormalRandomDelay(median: Double, sigma: Double, maxValue: Double? = nil) -> Self {
+        configured { $0.delayDistribution = .lognormal(median: median, sigma: sigma, maxValue: maxValue) }
     }
 
-    public func withFixedDelay(_ milliseconds: Int) -> Self {
-        mutating { $0.fixedDelayMilliseconds = milliseconds }
+    func withUniformRandomDelay(lower: Int, upper: Int) -> Self {
+        configured { $0.delayDistribution = .uniform(lower: lower, upper: upper) }
     }
 
-    public func withLogNormalRandomDelay(median: Double, sigma: Double, maxValue: Double? = nil) -> Self {
-        mutating { $0.delayDistribution = .lognormal(median: median, sigma: sigma, maxValue: maxValue) }
+    func withChunkedDribbleDelay(numberOfChunks: Int, totalDuration: Int) -> Self {
+        configured { $0.chunkedDribbleDelay = ChunkedDribbleDelay(numberOfChunks: numberOfChunks, totalDuration: totalDuration) }
     }
 
-    public func withUniformRandomDelay(lower: Int, upper: Int) -> Self {
-        mutating { $0.delayDistribution = .uniform(lower: lower, upper: upper) }
-    }
+    func withFault(_ fault: Fault) -> Self { configured { $0.fault = fault } }
 
-    public func withChunkedDribbleDelay(numberOfChunks: Int, totalDuration: Int) -> Self {
-        mutating { $0.chunkedDribbleDelay = ChunkedDribbleDelay(numberOfChunks: numberOfChunks, totalDuration: totalDuration) }
-    }
+    func withTransformers(_ transformers: String...) -> Self { configured { $0.transformers = transformers } }
 
-    public func withFault(_ fault: Fault) -> Self {
-        mutating { $0.fault = fault }
-    }
-
-    public func withTransformers(_ transformers: String...) -> Self {
-        mutating { $0.transformers = transformers }
-    }
-
-    /// Sets a single transformer plus one of its parameters (`withTransformer`
-    /// in Java).
-    public func withTransformer(_ name: String, _ parameterKey: String, _ parameterValue: JSONValue) -> Self {
-        mutating {
+    /// Sets a single transformer plus one of its parameters (`withTransformer` in Java).
+    func withTransformer(_ name: String, _ parameterKey: String, _ parameterValue: JSONValue) -> Self {
+        configured {
             $0.transformers = [name]
             var params = $0.transformerParameters ?? [:]
             params[parameterKey] = parameterValue
@@ -96,39 +88,26 @@ public struct ResponseDefinitionBuilder: Sendable {
         }
     }
 
-    public func withTransformerParameter(_ name: String, _ value: JSONValue) -> Self {
-        mutating {
+    func withTransformerParameter(_ name: String, _ value: JSONValue) -> Self {
+        configured {
             var params = $0.transformerParameters ?? [:]
             params[name] = value
             $0.transformerParameters = params
         }
     }
 
-    /// Merges several transformer parameters at once (`withTransformerParameters`
-    /// in Java).
-    public func withTransformerParameters(_ parameters: [String: JSONValue]) -> Self {
-        mutating {
+    /// Merges several transformer parameters at once (`withTransformerParameters` in Java).
+    func withTransformerParameters(_ parameters: [String: JSONValue]) -> Self {
+        configured {
             var params = $0.transformerParameters ?? [:]
             params.merge(parameters) { _, new in new }
             $0.transformerParameters = params
         }
     }
 
-    /// Proxies matching requests to another host. Configure the response
-    /// (status/headers/body) *before* calling this; the returned
-    /// `ProxyResponseDefinitionBuilder` then exposes the proxy-only tweaks
-    /// (mirrors Java, where `proxiedFrom` returns a `ProxyResponseDefinitionBuilder`).
-    public func proxiedFrom(_ proxyBaseUrl: String) -> ProxyResponseDefinitionBuilder {
-        var definition = self.definition
-        definition.proxyBaseUrl = proxyBaseUrl
-        return ProxyResponseDefinitionBuilder(definition: definition)
-    }
-
     /// Disables gzip on the response (WireMock does this via a
     /// `Content-Encoding: none` header, not a JSON field).
-    public func withGzipDisabled() -> Self {
-        withHeader("Content-Encoding", "none")
-    }
+    func withGzipDisabled() -> Self { withHeader("Content-Encoding", "none") }
 }
 
 /// The proxy-only extension of `ResponseDefinitionBuilder`, returned by
@@ -138,7 +117,7 @@ public struct ResponseDefinitionBuilder: Sendable {
 public struct ProxyResponseDefinitionBuilder: Sendable {
     public private(set) var definition: ResponseDefinition
 
-    init(definition: ResponseDefinition) { self.definition = definition }
+    public init(definition: ResponseDefinition) { self.definition = definition }
 
     private func mutating(_ transform: (inout ResponseDefinition) -> Void) -> Self {
         var copy = self

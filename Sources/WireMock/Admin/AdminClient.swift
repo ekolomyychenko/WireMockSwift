@@ -121,8 +121,15 @@ public struct AdminClient: Sendable, CustomStringConvertible {
     }
 
     /// Runs a request synchronously, blocking the calling thread until URLSession
-    /// completes on its own queue (safe from the main thread — no deadlock). A
-    /// safety wait a bit past the request timeout guards against a stuck task.
+    /// delivers the completion handler on the session's delegate queue. This is
+    /// deadlock-free for the default `.shared` session (and any session created
+    /// with `delegateQueue: nil`, which delivers on a background queue). A safety
+    /// wait a bit past the request timeout guards against a stuck task.
+    ///
+    /// - Warning: if a caller injects a `URLSession` whose `delegateQueue` is the
+    ///   **same** queue this call blocks on (e.g. `delegateQueue: .main` invoked
+    ///   from the main thread), the completion handler can't run and the call
+    ///   blocks until the safety timeout. Inject sessions with `delegateQueue: nil`.
     private func syncData(for request: URLRequest) throws -> (Data, URLResponse) {
         final class Holder: @unchecked Sendable { var result: Result<(Data, URLResponse), Error>? }
         let holder = Holder()

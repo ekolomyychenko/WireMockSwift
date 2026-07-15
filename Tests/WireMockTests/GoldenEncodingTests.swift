@@ -619,6 +619,24 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(try json(binaryEqualTo("aGVsbG8=")), ["binaryEqualTo": "aGVsbG8="])
     }
 
+    func testBaseMethodsWorkAfterProxiedFrom() throws {
+        // Java's ProxyResponseDefinitionBuilder extends ResponseDefinitionBuilder,
+        // so base with… methods stay available AFTER proxiedFrom, mixed with the
+        // proxy-only ones. This must compile and serialise both sets.
+        let response = aResponse()
+            .proxiedFrom("http://backend")
+            .withStatus(200)
+            .withHeader("X-Base", "kept")
+            .withFixedDelay(50)
+            .withAdditionalRequestHeader("X-Proxy", "p")
+        let encoded = try json(response.definition)
+        XCTAssertEqual(encoded.objectValue?["proxyBaseUrl"], "http://backend")
+        XCTAssertEqual(encoded.objectValue?["status"], 200)
+        XCTAssertEqual(encoded.objectValue?["headers"], ["X-Base": "kept"])
+        XCTAssertEqual(encoded.objectValue?["fixedDelayMilliseconds"], 50)
+        XCTAssertEqual(encoded.objectValue?["additionalProxyRequestHeaders"], ["X-Proxy": "p"])
+    }
+
     func testProxyResponseBuilderEncodesProxyFields() throws {
         // proxiedFrom returns the proxy builder; its Java-named tweaks land on the
         // right JSON fields, and multi-value additional headers use the array form.

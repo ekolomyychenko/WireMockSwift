@@ -106,6 +106,17 @@ final class ClientUnitTests: XCTestCase {
         }
     }
 
+    func testGetUnmatchedRequestsThrowsWhenJournalDisabled() throws {
+        // Must throw like the sibling journal methods, not silently return [].
+        MockURLProtocol.respond { _ in (200, #"{"requests":[],"requestJournalDisabled":true}"#) }
+        let client = makeClient()
+        XCTAssertThrowsError(try client.getUnmatchedRequests()) { error in
+            guard case WireMockError.requestJournalDisabled = error else {
+                return XCTFail("expected .requestJournalDisabled, got \(error)")
+            }
+        }
+    }
+
     func testCountRequestsReturnsCountWhenJournalEnabled() throws {
         MockURLProtocol.respond { _ in (200, #"{"count":3}"#) }
         let client = makeClient()

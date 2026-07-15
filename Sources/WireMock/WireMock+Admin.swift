@@ -86,7 +86,11 @@ extension WireMock {
 
     /// Requests received that matched no stub.
     public func getUnmatchedRequests() throws -> [LoggedRequest] {
-        try admin.get("requests/unmatched", as: FindRequestsResult.self).requests
+        let result = try admin.get("requests/unmatched", as: FindRequestsResult.self)
+        // With the journal off the server returns an empty list; throw like the
+        // sibling journal methods so an empty result isn't misread as "all matched".
+        if result.requestJournalDisabled == true { throw WireMockError.requestJournalDisabled }
+        return result.requests
     }
 
     // MARK: Near misses
