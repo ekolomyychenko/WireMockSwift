@@ -43,6 +43,29 @@ final class ClientUnitTests: XCTestCase {
         XCTAssertNil(WireMock(scheme: "http", host: "bad host", port: 8080))
     }
 
+    // MARK: - .main delegate-queue session fails fast instead of deadlocking
+
+    func testMainDelegateQueueSessionFailsFastFromMainThread() throws {
+        // A URLSession that delivers completions on .main, called from the main
+        // thread (XCTest runs here), could never signal the blocking transport —
+        // it must throw immediately with an actionable message, not hang for the
+        // ~40s safety timeout. No server/URLProtocol needed: the guard fires first.
+        let session = URLSession(configuration: .ephemeral, delegate: nil, delegateQueue: .main)
+        self.session = session
+        let client = WireMock(baseURL: URL(string: "http://stub.local:8080")!, session: session)
+
+        let start = Date()
+        XCTAssertThrowsError(try client.getVersion()) { error in
+            guard case WireMockError.transport(let underlying) = error else {
+                return XCTFail("expected .transport, got \(error)")
+            }
+            XCTAssertTrue(underlying.contains("delegateQueue"),
+                          "the error should name the real cause (delegateQueue: .main); got: \(underlying)")
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(start), 5,
+                          "must fail fast, not block until the safety timeout")
+    }
+
     // MARK: - listFiles decodes both the bare-array and {files:[...]} shapes
 
     func testListFilesDecodesWrapperObjectShape() throws {

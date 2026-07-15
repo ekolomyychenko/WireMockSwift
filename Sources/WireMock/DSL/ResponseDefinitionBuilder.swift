@@ -76,6 +76,13 @@ public extension ResponseDefinitionProviding {
         configured { $0.delayDistribution = .uniform(lower: lower, upper: upper) }
     }
 
+    /// Applies an arbitrary delay distribution (Java `withRandomDelay(DelayDistribution)`).
+    /// Use this to attach a `DelayDistribution.other(_:)` the typed `lognormal`/`uniform`
+    /// helpers don't cover; equivalent to those helpers for the modelled cases.
+    func withRandomDelay(_ distribution: DelayDistribution) -> Self {
+        configured { $0.delayDistribution = distribution }
+    }
+
     func withChunkedDribbleDelay(numberOfChunks: Int, totalDuration: Int) -> Self {
         configured { $0.chunkedDribbleDelay = ChunkedDribbleDelay(numberOfChunks: numberOfChunks, totalDuration: totalDuration) }
     }

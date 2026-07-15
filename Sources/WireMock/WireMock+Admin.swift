@@ -64,6 +64,20 @@ extension WireMock {
         return result.requests
     }
 
+    /// Serve events since a specific moment, type-safe alternative to the `String`
+    /// overload: `since` is formatted as an ISO-8601 instant (`2024-06-01T12:00:00Z`),
+    /// the format the server expects. Use the `String` overload for a pre-formatted
+    /// value in a non-default shape.
+    public func getServeEvents(
+        limit: Int? = nil,
+        since: Date,
+        unmatchedOnly: Bool = false,
+        matchingStub: UUID? = nil
+    ) throws -> [ServeEvent] {
+        try getServeEvents(limit: limit, since: since.ISO8601Format(),
+                           unmatchedOnly: unmatchedOnly, matchingStub: matchingStub)
+    }
+
     /// A single serve event by id.
     public func getServeEvent(id: UUID) throws -> ServeEvent {
         try admin.get("requests/\(id.uuidString)", as: ServeEvent.self)

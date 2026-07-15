@@ -19,10 +19,15 @@ public struct RequestPatternBuilder: Sendable {
     }
 
     /// Combines two matchers pinned to the same key. Repeated `withHeader`/
-    /// `withQueryParam`/… calls on one name **accumulate** (logical AND), matching
-    /// Java WireMock, rather than the later call silently overwriting the earlier.
-    /// The wire shape stays one matcher object per key (`{"and":[…]}`, which the
-    /// server accepts); nested ANDs are flattened so N calls yield one N-element AND.
+    /// `withQueryParam`/… calls on one name **accumulate** (logical AND) rather than
+    /// the later call overwriting the earlier.
+    ///
+    /// This is a **deliberate divergence** from Java WireMock: Java's builder stores
+    /// each key in a `Map`, so a second call on the same key silently drops the first
+    /// (last-wins). Accumulating instead keeps every matcher the caller asked for —
+    /// dropping one silently is a footgun. The wire shape stays one matcher object per
+    /// key (`{"and":[…]}`, which the server accepts), and nested ANDs are flattened so
+    /// N calls yield one N-element AND.
     static func combined(_ existing: StringValuePattern, _ new: StringValuePattern) -> StringValuePattern {
         if existing.fields.count == 1, case .array(let members)? = existing.fields["and"] {
             return StringValuePattern(["and": .array(members + [new.asJSON])])

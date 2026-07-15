@@ -105,7 +105,7 @@ public func before(
     truncateExpected: String? = nil,
     truncateActual: String? = nil,
     expectedOffset: Int? = nil,
-    expectedOffsetUnit: String? = nil,
+    expectedOffsetUnit: StringValuePattern.DateTimeUnit? = nil,
     applyTruncationLast: Bool? = nil
 ) -> StringValuePattern {
     .before(dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,
@@ -119,7 +119,7 @@ public func after(
     truncateExpected: String? = nil,
     truncateActual: String? = nil,
     expectedOffset: Int? = nil,
-    expectedOffsetUnit: String? = nil,
+    expectedOffsetUnit: StringValuePattern.DateTimeUnit? = nil,
     applyTruncationLast: Bool? = nil
 ) -> StringValuePattern {
     .after(dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,
@@ -133,7 +133,7 @@ public func equalToDateTime(
     truncateExpected: String? = nil,
     truncateActual: String? = nil,
     expectedOffset: Int? = nil,
-    expectedOffsetUnit: String? = nil,
+    expectedOffsetUnit: StringValuePattern.DateTimeUnit? = nil,
     applyTruncationLast: Bool? = nil
 ) -> StringValuePattern {
     .equalToDateTime(dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,

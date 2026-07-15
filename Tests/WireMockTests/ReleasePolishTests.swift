@@ -59,8 +59,8 @@ final class ReleasePolishTests: XCTestCase {
     func testDateMatcherFreeFunctionsForwardOptions() throws {
         // The free functions must carry every option through to the same shape
         // the static factories produce.
-        let free = before("2021-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: "DAYS")
-        let factory = StringValuePattern.before("2021-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: "DAYS")
+        let free = before("2021-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: .days)
+        let factory = StringValuePattern.before("2021-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: .days)
         XCTAssertEqual(try json(free), try json(factory))
 
         let expected: JSONValue = [

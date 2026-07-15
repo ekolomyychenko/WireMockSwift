@@ -129,7 +129,7 @@ final class ContractIntegrationTests: WireMockIntegrationCase {
                 "2000-01-01T00:00:00Z",
                 truncateExpected: "first day of year",
                 expectedOffset: 1,
-                expectedOffsetUnit: "days"
+                expectedOffsetUnit: .days
             )).willReturn(ok())
         )
         WireMockFixture.assertMatch(try WireMockFixture.hit("dt", headers: ["X-When": "2024-06-01T00:00:00Z"]))

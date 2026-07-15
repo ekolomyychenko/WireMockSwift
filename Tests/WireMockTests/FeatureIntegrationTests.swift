@@ -26,22 +26,30 @@ final class FeatureIntegrationTests: WireMockIntegrationCase {
     // MARK: Faults
 
     func testAllConnectionFaultsBreakTheConnection() throws {
-        // Each fault must NOT produce a normal, successful response. We accept
-        // either a thrown transport error or a non-200 / garbage response, since
-        // the exact surfacing differs across URLSession backends
-        // (Darwin vs. Linux libcurl), especially for MALFORMED/RANDOM data.
+        // Without a fault this stub serves a clean 200 "SHOULD-NOT-SEE"; each fault
+        // must break that. We positively require one of the two legitimate fault
+        // surfacings and reject a clean success — so a regression that silently
+        // dropped the fault (200 + intact body) fails here rather than passing.
         for fault in [Fault.emptyResponse, .malformedResponseChunk, .randomDataThenClose, .connectionResetByPeer] {
             try wireMock.resetAll()
             try wireMock.stubFor(get(urlEqualTo("/boom")).willReturn(ok("SHOULD-NOT-SEE").withFault(fault)))
             do {
                 let (data, response) = try WireMockFixture.hit("boom")
+                // No throw → the response must be visibly broken, never the intact
+                // 200 body the stub would serve if the fault hadn't fired.
                 let body = String(data: data, encoding: .utf8) ?? ""
                 XCTAssertFalse(
                     response.statusCode == 200 && body == "SHOULD-NOT-SEE",
-                    "fault \(fault) returned a clean successful response"
+                    "fault \(fault) delivered a clean successful response — the fault did not fire"
                 )
             } catch {
-                // Also acceptable: the connection was broken outright.
+                // A broken connection is the clearest fault signal. On the supported
+                // (Darwin/iOS) backends it surfaces as a URLError; reject any other
+                // error type so an unrelated failure can't green this test.
+                #if !canImport(FoundationNetworking)
+                XCTAssertTrue(error is URLError,
+                              "fault \(fault) threw a non-transport error \(error) — expected a URLError")
+                #endif
             }
         }
     }

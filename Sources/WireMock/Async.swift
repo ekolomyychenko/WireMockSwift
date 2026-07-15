@@ -9,6 +9,11 @@ public extension WireMock {
     /// the blocking call to a background queue and awaits it, so it never blocks
     /// a Swift-concurrency (cooperative) thread.
     ///
+    /// - Note: each in-flight call parks a background (GCD global-queue) thread for
+    ///   the whole request. Dozens of *concurrent* `callAsync` calls against a slow
+    ///   server can saturate that bounded pool; for high fan-out, batch the work or
+    ///   drive the synchronous client from your own dedicated queue instead.
+    ///
     /// ```swift
     /// func testFromAsyncContext() async throws {
     ///     let stub = try await wireMock.callAsync { try $0.stubFor(get(anyUrl).willReturn(ok())) }

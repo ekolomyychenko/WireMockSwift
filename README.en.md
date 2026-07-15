@@ -543,6 +543,12 @@ functions (`get`, `aResponse`, `getRequestedFor`, …) remain free functions, ex
 configuration explicit and free of hidden global state, and your Java muscle memory for the builders
 transfers unchanged.
 
+**One deliberate behavioral divergence.** Calling `withHeader`/`withQueryParam`/`withCookie`/`withPathParam`/
+`withFormParam` twice on the **same key** *accumulates* both matchers as a logical AND (`{"and":[…]}`), whereas
+Java WireMock is last-wins (the second call silently discards the first). Accumulating avoids silently dropping
+a matcher the caller wrote; the emitted shape is one the server accepts. For a single matcher per key the output
+is identical to Java.
+
 ### Known limitation: numeric precision in `JSONValue`
 
 `JSONValue` (used in `jsonBody`, the `equalToJson` operand, `metadata`, transformer parameters) parses

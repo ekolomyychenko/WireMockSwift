@@ -8,6 +8,18 @@ extension StringValuePattern {
 
     // MARK: Date / time
 
+    /// The unit for a date/time matcher's `expectedOffset`, mirroring Java WireMock's
+    /// `DateTimeUnit`. Encoded as its uppercase name (`"DAYS"`, `"SECONDS"`, …), the
+    /// canonical form Java emits and the server expects.
+    public enum DateTimeUnit: String, Sendable {
+        case seconds = "SECONDS"
+        case minutes = "MINUTES"
+        case hours = "HOURS"
+        case days = "DAYS"
+        case months = "MONTHS"
+        case years = "YEARS"
+    }
+
     // Mirrors WireMock 3.13.2's full date/time matcher option set (parity); the
     // public before/after/equalToDateTime factories forward every option.
     // swiftlint:disable:next function_parameter_count
@@ -18,7 +30,7 @@ extension StringValuePattern {
         truncateExpected: String?,
         truncateActual: String?,
         expectedOffset: Int?,
-        expectedOffsetUnit: String?,
+        expectedOffsetUnit: DateTimeUnit?,
         applyTruncationLast: Bool?
     ) -> Self {
         var fields: [String: JSONValue] = [key: .string(value)]
@@ -26,7 +38,7 @@ extension StringValuePattern {
         if let truncateExpected { fields["truncateExpected"] = .string(truncateExpected) }
         if let truncateActual { fields["truncateActual"] = .string(truncateActual) }
         if let expectedOffset { fields["expectedOffset"] = .int(expectedOffset) }
-        if let expectedOffsetUnit { fields["expectedOffsetUnit"] = .string(expectedOffsetUnit) }
+        if let expectedOffsetUnit { fields["expectedOffsetUnit"] = .string(expectedOffsetUnit.rawValue) }
         if let applyTruncationLast { fields["applyTruncationLast"] = .bool(applyTruncationLast) }
         return .init(fields)
     }
@@ -37,7 +49,7 @@ extension StringValuePattern {
         truncateExpected: String? = nil,
         truncateActual: String? = nil,
         expectedOffset: Int? = nil,
-        expectedOffsetUnit: String? = nil,
+        expectedOffsetUnit: DateTimeUnit? = nil,
         applyTruncationLast: Bool? = nil
     ) -> Self {
         self.dateTime("before", dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,
@@ -51,7 +63,7 @@ extension StringValuePattern {
         truncateExpected: String? = nil,
         truncateActual: String? = nil,
         expectedOffset: Int? = nil,
-        expectedOffsetUnit: String? = nil,
+        expectedOffsetUnit: DateTimeUnit? = nil,
         applyTruncationLast: Bool? = nil
     ) -> Self {
         self.dateTime("after", dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,
@@ -65,7 +77,7 @@ extension StringValuePattern {
         truncateExpected: String? = nil,
         truncateActual: String? = nil,
         expectedOffset: Int? = nil,
-        expectedOffsetUnit: String? = nil,
+        expectedOffsetUnit: DateTimeUnit? = nil,
         applyTruncationLast: Bool? = nil
     ) -> Self {
         self.dateTime("equalToDateTime", dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,

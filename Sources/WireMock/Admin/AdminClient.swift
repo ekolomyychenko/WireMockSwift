@@ -96,13 +96,11 @@ public struct AdminClient: Sendable, CustomStringConvertible {
     public init(baseURL: URL, session: URLSession = .shared, timeout: TimeInterval = 30,
                 authorization: AdminAuthorization? = nil) {
         // The synchronous transport blocks the calling thread until URLSession
-        // delivers its completion on the session's delegate queue. A session whose
-        // delegate queue is `.main`, called from the main thread, can never
-        // deliver → the call hangs until the safety timeout. `.shared` and
-        // `delegateQueue: nil` sessions deliver on a background queue and are safe;
-        // catch the `.main` footgun in debug builds (see `syncData`'s Warning).
-        assert(session === URLSession.shared || session.delegateQueue !== OperationQueue.main,
-               "Inject a URLSession with delegateQueue: nil — a delegateQueue of .main deadlocks the synchronous transport when called from the main thread")
+        // delivers its completion on the session's delegate queue. A `delegateQueue:
+        // .main` session invoked *from the main thread* could never deliver; `syncData`
+        // detects exactly that case and throws a clear error rather than hanging.
+        // `.shared` and `delegateQueue: nil` sessions deliver on a background queue
+        // and are always safe.
         self.baseURL = baseURL
         self.session = session
         self.timeout = timeout
@@ -156,11 +154,21 @@ public struct AdminClient: Sendable, CustomStringConvertible {
     /// with `delegateQueue: nil`, which delivers on a background queue). A safety
     /// wait a bit past the request timeout guards against a stuck task.
     ///
-    /// - Warning: if a caller injects a `URLSession` whose `delegateQueue` is the
-    ///   **same** queue this call blocks on (e.g. `delegateQueue: .main` invoked
-    ///   from the main thread), the completion handler can't run and the call
-    ///   blocks until the safety timeout. Inject sessions with `delegateQueue: nil`.
+    /// - Warning: a `URLSession` whose `delegateQueue` is `.main`, invoked from the
+    ///   main thread, could never deliver its completion (the handler can't run while
+    ///   this call blocks that thread). That exact case is detected up front and throws
+    ///   `.transport` immediately, rather than hanging until the safety timeout. Inject
+    ///   sessions with `delegateQueue: nil`.
     private func syncData(for request: URLRequest) throws -> (Data, URLResponse) {
+        // Fail fast instead of deadlocking: if completion is delivered on the main
+        // queue and we're about to block the main thread, the handler can never run.
+        if session.delegateQueue === OperationQueue.main && Thread.isMainThread {
+            throw WireMockError.transport(
+                underlying: "URLSession delivers completions on delegateQueue: .main and this call is on "
+                    + "the main thread — the synchronous transport would deadlock. Inject a URLSession "
+                    + "created with delegateQueue: nil (it delivers on a background queue)."
+            )
+        }
         final class Holder: @unchecked Sendable { var result: Result<(Data, URLResponse), Error>? }
         let holder = Holder()
         let semaphore = DispatchSemaphore(value: 0)

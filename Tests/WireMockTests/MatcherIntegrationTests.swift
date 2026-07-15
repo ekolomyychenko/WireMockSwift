@@ -401,7 +401,7 @@ final class MatcherIntegrationTests: WireMockIntegrationCase {
                    "ANY fails when no part contains target")
     }
 
-    // MARK: Repeated matcher on one header accumulates (Java parity, end-to-end)
+    // MARK: Repeated matcher on one header accumulates (deliberate divergence from Java last-wins, end-to-end)
 
     /// Two `withHeader` calls on the same name AND-combine into one matcher; the
     /// server must accept the `{"and":[…]}` shape and require BOTH constraints.

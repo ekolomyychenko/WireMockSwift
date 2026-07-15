@@ -104,11 +104,11 @@ final class GoldenEncodingTests: XCTestCase {
     }
 
     func testDateTimeMatcher() throws {
-        let pattern = StringValuePattern.after("2020-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: "days")
+        let pattern = StringValuePattern.after("2020-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: .days)
         let expected: JSONValue = [
             "after": "2020-01-01T00:00:00Z",
             "expectedOffset": 3,
-            "expectedOffsetUnit": "days"
+            "expectedOffsetUnit": "DAYS"
         ]
         XCTAssertEqual(try json(pattern), expected)
     }
@@ -379,7 +379,7 @@ final class GoldenEncodingTests: XCTestCase {
             truncateExpected: "first day of month",
             truncateActual: "first day of month",
             expectedOffset: 3,
-            expectedOffsetUnit: "days",
+            expectedOffsetUnit: .days,
             applyTruncationLast: true
         )
         let expected: JSONValue = [
@@ -388,7 +388,7 @@ final class GoldenEncodingTests: XCTestCase {
             "truncateExpected": "first day of month",
             "truncateActual": "first day of month",
             "expectedOffset": 3,
-            "expectedOffsetUnit": "days",
+            "expectedOffsetUnit": "DAYS",
             "applyTruncationLast": true
         ]
         XCTAssertEqual(try json(pattern), expected)
@@ -763,10 +763,11 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(encoded?["allowNonProxied"], true)
     }
 
-    // MARK: - Repeated matcher on one key accumulates (Java parity)
+    // MARK: - Repeated matcher on one key accumulates (deliberate divergence from Java last-wins)
 
     /// Two `withHeader` calls on the same name must AND-combine (not overwrite),
     /// staying one matcher object per key on the wire (the shape the server accepts).
+    /// Note: Java WireMock is last-wins here; we deliberately accumulate instead.
     func testRepeatedHeaderMatcherCombinesWithAnd() throws {
         let stub = get(urlEqualTo("/x"))
             .withHeader("X-Test", containing("foo"))
@@ -792,5 +793,22 @@ final class GoldenEncodingTests: XCTestCase {
         let stub = get(urlEqualTo("/x")).withHeader("X", equalTo("v")).willReturn(ok()).build()
         let headers = try json(stub).objectValue?["request"]?.objectValue?["headers"]?.objectValue
         XCTAssertEqual(headers?["X"], ["equalTo": "v"])
+    }
+
+    // MARK: - Serve-event listener attaches directly
+
+    /// `withServeEventListener(name:parameters:)` — the generic primitive that
+    /// `withWebhook`/`withPostServeAction` build on — must land in the stub's
+    /// `serveEventListeners` array with the given name and parameters when used on
+    /// its own (the only public builder method not otherwise directly covered).
+    func testServeEventListenerEncodesOnStub() throws {
+        let stub = get(urlEqualTo("/hooked"))
+            .withServeEventListener("my-listener", parameters: ["k": "v"])
+            .willReturn(ok()).build()
+        let listeners = try json(stub).objectValue?["serveEventListeners"]?.arrayValue
+        XCTAssertEqual(listeners?.count, 1)
+        let first = listeners?.first?.objectValue
+        XCTAssertEqual(first?["name"], "my-listener")
+        XCTAssertEqual(first?["parameters"], ["k": "v"])
     }
 }
