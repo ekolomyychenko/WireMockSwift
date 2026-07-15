@@ -16,6 +16,9 @@ public enum WireMockError: Error, Sendable, CustomStringConvertible {
     /// A count/verify/find was attempted while the server's request journal is
     /// disabled, so no request history is available.
     case requestJournalDisabled
+    /// A client-side argument was rejected before any request was sent (e.g. an
+    /// empty scenario/file name that would corrupt the request path).
+    case invalidArgument(String)
 
     public var description: String {
         switch self {
@@ -29,6 +32,8 @@ public enum WireMockError: Error, Sendable, CustomStringConvertible {
             return "WireMock transport error: \(underlying)"
         case .requestJournalDisabled:
             return "The WireMock request journal is disabled; request counts/history are unavailable"
+        case .invalidArgument(let message):
+            return "Invalid argument: \(message)"
         }
     }
 }
@@ -156,7 +161,25 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         }
     }
 
+    /// Percent-encodes a single, user-supplied path segment (a scenario or file
+    /// name) so it can't inject extra path segments (`/`), traverse (`..` stays
+    /// literal), or bleed into the query/fragment (`?`, `#`). Rejects an empty
+    /// segment up front rather than silently hitting the wrong endpoint.
+    static func pathSegment(_ raw: String) throws -> String {
+        guard !raw.isEmpty else {
+            throw WireMockError.invalidArgument("path segment must not be empty")
+        }
+        var allowed = CharacterSet.urlPathAllowed
+        // `/` would split into segments; `?`/`#` would start the query/fragment.
+        allowed.remove(charactersIn: "/?#")
+        // urlPathAllowed maps every input, so the coalesce never actually fires.
+        return raw.addingPercentEncoding(withAllowedCharacters: allowed) ?? raw
+    }
+
     /// Transport core: builds the URL, sends, checks the status code.
+    ///
+    /// `path` is treated as already percent-encoded: static callers pass ASCII-safe
+    /// paths, and callers interpolating a user name pre-encode it via `pathSegment`.
     private func perform(
         _ method: String,
         _ path: String,
@@ -164,12 +187,18 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         body: Data?,
         contentType: String? = "application/json"
     ) throws -> Data {
-        guard var components = URLComponents(
-            url: baseURL.appendingPathComponent("__admin").appendingPathComponent(path),
-            resolvingAgainstBaseURL: false
-        ) else {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw WireMockError.invalidBaseURL(baseURL.absoluteString)
         }
+        // Join the base URL's own path with `/__admin/<path>`, collapsing the
+        // slashes at the seams. Assigning percentEncodedPath (rather than
+        // appendingPathComponent) preserves pre-encoded segments verbatim — no
+        // double-encoding of the `%` escapes produced by `pathSegment`.
+        let base = components.percentEncodedPath.hasSuffix("/")
+            ? String(components.percentEncodedPath.dropLast())
+            : components.percentEncodedPath
+        let tail = path.hasPrefix("/") ? String(path.dropFirst()) : path
+        components.percentEncodedPath = "\(base)/__admin/\(tail)"
         if !query.isEmpty {
             // Encode query values ourselves: URLComponents leaves `+` literal, but
             // the server (Jetty) decodes query strings with form-urlencoded
@@ -217,10 +246,19 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         guard (200..<300).contains(http.statusCode) else {
             throw WireMockError.unexpectedStatus(
                 code: http.statusCode,
-                body: String(data: data, encoding: .utf8) ?? ""
+                body: Self.bodyText(data)
             )
         }
         return data
+    }
+
+    /// Renders a response body as text for error reporting. Falls back to
+    /// ISO-8859-1 (which maps every byte) so a non-UTF8 or binary error body is
+    /// never silently dropped to an empty string.
+    private static func bodyText(_ data: Data) -> String {
+        String(data: data, encoding: .utf8)
+            ?? String(data: data, encoding: .isoLatin1)
+            ?? ""
     }
 
     /// Sends an encodable body and decodes the response.

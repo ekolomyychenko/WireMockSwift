@@ -18,8 +18,20 @@ public struct RequestPatternBuilder: Sendable {
         return copy
     }
 
+    /// Combines two matchers pinned to the same key. Repeated `withHeader`/
+    /// `withQueryParam`/… calls on one name **accumulate** (logical AND), matching
+    /// Java WireMock, rather than the later call silently overwriting the earlier.
+    /// The wire shape stays one matcher object per key (`{"and":[…]}`, which the
+    /// server accepts); nested ANDs are flattened so N calls yield one N-element AND.
+    static func combined(_ existing: StringValuePattern, _ new: StringValuePattern) -> StringValuePattern {
+        if existing.fields.count == 1, case .array(let members)? = existing.fields["and"] {
+            return StringValuePattern(["and": .array(members + [new.asJSON])])
+        }
+        return .and([existing, new])
+    }
+
     public func withHeader(_ name: String, _ matcher: StringValuePattern) -> Self {
-        mutating { $0.headers = ($0.headers ?? [:]).merging([name: matcher]) { _, new in new } }
+        mutating { $0.headers = ($0.headers ?? [:]).merging([name: matcher], uniquingKeysWith: Self.combined) }
     }
 
     public func withoutHeader(_ name: String) -> Self {
@@ -27,7 +39,7 @@ public struct RequestPatternBuilder: Sendable {
     }
 
     public func withQueryParam(_ name: String, _ matcher: StringValuePattern) -> Self {
-        mutating { $0.queryParameters = ($0.queryParameters ?? [:]).merging([name: matcher]) { _, new in new } }
+        mutating { $0.queryParameters = ($0.queryParameters ?? [:]).merging([name: matcher], uniquingKeysWith: Self.combined) }
     }
 
     /// Requires the query parameter to be absent.
@@ -36,7 +48,7 @@ public struct RequestPatternBuilder: Sendable {
     }
 
     public func withCookie(_ name: String, _ matcher: StringValuePattern) -> Self {
-        mutating { $0.cookies = ($0.cookies ?? [:]).merging([name: matcher]) { _, new in new } }
+        mutating { $0.cookies = ($0.cookies ?? [:]).merging([name: matcher], uniquingKeysWith: Self.combined) }
     }
 
     public func withRequestBody(_ matcher: StringValuePattern) -> Self {
@@ -48,11 +60,11 @@ public struct RequestPatternBuilder: Sendable {
     }
 
     public func withPathParam(_ name: String, _ matcher: StringValuePattern) -> Self {
-        mutating { $0.pathParameters = ($0.pathParameters ?? [:]).merging([name: matcher]) { _, new in new } }
+        mutating { $0.pathParameters = ($0.pathParameters ?? [:]).merging([name: matcher], uniquingKeysWith: Self.combined) }
     }
 
     public func withFormParam(_ name: String, _ matcher: StringValuePattern) -> Self {
-        mutating { $0.formParameters = ($0.formParameters ?? [:]).merging([name: matcher]) { _, new in new } }
+        mutating { $0.formParameters = ($0.formParameters ?? [:]).merging([name: matcher], uniquingKeysWith: Self.combined) }
     }
 
     /// Requires the form parameter to be absent.

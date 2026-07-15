@@ -19,7 +19,8 @@ public struct LoggedRequest: Codable, Sendable, Hashable {
     public var cookies: [String: HeaderValue]?
     public var body: String?
     public var bodyAsBase64: String?
-    public var loggedDate: Int?
+    /// Epoch milliseconds (~1.7e12) — `Int64` so it can't overflow a 32-bit `Int`.
+    public var loggedDate: Int64?
     public var loggedDateString: String?
     public var queryParams: JSONValue?
     public var formParams: JSONValue?
@@ -58,7 +59,8 @@ public struct Timing: Codable, Sendable, Hashable {
 /// free-form JSON (the server puts a diff/near-miss report here).
 public struct SubEvent: Codable, Sendable, Hashable {
     public var type: String?
-    public var timeOffsetNanos: Int?
+    /// Nanosecond offset — `Int64` to stay safe from 32-bit overflow.
+    public var timeOffsetNanos: Int64?
     public var data: JSONValue?
 }
 

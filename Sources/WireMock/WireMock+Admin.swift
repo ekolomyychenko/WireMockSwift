@@ -127,12 +127,14 @@ extension WireMock {
     /// Forces a single scenario into the given state.
     public func setScenarioState(name: String, state: String) throws {
         struct StateBody: Encodable { let state: String }
-        try admin.send("PUT", "scenarios/\(name)/state", body: StateBody(state: state))
+        let segment = try AdminClient.pathSegment(name)
+        try admin.send("PUT", "scenarios/\(segment)/state", body: StateBody(state: state))
     }
 
     /// Resets a single scenario back to its initial (`Started`) state.
     public func resetScenario(name: String) throws {
-        try admin.send("PUT", "scenarios/\(name)/state")
+        let segment = try AdminClient.pathSegment(name)
+        try admin.send("PUT", "scenarios/\(segment)/state")
     }
 }
 
@@ -256,12 +258,12 @@ extension WireMock {
 
     /// Fetches the raw bytes of a `__files` entry.
     public func getFile(named name: String) throws -> Data {
-        try admin.send("GET", "files/\(name)")
+        try admin.send("GET", "files/\(AdminClient.pathSegment(name))")
     }
 
     /// Uploads binary data as a `__files` entry (served via `withBodyFile`).
     public func putFile(named name: String, data: Data, contentType: String = "application/octet-stream") throws {
-        try admin.sendData("PUT", "files/\(name)", body: data, contentType: contentType)
+        try admin.sendData("PUT", "files/\(AdminClient.pathSegment(name))", body: data, contentType: contentType)
     }
 
     /// Uploads text as a `__files` entry (served via `withBodyFile`).
@@ -271,7 +273,7 @@ extension WireMock {
 
     /// Deletes a `__files` entry.
     public func deleteFile(named name: String) throws {
-        try admin.send("DELETE", "files/\(name)")
+        try admin.send("DELETE", "files/\(AdminClient.pathSegment(name))")
     }
 }
 

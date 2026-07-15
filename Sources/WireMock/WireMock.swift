@@ -43,6 +43,11 @@ public struct WireMock: Sendable, CustomStringConvertible {
     ///   - session: A custom `URLSession` (e.g. with a trust delegate for a self-signed HTTPS cert).
     public init?(scheme: String = "http", host: String = "localhost", port: Int = 8080,
                  authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
+        // Reject out-of-range ports and blank hosts up front. URLComponents is
+        // lenient (a negative port or whitespace host can still yield a URL that
+        // only fails later at transport), so validate rather than trap or defer.
+        guard (1...65_535).contains(port),
+              !host.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
         var components = URLComponents()
         components.scheme = scheme
         components.host = host
@@ -85,11 +90,17 @@ public struct WireMock: Sendable, CustomStringConvertible {
     }
 
     /// Escape hatch: registers a stub from a raw JSON string.
+    ///
+    /// The string is validated as JSON up front (so malformed input fails here,
+    /// not as an opaque server error) and then sent **verbatim** — a "raw" hatch
+    /// must not reorder keys or coerce numbers, which a parse-and-re-encode round
+    /// trip through `JSONValue` would.
     public func register(raw json: String) throws {
-        guard let value = JSONValue(parsing: json) else {
+        let data = Data(json.utf8)
+        guard (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) != nil else {
             throw WireMockError.decodingFailed(underlying: "register(raw:) was given invalid JSON")
         }
-        try register(json: value)
+        try admin.sendData("POST", "mappings", body: data, contentType: "application/json")
     }
 
     /// Lists all registered stub mappings.
