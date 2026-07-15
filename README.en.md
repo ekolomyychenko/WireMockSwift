@@ -110,7 +110,7 @@ java -jar wiremock.jar --port 8080
 > downloads (if absent), starts, and waits for the pinned server on `WIREMOCK_PORT` (default 8080) —
 > the very script CI uses. Run it from a checkout to skip the manual download + readiness loop.
 
-**2. Docker** — convenient for Linux CI, but **often blocked on locked-down corporate machines** — so
+**2. Docker** — convenient for Docker-based CI, but **often blocked on locked-down corporate machines** — so
 don't make it your only path:
 
 ```bash
@@ -177,7 +177,7 @@ StringValuePattern.equalToXml("<a/>", enablePlaceholders: true)   // options →
 matchingXPath("/note/to[text()='Bob']", namespaces: ["ns": "http://x"])
 
 before("2020-01-01T00:00:00Z")                   // after(_:), equalToDateTime(_:)
-StringValuePattern.after("2020-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: "days")  // options → factory
+StringValuePattern.after("2020-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: .days)  // options → factory
 
 and(containing("a"), notContaining("b"))         // or(...), not(...)
 hasExactly(equalTo("1"), equalTo("2"))           // repeated multi-valued params
@@ -367,7 +367,8 @@ Every call throws a typed **`WireMockError`** (all `CustomStringConvertible`):
 - `.invalidBaseURL(_:)` — the configured URL was malformed.
 - `.requestJournalDisabled` — the server's request journal is off, so counts/history are unavailable.
 
-Verification count mismatches throw **`VerificationError(expected:actual:)`**.
+Verification count mismatches throw **`VerificationError(expected:actual:nearMisses:)`** — `nearMisses`
+carries the closest unmatched requests from the journal for diagnostics.
 
 `WireMock` is a `Sendable` `struct` with value semantics that holds no mutable state — copy it freely
 across tasks. All state lives on the server, so between tests reset the **server** (`resetAll()`), not
@@ -576,6 +577,18 @@ swift test                                          # …integration tests now r
 
 Integration tests are skipped automatically when the server is unavailable (override the target via
 `WIREMOCK_URL=http://host:port`).
+
+### Contract fixtures
+
+The model decoders are checked not only against hand-written literals but also against fixtures
+**captured from a real 3.13.2 server** (`Tests/WireMockTests/Fixtures/`, tests in
+`RecordedContractTests`). Volatile fields (ids, timestamps, timings) are normalized, so re-capturing
+against an unchanged server yields an empty diff. Rebuild the fixtures after a format change:
+
+```bash
+Scripts/capture-fixtures.sh          # uses a server on :8080 or starts its own
+git diff Tests/WireMockTests/Fixtures # non-empty diff = the server format changed — recheck decoders
+```
 
 ## License
 

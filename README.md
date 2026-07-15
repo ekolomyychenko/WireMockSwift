@@ -110,7 +110,7 @@ java -jar wiremock.jar --port 8080
 > умолчанию 8080); тот самый скрипт использует CI. Запустите его из чекаута, чтобы не писать вручную
 > скачивание и цикл проверки готовности.
 
-**2. Docker** — удобно для Linux CI, но **часто заблокирован на закрытых корпоративных машинах** — так
+**2. Docker** — удобно для Docker-based CI, но **часто заблокирован на закрытых корпоративных машинах** — так
 что не делайте его единственным путём:
 
 ```bash
@@ -177,7 +177,7 @@ StringValuePattern.equalToXml("<a/>", enablePlaceholders: true)   // опции 
 matchingXPath("/note/to[text()='Bob']", namespaces: ["ns": "http://x"])
 
 before("2020-01-01T00:00:00Z")                   // after(_:), equalToDateTime(_:)
-StringValuePattern.after("2020-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: "days")  // опции → фабрика
+StringValuePattern.after("2020-01-01T00:00:00Z", expectedOffset: 3, expectedOffsetUnit: .days)  // опции → фабрика
 
 and(containing("a"), notContaining("b"))         // or(...), not(...)
 hasExactly(equalTo("1"), equalTo("2"))           // повторяющиеся многозначные параметры
@@ -367,7 +367,8 @@ try wireMock.register(json: ["request": ["method": "GET", "url": "/x"],
 - `.invalidBaseURL(_:)` — сконфигурированный URL был некорректным.
 - `.requestJournalDisabled` — журнал запросов сервера выключен, счётчики/история недоступны.
 
-Несовпадения счётчиков верификации бросают **`VerificationError(expected:actual:)`**.
+Несовпадения счётчиков верификации бросают **`VerificationError(expected:actual:nearMisses:)`** —
+`nearMisses` содержит ближайшие незаматченные запросы из журнала для диагностики.
 
 `WireMock` — это `Sendable` `struct` со значимой семантикой, не хранящий изменяемого состояния — свободно
 копируйте его между задачами. Всё состояние живёт на сервере, поэтому между тестами сбрасывайте **сервер**

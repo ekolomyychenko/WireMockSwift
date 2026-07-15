@@ -26,8 +26,8 @@ xcodebuild test -project WireMockXCUIDemo.xcodeproj -scheme SampleApp \
 ```
 
 > Substitute the simulator name/version for one installed on your machine (`xcrun simctl list devices available`).
-> CI doesn't hardcode a device: the `ios-sim-matrix` job picks several actually-available popular
-> iPhones and `ios-xcuitest` runs the example on each (see `.github/workflows/ci.yml`).
+> CI doesn't test a single device: the `ios-xcuitest` job runs the example across an iOS-major matrix
+> (16 floor / 17 / 18 / 26 + an iPad cell), each cell pinning its own runtime (see `.github/workflows/ci.yml`).
 >
 > **On green-skips:** if the server is unreachable (or you accidentally target a real device rather
 > than a simulator — `localhost` isn't forwarded to the host there), the test `XCTSkip`s by default and
