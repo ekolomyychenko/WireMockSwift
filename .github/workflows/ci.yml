@@ -151,7 +151,10 @@ jobs:
             download: "16.4"      # not preinstalled anywhere — download it
           - name: "iOS 17"
             runner: macos-14
-            xcode: "15.4"          # ships the iOS 17.5 runtime
+            # Xcode 16.2 (Swift 6 — the package needs it; 15.4 is Swift 5.10 and
+            # can't read the package) targeting the preinstalled iOS 17.5 runtime,
+            # which stays available regardless of the selected Xcode.
+            xcode: "16.2"
             os_major: "17"
             devicetype: "com.apple.CoreSimulator.SimDeviceType.iPhone-15"
             idiom: iPhone
