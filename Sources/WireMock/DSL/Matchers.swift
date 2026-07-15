@@ -99,9 +99,47 @@ public func includes(_ patterns: StringValuePattern...) -> StringValuePattern { 
 
 // MARK: Date / time
 
-public func before(_ dateTime: String) -> StringValuePattern { .before(dateTime) }
-public func after(_ dateTime: String) -> StringValuePattern { .after(dateTime) }
-public func equalToDateTime(_ dateTime: String) -> StringValuePattern { .equalToDateTime(dateTime) }
+public func before(
+    _ dateTime: String,
+    actualFormat: String? = nil,
+    truncateExpected: String? = nil,
+    truncateActual: String? = nil,
+    expectedOffset: Int? = nil,
+    expectedOffsetUnit: String? = nil,
+    applyTruncationLast: Bool? = nil
+) -> StringValuePattern {
+    .before(dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,
+            truncateActual: truncateActual, expectedOffset: expectedOffset,
+            expectedOffsetUnit: expectedOffsetUnit, applyTruncationLast: applyTruncationLast)
+}
+
+public func after(
+    _ dateTime: String,
+    actualFormat: String? = nil,
+    truncateExpected: String? = nil,
+    truncateActual: String? = nil,
+    expectedOffset: Int? = nil,
+    expectedOffsetUnit: String? = nil,
+    applyTruncationLast: Bool? = nil
+) -> StringValuePattern {
+    .after(dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,
+           truncateActual: truncateActual, expectedOffset: expectedOffset,
+           expectedOffsetUnit: expectedOffsetUnit, applyTruncationLast: applyTruncationLast)
+}
+
+public func equalToDateTime(
+    _ dateTime: String,
+    actualFormat: String? = nil,
+    truncateExpected: String? = nil,
+    truncateActual: String? = nil,
+    expectedOffset: Int? = nil,
+    expectedOffsetUnit: String? = nil,
+    applyTruncationLast: Bool? = nil
+) -> StringValuePattern {
+    .equalToDateTime(dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,
+                     truncateActual: truncateActual, expectedOffset: expectedOffset,
+                     expectedOffsetUnit: expectedOffsetUnit, applyTruncationLast: applyTruncationLast)
+}
 
 /// Matches a date/time before the current moment (`beforeNow()` in Java).
 public func beforeNow() -> StringValuePattern { .before("now") }
@@ -117,4 +155,13 @@ public func matchingJsonSchema(
     version: StringValuePattern.JSONSchemaVersion? = nil
 ) -> StringValuePattern {
     .matchingJsonSchema(schema, version: version)
+}
+
+/// JSON-schema matcher from a raw schema string (throws on malformed JSON,
+/// symmetric with `equalToJson(raw:)`).
+public func matchingJsonSchema(
+    raw schema: String,
+    version: StringValuePattern.JSONSchemaVersion? = nil
+) throws -> StringValuePattern {
+    try .matchingJsonSchema(raw: schema, version: version)
 }

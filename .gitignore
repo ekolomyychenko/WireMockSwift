@@ -13,3 +13,7 @@ xcuserdata/
 # Stray WireMock runtime dirs (created if a server is launched from the package dir)
 /mappings/
 /__files/
+
+# WireMock standalone server artifacts (downloaded/created by Scripts/start-wiremock.sh)
+wiremock-standalone-*.jar
+.wiremock.pid

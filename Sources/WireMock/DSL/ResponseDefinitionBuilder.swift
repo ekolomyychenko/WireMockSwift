@@ -47,6 +47,12 @@ public extension ResponseDefinitionProviding {
     func withStatus(_ status: Int) -> Self { configured { $0.status = status } }
     func withStatusMessage(_ message: String) -> Self { configured { $0.statusMessage = message } }
     func withBody(_ body: String) -> Self { configured { $0.body = body } }
+
+    /// Sets a binary response body (Java `withBody(byte[])`). Encoded as base64
+    /// on the wire, mirroring the server's byte-array body handling; symmetric
+    /// with the request side's `binaryEqualTo(Data)`.
+    func withBody(_ data: Data) -> Self { configured { $0.base64Body = data.base64EncodedString() } }
+
     func withJsonBody(_ json: JSONValue) -> Self { configured { $0.jsonBody = json } }
     func withBase64Body(_ base64: String) -> Self { configured { $0.base64Body = base64 } }
     func withBodyFile(_ fileName: String) -> Self { configured { $0.bodyFileName = fileName } }
@@ -182,6 +188,12 @@ public func okForJson(_ json: JSONValue) -> ResponseDefinitionBuilder {
     aResponse().withStatus(200)
         .withHeader("Content-Type", "application/json")
         .withJsonBody(json)
+}
+
+/// 200 JSON response (`okJson` in Java). Alias of `okForJson` under Java's
+/// helper name, so Java muscle memory transfers.
+public func okJson(_ json: JSONValue) -> ResponseDefinitionBuilder {
+    okForJson(json)
 }
 
 /// 200 with an empty JSON object body (`okForEmptyJson()` in Java).

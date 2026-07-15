@@ -95,10 +95,35 @@ public struct AdminClient: Sendable, CustomStringConvertible {
     ///   - authorization: Credentials for a secured admin API.
     public init(baseURL: URL, session: URLSession = .shared, timeout: TimeInterval = 30,
                 authorization: AdminAuthorization? = nil) {
+        // The synchronous transport blocks the calling thread until URLSession
+        // delivers its completion on the session's delegate queue. A session whose
+        // delegate queue is `.main`, called from the main thread, can never
+        // deliver → the call hangs until the safety timeout. `.shared` and
+        // `delegateQueue: nil` sessions deliver on a background queue and are safe;
+        // catch the `.main` footgun in debug builds (see `syncData`'s Warning).
+        assert(session === URLSession.shared || session.delegateQueue !== OperationQueue.main,
+               "Inject a URLSession with delegateQueue: nil — a delegateQueue of .main deadlocks the synchronous transport when called from the main thread")
         self.baseURL = baseURL
         self.session = session
         self.timeout = timeout
         self.authorization = authorization
+    }
+
+    /// Escape hatch: performs a raw admin request against `/__admin/<path>` for
+    /// any endpoint the typed API doesn't model, returning the response body.
+    ///
+    /// `path` is treated as already percent-encoded and sent verbatim; `body`, if
+    /// given, is sent as-is with `contentType`. Non-2xx responses throw
+    /// `.unexpectedStatus`, like every other admin call.
+    @discardableResult
+    public func rawRequest(
+        _ method: String,
+        _ path: String,
+        query: [URLQueryItem] = [],
+        body: Data? = nil,
+        contentType: String? = "application/json"
+    ) throws -> Data {
+        try perform(method, path, query: query, body: body, contentType: contentType)
     }
 
     private static let encoder = JSONEncoder()
@@ -162,12 +187,16 @@ public struct AdminClient: Sendable, CustomStringConvertible {
     }
 
     /// Percent-encodes a single, user-supplied path segment (a scenario or file
-    /// name) so it can't inject extra path segments (`/`), traverse (`..` stays
-    /// literal), or bleed into the query/fragment (`?`, `#`). Rejects an empty
-    /// segment up front rather than silently hitting the wrong endpoint.
+    /// name) so it can't inject extra path segments (`/`) or bleed into the
+    /// query/fragment (`?`, `#`). Rejects an empty segment, and `.`/`..`, up
+    /// front rather than silently hitting the wrong endpoint (a bare `..` would
+    /// traverse back out of the resource collection).
     static func pathSegment(_ raw: String) throws -> String {
         guard !raw.isEmpty else {
             throw WireMockError.invalidArgument("path segment must not be empty")
+        }
+        guard raw != "." && raw != ".." else {
+            throw WireMockError.invalidArgument("path segment must not be '.' or '..'")
         }
         var allowed = CharacterSet.urlPathAllowed
         // `/` would split into segments; `?`/`#` would start the query/fragment.
@@ -299,7 +328,11 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         do {
             return try Self.decoder.decode(Response.self, from: data)
         } catch {
-            throw WireMockError.decodingFailed(underlying: String(describing: error))
+            // Include the raw body so a server-shape surprise is diagnosable
+            // (which key was missing *in what payload*), matching listFiles.
+            throw WireMockError.decodingFailed(
+                underlying: "\(error) — response body: \(Self.bodyText(data))"
+            )
         }
     }
 }

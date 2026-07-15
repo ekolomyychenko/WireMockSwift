@@ -103,6 +103,12 @@ public struct MappingBuilder: Sendable {
         delegatingRequest { $0.withMultipartRequestBody(part) }
     }
 
+    /// Adds a multipart matcher from a fluent builder (Java
+    /// `withMultipartRequestBody(MultipartValuePatternBuilder)`).
+    public func withMultipartRequestBody(_ builder: MultipartValuePatternBuilder) -> Self {
+        delegatingRequest { $0.withMultipartRequestBody(builder) }
+    }
+
     public func withHost(_ pattern: StringValuePattern) -> Self {
         delegatingRequest { $0.withHost(pattern) }
     }

@@ -88,6 +88,12 @@ public struct RequestPatternBuilder: Sendable {
         mutating { $0.multipartPatterns = ($0.multipartPatterns ?? []) + [part] }
     }
 
+    /// Adds a multipart matcher from a fluent builder (Java
+    /// `withMultipartRequestBody(MultipartValuePatternBuilder)`).
+    public func withMultipartRequestBody(_ builder: MultipartValuePatternBuilder) -> Self {
+        withMultipartRequestBody(builder.build())
+    }
+
     public func withHost(_ matcher: StringValuePattern) -> Self {
         mutating { $0.host = matcher }
     }
@@ -126,6 +132,10 @@ public func anyRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(
 /// Verifies requests for an arbitrary method (mirrors Java `requestedFor(method, url)`).
 public func requestedFor(_ method: HTTPMethod, _ url: UrlPattern) -> RequestPatternBuilder { .init(method: method, url: url) }
 
+/// A count strategy satisfied only by zero matching requests (`never()` in
+/// Java): `verify(never(), getRequestedFor(...))`.
+public func never() -> CountMatchingStrategy { .exactly(0) }
+
 /// How a verified request count is checked.
 public enum CountMatchingStrategy: Sendable, CustomStringConvertible {
     case exactly(Int)
@@ -144,6 +154,19 @@ public enum CountMatchingStrategy: Sendable, CustomStringConvertible {
         }
     }
 
+    /// Whether `count` fails the strategy by being too *low* (so more matching
+    /// requests would satisfy it). Used to decide whether near-miss diagnostics
+    /// are worth fetching — they are meaningless for a "too many" failure, where
+    /// the requests *did* match.
+    func isShortfall(_ count: Int) -> Bool {
+        switch self {
+        case .exactly(let n): return count < n
+        case .lessThan, .lessThanOrExactly: return false
+        case .moreThan(let n): return count <= n
+        case .moreThanOrExactly(let n): return count < n
+        }
+    }
+
     public var description: String {
         switch self {
         case .exactly(let n): return "exactly \(n)"
@@ -156,11 +179,58 @@ public enum CountMatchingStrategy: Sendable, CustomStringConvertible {
 }
 
 /// Thrown by `verify` when the actual request count doesn't satisfy the strategy.
+///
+/// When the failure is a shortfall (fewer matches than expected), `nearMisses`
+/// carries the closest requests/stubs and their per-field diffs, and
+/// `description` appends that diff report — mirroring Java's
+/// `VerificationException`, which is the single most useful thing when a mock
+/// expectation fails.
 public struct VerificationError: Error, CustomStringConvertible, Sendable {
     public let expected: String
     public let actual: Int
+    /// Closest near-misses for the verified pattern (empty when unavailable — a
+    /// "too many" failure, a disabled journal, or a failed lookup).
+    public let nearMisses: [NearMiss]
+
+    public init(expected: String, actual: Int, nearMisses: [NearMiss] = []) {
+        self.expected = expected
+        self.actual = actual
+        self.nearMisses = nearMisses
+    }
 
     public var description: String {
-        "Expected \(expected) matching request(s) but found \(actual)"
+        let base = "Expected \(expected) matching request(s) but found \(actual)"
+        guard let report = Self.closestDiffReport(nearMisses) else { return base }
+        return base + "\n\nClosest match:\n" + report
+    }
+
+    /// Renders a diagnostic block for the smallest-distance near miss. Prefers the
+    /// server's per-field diff when present; otherwise summarises the closest
+    /// actual request (WireMock 3.13.2's request-pattern near misses carry the
+    /// request and a distance but leave `diffDescriptions` empty). Returns `nil`
+    /// when there is nothing useful to show.
+    private static func closestDiffReport(_ nearMisses: [NearMiss]) -> String? {
+        guard let closest = nearMisses.min(by: {
+            ($0.matchResult?.distance ?? .greatestFiniteMagnitude)
+          < ($1.matchResult?.distance ?? .greatestFiniteMagnitude)
+        }) else { return nil }
+
+        if let diffs = closest.matchResult?.diffDescriptions, !diffs.isEmpty {
+            return diffs.map { diff in
+                if let message = diff.errorMessage, !message.isEmpty { return "  - " + message }
+                return "  - expected \(diff.expected ?? "(absent)") but was \(diff.actual ?? "(absent)")"
+            }.joined(separator: "\n")
+        }
+
+        if let request = closest.request {
+            let method = request.method.map(String.init(describing:)) ?? "?"
+            var line = "  closest request was: \(method) \(request.url ?? "?")"
+            if let distance = closest.matchResult?.distance {
+                let rounded = (distance * 100).rounded() / 100
+                line += " (distance \(rounded))"
+            }
+            return line
+        }
+        return nil
     }
 }

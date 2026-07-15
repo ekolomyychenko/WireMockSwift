@@ -893,6 +893,85 @@
             "mangledName": "$s8WireMock11AdminClientV7baseURL7session7timeout13authorizationAC10Foundation0F0V_So12NSURLSessionCSdAA0C13AuthorizationOSgtcfc",
             "moduleName": "WireMock",
             "init_kind": "Designated"
+          },
+          {
+            "kind": "Function",
+            "name": "rawRequest",
+            "printedName": "rawRequest(_:_:query:body:contentType:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Data",
+                "printedName": "Foundation.Data",
+                "usr": "s:10Foundation4DataV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Array",
+                "printedName": "[Foundation.URLQueryItem]",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "URLQueryItem",
+                    "printedName": "Foundation.URLQueryItem",
+                    "usr": "s:10Foundation12URLQueryItemV"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sa"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Foundation.Data?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Data",
+                    "printedName": "Foundation.Data",
+                    "usr": "s:10Foundation4DataV"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Swift.String?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock11AdminClientV10rawRequest__5query4body11contentType10Foundation4DataVSS_SSSayAH12URLQueryItemVGAJSgSSSgtKF",
+            "mangledName": "$s8WireMock11AdminClientV10rawRequest__5query4body11contentType10Foundation4DataVSS_SSSayAH12URLQueryItemVGAJSgSSSgtKF",
+            "moduleName": "WireMock",
+            "declAttributes": [
+              "DiscardableResult"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
           }
         ],
         "declKind": "Struct",
@@ -1352,6 +1431,30 @@
             "declKind": "Func",
             "usr": "s:8WireMock14MappingBuilderV24withMultipartRequestBodyyAcA0F12ValuePatternVF",
             "mangledName": "$s8WireMock14MappingBuilderV24withMultipartRequestBodyyAcA0F12ValuePatternVF",
+            "moduleName": "WireMock",
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "withMultipartRequestBody",
+            "printedName": "withMultipartRequestBody(_:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MappingBuilder",
+                "printedName": "WireMock.MappingBuilder",
+                "usr": "s:8WireMock14MappingBuilderV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "MultipartValuePatternBuilder",
+                "printedName": "WireMock.MultipartValuePatternBuilder",
+                "usr": "s:8WireMock28MultipartValuePatternBuilderV"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock14MappingBuilderV24withMultipartRequestBodyyAcA0f12ValuePatternD0VF",
+            "mangledName": "$s8WireMock14MappingBuilderV24withMultipartRequestBodyyAcA0f12ValuePatternD0VF",
             "moduleName": "WireMock",
             "funcSelfKind": "NonMutating"
           },
@@ -2667,7 +2770,7 @@
       {
         "kind": "Function",
         "name": "before",
-        "printedName": "before(_:)",
+        "printedName": "before(_:actualFormat:truncateExpected:truncateActual:expectedOffset:expectedOffsetUnit:applyTruncationLast:)",
         "children": [
           {
             "kind": "TypeNominal",
@@ -2680,18 +2783,108 @@
             "name": "String",
             "printedName": "Swift.String",
             "usr": "s:SS"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.Int?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.Bool?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Bool",
+                "printedName": "Swift.Bool",
+                "usr": "s:Sb"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
           }
         ],
         "declKind": "Func",
-        "usr": "s:8WireMock6beforeyAA18StringValuePatternVSSF",
-        "mangledName": "$s8WireMock6beforeyAA18StringValuePatternVSSF",
+        "usr": "s:8WireMock6before_12actualFormat16truncateExpected0F6Actual14expectedOffset0iJ4Unit19applyTruncationLastAA18StringValuePatternVSS_SSSgA2KSiSgAKSbSgtF",
+        "mangledName": "$s8WireMock6before_12actualFormat16truncateExpected0F6Actual14expectedOffset0iJ4Unit19applyTruncationLastAA18StringValuePatternVSS_SSSgA2KSiSgAKSbSgtF",
         "moduleName": "WireMock",
         "funcSelfKind": "NonMutating"
       },
       {
         "kind": "Function",
         "name": "after",
-        "printedName": "after(_:)",
+        "printedName": "after(_:actualFormat:truncateExpected:truncateActual:expectedOffset:expectedOffsetUnit:applyTruncationLast:)",
         "children": [
           {
             "kind": "TypeNominal",
@@ -2704,18 +2897,108 @@
             "name": "String",
             "printedName": "Swift.String",
             "usr": "s:SS"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.Int?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.Bool?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Bool",
+                "printedName": "Swift.Bool",
+                "usr": "s:Sb"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
           }
         ],
         "declKind": "Func",
-        "usr": "s:8WireMock5afteryAA18StringValuePatternVSSF",
-        "mangledName": "$s8WireMock5afteryAA18StringValuePatternVSSF",
+        "usr": "s:8WireMock5after_12actualFormat16truncateExpected0F6Actual14expectedOffset0iJ4Unit19applyTruncationLastAA18StringValuePatternVSS_SSSgA2KSiSgAKSbSgtF",
+        "mangledName": "$s8WireMock5after_12actualFormat16truncateExpected0F6Actual14expectedOffset0iJ4Unit19applyTruncationLastAA18StringValuePatternVSS_SSSgA2KSiSgAKSbSgtF",
         "moduleName": "WireMock",
         "funcSelfKind": "NonMutating"
       },
       {
         "kind": "Function",
         "name": "equalToDateTime",
-        "printedName": "equalToDateTime(_:)",
+        "printedName": "equalToDateTime(_:actualFormat:truncateExpected:truncateActual:expectedOffset:expectedOffsetUnit:applyTruncationLast:)",
         "children": [
           {
             "kind": "TypeNominal",
@@ -2728,11 +3011,101 @@
             "name": "String",
             "printedName": "Swift.String",
             "usr": "s:SS"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.Int?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.Bool?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Bool",
+                "printedName": "Swift.Bool",
+                "usr": "s:Sb"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
           }
         ],
         "declKind": "Func",
-        "usr": "s:8WireMock15equalToDateTimeyAA18StringValuePatternVSSF",
-        "mangledName": "$s8WireMock15equalToDateTimeyAA18StringValuePatternVSSF",
+        "usr": "s:8WireMock15equalToDateTime_12actualFormat16truncateExpected0I6Actual14expectedOffset0lM4Unit19applyTruncationLastAA18StringValuePatternVSS_SSSgA2KSiSgAKSbSgtF",
+        "mangledName": "$s8WireMock15equalToDateTime_12actualFormat16truncateExpected0I6Actual14expectedOffset0lM4Unit19applyTruncationLastAA18StringValuePatternVSS_SSSgA2KSiSgAKSbSgtF",
         "moduleName": "WireMock",
         "funcSelfKind": "NonMutating"
       },
@@ -2827,6 +3200,46 @@
         "usr": "s:8WireMock18matchingJsonSchema_7versionAA18StringValuePatternVAA9JSONValueO_AE17JSONSchemaVersionOSgtF",
         "mangledName": "$s8WireMock18matchingJsonSchema_7versionAA18StringValuePatternVAA9JSONValueO_AE17JSONSchemaVersionOSgtF",
         "moduleName": "WireMock",
+        "funcSelfKind": "NonMutating"
+      },
+      {
+        "kind": "Function",
+        "name": "matchingJsonSchema",
+        "printedName": "matchingJsonSchema(raw:version:)",
+        "children": [
+          {
+            "kind": "TypeNominal",
+            "name": "StringValuePattern",
+            "printedName": "WireMock.StringValuePattern",
+            "usr": "s:8WireMock18StringValuePatternV"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "String",
+            "printedName": "Swift.String",
+            "usr": "s:SS"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "WireMock.StringValuePattern.JSONSchemaVersion?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "JSONSchemaVersion",
+                "printedName": "WireMock.StringValuePattern.JSONSchemaVersion",
+                "usr": "s:8WireMock18StringValuePatternV17JSONSchemaVersionO"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          }
+        ],
+        "declKind": "Func",
+        "usr": "s:8WireMock18matchingJsonSchema3raw7versionAA18StringValuePatternVSS_AF17JSONSchemaVersionOSgtKF",
+        "mangledName": "$s8WireMock18matchingJsonSchema3raw7versionAA18StringValuePatternVSS_AF17JSONSchemaVersionOSgtKF",
+        "moduleName": "WireMock",
+        "throwing": true,
         "funcSelfKind": "NonMutating"
       },
       {
@@ -3253,6 +3666,30 @@
             "declKind": "Func",
             "usr": "s:8WireMock21RequestPatternBuilderV013withMultipartC4BodyyAcA0g5ValueD0VF",
             "mangledName": "$s8WireMock21RequestPatternBuilderV013withMultipartC4BodyyAcA0g5ValueD0VF",
+            "moduleName": "WireMock",
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "withMultipartRequestBody",
+            "printedName": "withMultipartRequestBody(_:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "RequestPatternBuilder",
+                "printedName": "WireMock.RequestPatternBuilder",
+                "usr": "s:8WireMock21RequestPatternBuilderV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "MultipartValuePatternBuilder",
+                "printedName": "WireMock.MultipartValuePatternBuilder",
+                "usr": "s:8WireMock28MultipartValuePatternBuilderV"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock21RequestPatternBuilderV013withMultipartC4BodyyAcA0g5ValuedE0VF",
+            "mangledName": "$s8WireMock21RequestPatternBuilderV013withMultipartC4BodyyAcA0g5ValuedE0VF",
             "moduleName": "WireMock",
             "funcSelfKind": "NonMutating"
           },
@@ -3758,6 +4195,24 @@
         "funcSelfKind": "NonMutating"
       },
       {
+        "kind": "Function",
+        "name": "never",
+        "printedName": "never()",
+        "children": [
+          {
+            "kind": "TypeNominal",
+            "name": "CountMatchingStrategy",
+            "printedName": "WireMock.CountMatchingStrategy",
+            "usr": "s:8WireMock21CountMatchingStrategyO"
+          }
+        ],
+        "declKind": "Func",
+        "usr": "s:8WireMock5neverAA21CountMatchingStrategyOyF",
+        "mangledName": "$s8WireMock5neverAA21CountMatchingStrategyOyF",
+        "moduleName": "WireMock",
+        "funcSelfKind": "NonMutating"
+      },
+      {
         "kind": "TypeDecl",
         "name": "CountMatchingStrategy",
         "printedName": "CountMatchingStrategy",
@@ -4192,6 +4647,113 @@
           },
           {
             "kind": "Var",
+            "name": "nearMisses",
+            "printedName": "nearMisses",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Array",
+                "printedName": "[WireMock.NearMiss]",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "NearMiss",
+                    "printedName": "WireMock.NearMiss",
+                    "usr": "s:8WireMock8NearMissV"
+                  }
+                ],
+                "usr": "s:Sa"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:8WireMock17VerificationErrorV10nearMissesSayAA8NearMissVGvp",
+            "mangledName": "$s8WireMock17VerificationErrorV10nearMissesSayAA8NearMissVGvp",
+            "moduleName": "WireMock",
+            "declAttributes": [
+              "HasStorage"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Array",
+                    "printedName": "[WireMock.NearMiss]",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "NearMiss",
+                        "printedName": "WireMock.NearMiss",
+                        "usr": "s:8WireMock8NearMissV"
+                      }
+                    ],
+                    "usr": "s:Sa"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:8WireMock17VerificationErrorV10nearMissesSayAA8NearMissVGvg",
+                "mangledName": "$s8WireMock17VerificationErrorV10nearMissesSayAA8NearMissVGvg",
+                "moduleName": "WireMock",
+                "implicit": true,
+                "declAttributes": [
+                  "Transparent"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init(expected:actual:nearMisses:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "VerificationError",
+                "printedName": "WireMock.VerificationError",
+                "usr": "s:8WireMock17VerificationErrorV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Array",
+                "printedName": "[WireMock.NearMiss]",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "NearMiss",
+                    "printedName": "WireMock.NearMiss",
+                    "usr": "s:8WireMock8NearMissV"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sa"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:8WireMock17VerificationErrorV8expected6actual10nearMissesACSS_SiSayAA8NearMissVGtcfc",
+            "mangledName": "$s8WireMock17VerificationErrorV8expected6actual10nearMissesACSS_SiSayAA8NearMissVGtcfc",
+            "moduleName": "WireMock",
+            "init_kind": "Designated"
+          },
+          {
+            "kind": "Var",
             "name": "description",
             "printedName": "description",
             "children": [
@@ -4419,6 +4981,31 @@
             "declKind": "Func",
             "usr": "s:8WireMock27ResponseDefinitionProvidingPAAE8withBodyyxSSF",
             "mangledName": "$s8WireMock27ResponseDefinitionProvidingPAAE8withBodyyxSSF",
+            "moduleName": "WireMock",
+            "genericSig": "<Self where Self : WireMock.ResponseDefinitionProviding>",
+            "isFromExtension": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "withBody",
+            "printedName": "withBody(_:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "GenericTypeParam",
+                "printedName": "Self"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Data",
+                "printedName": "Foundation.Data",
+                "usr": "s:10Foundation4DataV"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock27ResponseDefinitionProvidingPAAE8withBodyyx10Foundation4DataVF",
+            "mangledName": "$s8WireMock27ResponseDefinitionProvidingPAAE8withBodyyx10Foundation4DataVF",
             "moduleName": "WireMock",
             "genericSig": "<Self where Self : WireMock.ResponseDefinitionProviding>",
             "isFromExtension": true,
@@ -5548,6 +6135,30 @@
         "declKind": "Func",
         "usr": "s:8WireMock9okForJsonyAA25ResponseDefinitionBuilderVAA9JSONValueOF",
         "mangledName": "$s8WireMock9okForJsonyAA25ResponseDefinitionBuilderVAA9JSONValueOF",
+        "moduleName": "WireMock",
+        "funcSelfKind": "NonMutating"
+      },
+      {
+        "kind": "Function",
+        "name": "okJson",
+        "printedName": "okJson(_:)",
+        "children": [
+          {
+            "kind": "TypeNominal",
+            "name": "ResponseDefinitionBuilder",
+            "printedName": "WireMock.ResponseDefinitionBuilder",
+            "usr": "s:8WireMock25ResponseDefinitionBuilderV"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "JSONValue",
+            "printedName": "WireMock.JSONValue",
+            "usr": "s:8WireMock9JSONValueO"
+          }
+        ],
+        "declKind": "Func",
+        "usr": "s:8WireMock6okJsonyAA25ResponseDefinitionBuilderVAA9JSONValueOF",
+        "mangledName": "$s8WireMock6okJsonyAA25ResponseDefinitionBuilderVAA9JSONValueOF",
         "moduleName": "WireMock",
         "funcSelfKind": "NonMutating"
       },
@@ -17478,6 +18089,266 @@
             "mangledName": "$s8WireMock13JSONDescribedP"
           }
         ]
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "MultipartValuePatternBuilder",
+        "printedName": "MultipartValuePatternBuilder",
+        "children": [
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init(name:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MultipartValuePatternBuilder",
+                "printedName": "WireMock.MultipartValuePatternBuilder",
+                "usr": "s:8WireMock28MultipartValuePatternBuilderV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Swift.String?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:8WireMock28MultipartValuePatternBuilderV4nameACSSSg_tcfc",
+            "mangledName": "$s8WireMock28MultipartValuePatternBuilderV4nameACSSSg_tcfc",
+            "moduleName": "WireMock",
+            "init_kind": "Designated"
+          },
+          {
+            "kind": "Function",
+            "name": "withName",
+            "printedName": "withName(_:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MultipartValuePatternBuilder",
+                "printedName": "WireMock.MultipartValuePatternBuilder",
+                "usr": "s:8WireMock28MultipartValuePatternBuilderV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock28MultipartValuePatternBuilderV8withNameyACSSF",
+            "mangledName": "$s8WireMock28MultipartValuePatternBuilderV8withNameyACSSF",
+            "moduleName": "WireMock",
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "withFileName",
+            "printedName": "withFileName(_:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MultipartValuePatternBuilder",
+                "printedName": "WireMock.MultipartValuePatternBuilder",
+                "usr": "s:8WireMock28MultipartValuePatternBuilderV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock28MultipartValuePatternBuilderV12withFileNameyACSSF",
+            "mangledName": "$s8WireMock28MultipartValuePatternBuilderV12withFileNameyACSSF",
+            "moduleName": "WireMock",
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "matchingType",
+            "printedName": "matchingType(_:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MultipartValuePatternBuilder",
+                "printedName": "WireMock.MultipartValuePatternBuilder",
+                "usr": "s:8WireMock28MultipartValuePatternBuilderV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "MatchingType",
+                "printedName": "WireMock.MultipartValuePattern.MatchingType",
+                "usr": "s:8WireMock21MultipartValuePatternV12MatchingTypeO"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock28MultipartValuePatternBuilderV12matchingTypeyAcA0cdE0V08MatchingH0OF",
+            "mangledName": "$s8WireMock28MultipartValuePatternBuilderV12matchingTypeyAcA0cdE0V08MatchingH0OF",
+            "moduleName": "WireMock",
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "withHeader",
+            "printedName": "withHeader(_:_:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MultipartValuePatternBuilder",
+                "printedName": "WireMock.MultipartValuePatternBuilder",
+                "usr": "s:8WireMock28MultipartValuePatternBuilderV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "StringValuePattern",
+                "printedName": "WireMock.StringValuePattern",
+                "usr": "s:8WireMock18StringValuePatternV"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock28MultipartValuePatternBuilderV10withHeaderyACSS_AA06StringdE0VtF",
+            "mangledName": "$s8WireMock28MultipartValuePatternBuilderV10withHeaderyACSS_AA06StringdE0VtF",
+            "moduleName": "WireMock",
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "withBody",
+            "printedName": "withBody(_:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MultipartValuePatternBuilder",
+                "printedName": "WireMock.MultipartValuePatternBuilder",
+                "usr": "s:8WireMock28MultipartValuePatternBuilderV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "StringValuePattern",
+                "printedName": "WireMock.StringValuePattern",
+                "usr": "s:8WireMock18StringValuePatternV"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock28MultipartValuePatternBuilderV8withBodyyAcA06StringdE0VF",
+            "mangledName": "$s8WireMock28MultipartValuePatternBuilderV8withBodyyAcA06StringdE0VF",
+            "moduleName": "WireMock",
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "build",
+            "printedName": "build()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MultipartValuePattern",
+                "printedName": "WireMock.MultipartValuePattern",
+                "usr": "s:8WireMock21MultipartValuePatternV"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock28MultipartValuePatternBuilderV5buildAA0cdE0VyF",
+            "mangledName": "$s8WireMock28MultipartValuePatternBuilderV5buildAA0cdE0VyF",
+            "moduleName": "WireMock",
+            "funcSelfKind": "NonMutating"
+          }
+        ],
+        "declKind": "Struct",
+        "usr": "s:8WireMock28MultipartValuePatternBuilderV",
+        "mangledName": "$s8WireMock28MultipartValuePatternBuilderV",
+        "moduleName": "WireMock",
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Sendable",
+            "printedName": "Sendable",
+            "usr": "s:s8SendableP",
+            "mangledName": "$ss8SendableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "SendableMetatype",
+            "printedName": "SendableMetatype",
+            "usr": "s:s16SendableMetatypeP",
+            "mangledName": "$ss16SendableMetatypeP"
+          }
+        ]
+      },
+      {
+        "kind": "Function",
+        "name": "aMultipart",
+        "printedName": "aMultipart()",
+        "children": [
+          {
+            "kind": "TypeNominal",
+            "name": "MultipartValuePatternBuilder",
+            "printedName": "WireMock.MultipartValuePatternBuilder",
+            "usr": "s:8WireMock28MultipartValuePatternBuilderV"
+          }
+        ],
+        "declKind": "Func",
+        "usr": "s:8WireMock10aMultipartAA0C19ValuePatternBuilderVyF",
+        "mangledName": "$s8WireMock10aMultipartAA0C19ValuePatternBuilderVyF",
+        "moduleName": "WireMock",
+        "funcSelfKind": "NonMutating"
+      },
+      {
+        "kind": "Function",
+        "name": "aMultipart",
+        "printedName": "aMultipart(_:)",
+        "children": [
+          {
+            "kind": "TypeNominal",
+            "name": "MultipartValuePatternBuilder",
+            "printedName": "WireMock.MultipartValuePatternBuilder",
+            "usr": "s:8WireMock28MultipartValuePatternBuilderV"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "String",
+            "printedName": "Swift.String",
+            "usr": "s:SS"
+          }
+        ],
+        "declKind": "Func",
+        "usr": "s:8WireMock10aMultipartyAA0C19ValuePatternBuilderVSSF",
+        "mangledName": "$s8WireMock10aMultipartyAA0C19ValuePatternBuilderVSSF",
+        "moduleName": "WireMock",
+        "funcSelfKind": "NonMutating"
       },
       {
         "kind": "TypeDecl",
@@ -36287,7 +37158,7 @@
           {
             "kind": "Constructor",
             "name": "init",
-            "printedName": "init(scheme:host:port:authorization:session:)",
+            "printedName": "init(scheme:host:port:timeout:authorization:session:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -36325,6 +37196,20 @@
                 "usr": "s:Si"
               },
               {
+                "kind": "TypeNameAlias",
+                "name": "TimeInterval",
+                "printedName": "Foundation.TimeInterval",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Double",
+                    "printedName": "Swift.Double",
+                    "usr": "s:Sd"
+                  }
+                ],
+                "hasDefaultArg": true
+              },
+              {
                 "kind": "TypeNominal",
                 "name": "Optional",
                 "printedName": "WireMock.AdminAuthorization?",
@@ -36348,15 +37233,15 @@
               }
             ],
             "declKind": "Constructor",
-            "usr": "s:8WireMockAAV6scheme4host4port13authorization7sessionABSgSS_SSSiAA18AdminAuthorizationOSgSo12NSURLSessionCtcfc",
-            "mangledName": "$s8WireMockAAV6scheme4host4port13authorization7sessionABSgSS_SSSiAA18AdminAuthorizationOSgSo12NSURLSessionCtcfc",
+            "usr": "s:8WireMockAAV6scheme4host4port7timeout13authorization7sessionABSgSS_SSSiSdAA18AdminAuthorizationOSgSo12NSURLSessionCtcfc",
+            "mangledName": "$s8WireMockAAV6scheme4host4port7timeout13authorization7sessionABSgSS_SSSiSdAA18AdminAuthorizationOSgSo12NSURLSessionCtcfc",
             "moduleName": "WireMock",
             "init_kind": "Designated"
           },
           {
             "kind": "Constructor",
             "name": "init",
-            "printedName": "init(baseURL:authorization:session:)",
+            "printedName": "init(baseURL:timeout:authorization:session:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -36371,6 +37256,20 @@
                 "usr": "s:10Foundation3URLV"
               },
               {
+                "kind": "TypeNameAlias",
+                "name": "TimeInterval",
+                "printedName": "Foundation.TimeInterval",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Double",
+                    "printedName": "Swift.Double",
+                    "usr": "s:Sd"
+                  }
+                ],
+                "hasDefaultArg": true
+              },
+              {
                 "kind": "TypeNominal",
                 "name": "Optional",
                 "printedName": "WireMock.AdminAuthorization?",
@@ -36394,8 +37293,8 @@
               }
             ],
             "declKind": "Constructor",
-            "usr": "s:8WireMockAAV7baseURL13authorization7sessionAB10Foundation0D0V_AA18AdminAuthorizationOSgSo12NSURLSessionCtcfc",
-            "mangledName": "$s8WireMockAAV7baseURL13authorization7sessionAB10Foundation0D0V_AA18AdminAuthorizationOSgSo12NSURLSessionCtcfc",
+            "usr": "s:8WireMockAAV7baseURL7timeout13authorization7sessionAB10Foundation0D0V_SdAA18AdminAuthorizationOSgSo12NSURLSessionCtcfc",
+            "mangledName": "$s8WireMockAAV7baseURL7timeout13authorization7sessionAB10Foundation0D0V_SdAA18AdminAuthorizationOSgSo12NSURLSessionCtcfc",
             "moduleName": "WireMock",
             "init_kind": "Designated"
           },
@@ -36526,6 +37425,25 @@
             "declKind": "Func",
             "usr": "s:8WireMockAAV19listAllStubMappingsSayAA0E7MappingVGyKF",
             "mangledName": "$s8WireMockAAV19listAllStubMappingsSayAA0E7MappingVGyKF",
+            "moduleName": "WireMock",
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "countStubMappings",
+            "printedName": "countStubMappings()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMockAAV17countStubMappingsSiyKF",
+            "mangledName": "$s8WireMockAAV17countStubMappingsSiyKF",
             "moduleName": "WireMock",
             "throwing": true,
             "funcSelfKind": "NonMutating"

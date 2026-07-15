@@ -16,6 +16,9 @@ public extension WireMock {
     /// }
     /// ```
     func callAsync<T: Sendable>(_ body: @escaping @Sendable (WireMock) throws -> T) async throws -> T {
+        // The blocking call can't be interrupted mid-flight, but an already
+        // cancelled task shouldn't start one — honour cancellation up front.
+        try Task.checkCancellation()
         let client = self
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global().async {

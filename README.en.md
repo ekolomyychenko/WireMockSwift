@@ -1,5 +1,7 @@
 # WireMockSwift
 
+[🇷🇺 Русский](README.md) · **🇬🇧 English**
+
 A native Swift client and DSL for [WireMock](https://wiremock.org) that closely mirrors the Java DSL
 and Admin API.
 
@@ -103,6 +105,10 @@ curl -sL -o wiremock.jar \
   https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.13.2/wiremock-standalone-3.13.2.jar
 java -jar wiremock.jar --port 8080
 ```
+
+> **Turnkey helper.** This repo ships [`Scripts/start-wiremock.sh`](Scripts/start-wiremock.sh), which
+> downloads (if absent), starts, and waits for the pinned server on `WIREMOCK_PORT` (default 8080) —
+> the very script CI uses. Run it from a checkout to skip the manual download + readiness loop.
 
 **2. Docker** — convenient for Linux CI, but **often blocked on locked-down corporate machines** — so
 don't make it your only path:
@@ -530,6 +536,12 @@ HTTP client, and these are not defects:
 - **Typed `WireMockConfiguration`** — server startup configuration is passed as raw CLI `extraArgs`, not
   as a typed options object.
 - **Numeric matchers** are available from WireMock 4.0+ (parity with Java, which also lacks them on 3.x).
+
+**Configuration is per-instance, not global.** Java offers a global `configureFor(host, port)` plus
+static `stubFor`/`verify`. Here those are **instance** methods on an explicit `WireMock` value; the builder
+functions (`get`, `aResponse`, `getRequestedFor`, …) remain free functions, exactly as in Java. This keeps
+configuration explicit and free of hidden global state, and your Java muscle memory for the builders
+transfers unchanged.
 
 ### Known limitation: numeric precision in `JSONValue`
 

@@ -39,9 +39,11 @@ public struct WireMock: Sendable, CustomStringConvertible {
     ///   - scheme: `http` or `https`.
     ///   - host: Server host.
     ///   - port: Server port.
+    ///   - timeout: Per-request timeout in seconds.
     ///   - authorization: Credentials for a secured admin API (`--admin-api-basic-auth`).
     ///   - session: A custom `URLSession` (e.g. with a trust delegate for a self-signed HTTPS cert).
     public init?(scheme: String = "http", host: String = "localhost", port: Int = 8080,
+                 timeout: TimeInterval = 30,
                  authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
         // Reject out-of-range ports and blank hosts up front. URLComponents is
         // lenient (a negative port or whitespace host can still yield a URL that
@@ -53,7 +55,7 @@ public struct WireMock: Sendable, CustomStringConvertible {
         components.host = host
         components.port = port
         guard let url = components.url else { return nil }
-        self.admin = AdminClient(baseURL: url, session: session, authorization: authorization)
+        self.admin = AdminClient(baseURL: url, session: session, timeout: timeout, authorization: authorization)
     }
 
     /// Creates a client for a server at the given base URL (e.g. a remote host).
@@ -62,10 +64,12 @@ public struct WireMock: Sendable, CustomStringConvertible {
     ///   - baseURL: The server root. Do **not** embed credentials as
     ///     `https://user:pass@host` — URLSession won't send them and they can
     ///     leak into error text; pass `authorization:` instead.
+    ///   - timeout: Per-request timeout in seconds.
     ///   - authorization: Credentials for a secured admin API.
     ///   - session: A custom `URLSession` (e.g. with a trust delegate for a self-signed HTTPS cert).
-    public init(baseURL: URL, authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
-        self.admin = AdminClient(baseURL: baseURL, session: session, authorization: authorization)
+    public init(baseURL: URL, timeout: TimeInterval = 30,
+                authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
+        self.admin = AdminClient(baseURL: baseURL, session: session, timeout: timeout, authorization: authorization)
     }
 
     // MARK: - Stubbing
@@ -97,8 +101,11 @@ public struct WireMock: Sendable, CustomStringConvertible {
     /// trip through `JSONValue` would.
     public func register(raw json: String) throws {
         let data = Data(json.utf8)
-        guard (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) != nil else {
-            throw WireMockError.decodingFailed(underlying: "register(raw:) was given invalid JSON")
+        // A stub mapping is a JSON *object*. Validate as one (not
+        // `.fragmentsAllowed`) so a bare fragment like `"x"` or `1` fails here
+        // with a clear message rather than as an opaque 422 from the server.
+        guard (try? JSONSerialization.jsonObject(with: data)) is [String: Any] else {
+            throw WireMockError.decodingFailed(underlying: "register(raw:) expects a JSON object")
         }
         try admin.sendData("POST", "mappings", body: data, contentType: "application/json")
     }
@@ -106,6 +113,14 @@ public struct WireMock: Sendable, CustomStringConvertible {
     /// Lists all registered stub mappings.
     public func listAllStubMappings() throws -> [StubMapping] {
         try admin.get("mappings", as: ListStubMappingsResult.self).mappings
+    }
+
+    /// The total number of registered stub mappings, from the server's
+    /// `meta.total` (Java `getStubMappings().getMeta().getTotal()`). Falls back to
+    /// the returned mapping count if the server omits the field.
+    public func countStubMappings() throws -> Int {
+        let result = try admin.get("mappings", as: ListStubMappingsResult.self)
+        return result.meta?.total ?? result.mappings.count
     }
 
     /// Fetches a single stub mapping by id.
