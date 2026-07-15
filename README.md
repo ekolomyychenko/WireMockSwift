@@ -30,6 +30,7 @@
 - [Матчеры запросов](#матчеры-запросов)
 - [Ответы](#ответы)
 - [Верификация](#верификация)
+- [Проверки запросов (BDD-стиль)](#проверки-запросов-bdd-стиль)
 - [Сценарии](#сценарии-управление-состоянием)
 - [Проксирование, сбои и задержки](#проксирование-сбои-и-задержки)
 - [Запись, файлы, метаданные и настройки](#запись-файлы-метаданные-и-настройки)
@@ -244,6 +245,56 @@ try wireMock.removeServeEvents(matching: getRequestedFor(urlEqualTo("/ping")))
 
 `RequestPatternBuilder` поддерживает те же критерии, что и создание стабов (`withHeader`, `withoutHeader`,
 `withQueryParam`, `withCookie`, `withRequestBody`, `withBasicAuth` и т. д.).
+
+## Проверки запросов (BDD-стиль)
+
+`expect(...)` — аддитивный слой в духе RestAssured поверх `verify`/`findAll` для **подробной** проверки
+запросов, которые реально отправило приложение. Цепочка `to*` / `toNot*` (каждая доуточняет паттерн и
+перепроверяет **на сервере** — матчинг идентичен Java WireMock), в конце — терминал, инспектирующий
+захваченный запрос **на клиенте**. Один `try` покрывает всю цепочку; при провале бросается
+`RequestExpectationError` с указанием, какая проверка уронила счётчик, и near-miss диффом (недобор) или
+дампом всех совпавших запросов («слишком много»). Старый `verify(...)` не изменён.
+
+```swift
+// Количество + проверки полей
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
+    .toHaveBeenSent(.once)                        // .never / .times(3) / .atLeast(2) / .atMost(4) / .between(2...5)
+    .toHaveBearerToken("eyJ...")                  // или .toHaveBearerToken(matching: "eyJ.+")
+    .toHaveHeader("Content-Type", containing("json"))
+    .toHaveQueryParam("source", equalTo("mobile"))
+    .toHaveExactlyQueryParams(["page": "1", "size": "20"])   // провал при любом лишнем параметре
+
+// Тело: одно поле / полное совпадение / вхождение / из файла
+    .toHaveJsonPath("$.id")                                   // просто существует
+    .toHaveJsonPath("$.items[0].sku", equalTo("ABC"))        // значение по пути
+    .toHaveJsonBody(equalTo: ["id": 1, "sku": "ABC"])        // строгое полное совпадение
+    .toHaveJsonBody(equalTo: ["sku": "ABC"], ignoreExtraElements: true)
+    .toHaveJsonBody(equalToFile: Bundle.module.url(forResource: "order", withExtension: "json")!)
+
+// Негативные
+try wireMock.expect(anyRequestedFor(anyUrl))
+    .toNotHaveHeader("X-Debug")
+    .toNotHaveCookie("session")
+// «ни один запрос не содержал такое тело» — вносим условие в паттерн и проверяем «никогда»:
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/pay")).withRequestBody(containing("topsecret")))
+    .toNeverHaveBeenSent()
+
+// Захват конкретного запроса и извлечение значения (корреляция A → B)
+let orderId = try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
+    .toHaveBeenSent(.once)
+    .extract().jsonPath("$.id")
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/payments")))
+    .toHaveJsonPath("$.orderId", equalTo(orderId.stringValue ?? ""))
+
+// first() / last() (по loggedDate) / single() / all() дают типизированный CapturedRequest
+let req = try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders"))).single()
+_ = req.header("X-Request-Id"); _ = req.queryParam("page"); _ = req.bodyJSON
+```
+
+`extract().jsonPath(...)` поддерживает документированное подмножество — ключи объектов и индексы массивов
+(`$.id`, `$.items[0].sku`), достаточное для корреляции; для сложного — `CapturedRequest.bodyJSON`.
+Слой выходит за рамки Java-паритета (в Java WireMock нет capture/extract); сложный матчинг тела
+по-прежнему выполняет сервер.
 
 ## Сценарии (управление состоянием)
 

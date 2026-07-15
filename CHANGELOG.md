@@ -5,6 +5,24 @@ All notable changes to WireMockSwift are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Request expectations (`expect(...)`)** — an additive, BDD/RestAssured-style layer over the
+  existing verification API for asserting on outgoing requests in detail. Fluent `to*` / `toNot*`
+  checks (headers, query params, cookies, form params, bearer/basic auth, and a full body family:
+  `toHaveJsonPath` (existence and value-at-path), `toHaveJsonBody` full / partial / raw / file / schema, named text
+  overloads `toHaveBody(equalTo:/containing:/matching:)`, `toHaveEmptyBody`/`toHaveNonEmptyBody`,
+  `toHaveXmlBody` with options, and `toHaveBody(matchingXPath:)` with namespaces/sub-matcher) that
+  refine the pattern and re-verify server-side; `CountSpec`
+  (`.once`/`.never`/`.times`/`.atLeast`/`.atMost`/`.moreThan`/`.lessThan`/`.between`);
+  `toHaveExactlyQueryParams` (client-side, fails on stray params); and terminals
+  `single`/`first`/`last`/`all`/`extract` returning a typed `CapturedRequest` with header/query/cookie/
+  body accessors and `extract().jsonPath(...)` for correlating values across requests. Failures throw
+  `RequestExpectationError` with a near-miss diff (shortfall) or a dump of every matching request
+  ("too many"). Purely additive — `verify(...)` and `VerificationError` are unchanged.
+
 ## [0.1.0] - 2026-07-15
 
 First public release. A native Swift client and DSL for [WireMock](https://wiremock.org)

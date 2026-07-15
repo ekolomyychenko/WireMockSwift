@@ -31,6 +31,7 @@ Swift.
 - [Request matchers](#request-matchers)
 - [Responses](#responses)
 - [Verification](#verification)
+- [Request expectations (BDD-style)](#request-expectations-bdd-style)
 - [Scenarios](#scenarios-state-management)
 - [Proxying, faults and delays](#proxying-faults-and-delays)
 - [Recording, files, metadata and settings](#recording-files-metadata-and-settings)
@@ -244,6 +245,56 @@ report for an unmatched request).
 
 `RequestPatternBuilder` supports the same criteria as stub creation (`withHeader`, `withoutHeader`,
 `withQueryParam`, `withCookie`, `withRequestBody`, `withBasicAuth`, etc.).
+
+## Request expectations (BDD-style)
+
+`expect(...)` is an additive, RestAssured-flavoured layer on top of `verify`/`findAll` for asserting
+in detail on the requests your app actually sent. Chain `to*` / `toNot*` checks (each refines the pattern
+and re-verifies **server-side**, so matching is identical to Java WireMock), then optionally finish with a
+terminal that inspects the captured request **client-side**. One `try` covers the whole chain; a failure
+throws `RequestExpectationError` naming the check that dropped the count, with a near-miss diff (shortfall)
+or a dump of every matching request ("too many"). The older `verify(...)` API is unchanged.
+
+```swift
+// Count + field checks
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
+    .toHaveBeenSent(.once)                        // .never / .times(3) / .atLeast(2) / .atMost(4) / .between(2...5)
+    .toHaveBearerToken("eyJ...")                  // or .toHaveBearerToken(matching: "eyJ.+")
+    .toHaveHeader("Content-Type", containing("json"))
+    .toHaveQueryParam("source", equalTo("mobile"))
+    .toHaveExactlyQueryParams(["page": "1", "size": "20"])   // fails on any stray extra param
+
+// Body: one field / full match / partial / from a file
+    .toHaveJsonPath("$.id")                                   // just present
+    .toHaveJsonPath("$.items[0].sku", equalTo("ABC"))        // value at a path
+    .toHaveJsonBody(equalTo: ["id": 1, "sku": "ABC"])        // strict full match
+    .toHaveJsonBody(equalTo: ["sku": "ABC"], ignoreExtraElements: true)
+    .toHaveJsonBody(equalToFile: Bundle.module.url(forResource: "order", withExtension: "json")!)
+
+// Negative
+try wireMock.expect(anyRequestedFor(anyUrl))
+    .toNotHaveHeader("X-Debug")
+    .toNotHaveCookie("session")
+// "no request ever carried this body" — fold the constraint into the pattern, then assert never:
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/pay")).withRequestBody(containing("topsecret")))
+    .toNeverHaveBeenSent()
+
+// Capture a specific request and pull a value out (for correlation A → B)
+let orderId = try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
+    .toHaveBeenSent(.once)
+    .extract().jsonPath("$.id")
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/payments")))
+    .toHaveJsonPath("$.orderId", equalTo(orderId.stringValue ?? ""))
+
+// first() / last() (by loggedDate) / single() / all() give typed CapturedRequest accessors
+let req = try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders"))).single()
+_ = req.header("X-Request-Id"); _ = req.queryParam("page"); _ = req.bodyJSON
+```
+
+`extract().jsonPath(...)` supports a documented subset — object keys and array indices
+(`$.id`, `$.items[0].sku`) — enough for correlation; for anything richer use `CapturedRequest.bodyJSON`.
+This layer goes beyond Java parity (Java WireMock has no capture/extract); complex body matching still
+runs on the server.
 
 ## Scenarios (state management)
 
