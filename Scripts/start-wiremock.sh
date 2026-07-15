@@ -36,13 +36,15 @@ else
   echo "Starting WireMock $WIREMOCK_VERSION on port $PORT ..."
 fi
 
-java -jar "$JAR" --port "$PORT" --disable-banner "${AUTH_ARGS[@]}" &
+# Expand possibly-empty arrays safely: bash 3.2 (stock /bin/bash on macOS) treats
+# "${arr[@]}" of an unset/empty array as an unbound variable under `set -u`.
+java -jar "$JAR" --port "$PORT" --disable-banner ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"} &
 echo $! > "$PID_FILE"
 
 for _ in $(seq 1 30); do
-  curl -sf "${PROBE_AUTH[@]}" "http://localhost:${PORT}/__admin/health" >/dev/null && break
+  curl -sf ${PROBE_AUTH[@]+"${PROBE_AUTH[@]}"} "http://localhost:${PORT}/__admin/health" >/dev/null && break
   sleep 1
 done
-curl -sf "${PROBE_AUTH[@]}" "http://localhost:${PORT}/__admin/health" >/dev/null \
+curl -sf ${PROBE_AUTH[@]+"${PROBE_AUTH[@]}"} "http://localhost:${PORT}/__admin/health" >/dev/null \
   || { echo "WireMock never became ready on port $PORT" >&2; exit 1; }
 echo "WireMock is ready on port $PORT."
