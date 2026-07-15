@@ -1,0 +1,9 @@
+WireMockSwift
+Copyright 2026 Evgenia Kolomyychenko
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This is an independent Swift client for WireMock (https://wiremock.org); it is
+not affiliated with or endorsed by the WireMock project. "WireMock" is a
+trademark of its respective owner and is used here only to describe
+interoperability with the WireMock server.

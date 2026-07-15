@@ -1,0 +1,90 @@
+{
+  "nearMisses": [
+    {
+      "matchResult": {
+        "diffDescriptions": [],
+        "distance": 0.20066889632107024,
+        "subEvents": []
+      },
+      "request": {
+        "absoluteUrl": "http://localhost:8080/no-such-stub-unmatched",
+        "body": "",
+        "bodyAsBase64": "",
+        "browserProxyRequest": false,
+        "clientIp": "127.0.0.1",
+        "cookies": {},
+        "formParams": {},
+        "headers": {
+          "Accept": "*/*",
+          "Host": "localhost",
+          "User-Agent": "curl"
+        },
+        "host": "localhost",
+        "loggedDate": 0,
+        "loggedDateString": "2024-01-01T00:00:00Z",
+        "method": "GET",
+        "port": 8080,
+        "protocol": "HTTP/1.1",
+        "queryParams": {},
+        "scheme": "http",
+        "url": "/no-such-stub-unmatched"
+      },
+      "requestPattern": {
+        "method": "GET",
+        "url": "/expected"
+      }
+    },
+    {
+      "matchResult": {
+        "diffDescriptions": [],
+        "distance": 0.30484330484330485,
+        "subEvents": []
+      },
+      "request": {
+        "absoluteUrl": "http://localhost:8080/form",
+        "body": "name=bob&age=3",
+        "bodyAsBase64": "bmFtZT1ib2ImYWdlPTM=",
+        "browserProxyRequest": false,
+        "clientIp": "127.0.0.1",
+        "cookies": {
+          "session": "abc"
+        },
+        "formParams": {
+          "age": {
+            "key": "age",
+            "values": [
+              "3"
+            ]
+          },
+          "name": {
+            "key": "name",
+            "values": [
+              "bob"
+            ]
+          }
+        },
+        "headers": {
+          "Accept": "*/*",
+          "Content-Length": "14",
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": "session=abc",
+          "Host": "localhost",
+          "User-Agent": "curl"
+        },
+        "host": "localhost",
+        "loggedDate": 0,
+        "loggedDateString": "2024-01-01T00:00:00Z",
+        "method": "POST",
+        "port": 8080,
+        "protocol": "HTTP/1.1",
+        "queryParams": {},
+        "scheme": "http",
+        "url": "/form"
+      },
+      "requestPattern": {
+        "method": "GET",
+        "url": "/expected"
+      }
+    }
+  ]
+}

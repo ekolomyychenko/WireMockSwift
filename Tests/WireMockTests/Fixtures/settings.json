@@ -1,0 +1,9 @@
+{
+  "settings": {
+    "extended": {
+      "custom": 1
+    },
+    "fixedDelay": 5,
+    "proxyPassThrough": true
+  }
+}

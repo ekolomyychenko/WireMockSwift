@@ -1,0 +1,26 @@
+# SwiftLint configuration for WireMockSwift.
+#
+# The tree is clean at this ruleset and CI runs `swiftlint lint --strict`
+# (warnings fail the build). The disabled rules below are deliberate: long
+# golden-JSON literals, short DSL names that mirror the Java API, and a couple
+# of test-only stylistic rules. Tighten by removing entries here.
+included:
+  - Sources
+  - Tests
+
+disabled_rules:
+  - line_length            # long golden-JSON literals and doc comments
+  - todo
+  - function_body_length
+  - type_body_length
+  - file_length
+  - cyclomatic_complexity
+  - identifier_name        # short DSL names (id, ok, js, ee) are intentional
+  - nesting
+  - large_tuple            # (Data, HTTPURLResponse) test tuples
+  - optional_data_string_conversion  # test assertions read fine as String(data:encoding:)/String(decoding:as:); the suggested form would force-unwrap a non-optional helper
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - redundant_nil_coalescing

@@ -1,0 +1,162 @@
+{
+  "meta": {
+    "total": 2
+  },
+  "requestJournalDisabled": false,
+  "requests": [
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "request": {
+        "absoluteUrl": "http://localhost:8080/no-such-stub-unmatched",
+        "body": "",
+        "bodyAsBase64": "",
+        "browserProxyRequest": false,
+        "clientIp": "127.0.0.1",
+        "cookies": {},
+        "formParams": {},
+        "headers": {
+          "Accept": "*/*",
+          "Host": "localhost",
+          "User-Agent": "curl"
+        },
+        "host": "localhost",
+        "loggedDate": 0,
+        "loggedDateString": "2024-01-01T00:00:00Z",
+        "method": "GET",
+        "port": 8080,
+        "protocol": "HTTP/1.1",
+        "queryParams": {},
+        "scheme": "http",
+        "url": "/no-such-stub-unmatched"
+      },
+      "response": {
+        "body": "",
+        "bodyAsBase64": "",
+        "status": 404
+      },
+      "responseDefinition": {
+        "fromConfiguredStub": false,
+        "status": 404
+      },
+      "stubMapping": {
+        "id": "00000000-0000-0000-0000-000000000000",
+        "request": {
+          "method": "ANY"
+        },
+        "response": {
+          "fromConfiguredStub": false,
+          "status": 404
+        },
+        "uuid": "00000000-0000-0000-0000-000000000000"
+      },
+      "subEvents": [
+        {
+          "data": {
+            "contentType": "text/plain",
+            "report": "\n                                               Request was not matched\n                                               =======================\n\n-----------------------------------------------------------------------------------------------------------------------\n| Closest stub                                             | Request                                                  |\n-----------------------------------------------------------------------------------------------------------------------\n                                                           |\nPOST                                                       | GET                                                 <<<<< HTTP method does not match\n[path] /form                                               | /no-such-stub-unmatched                             <<<<< URL does not match\n                                                           |\nContent-Type: application/x-www-form-urlencoded            |                                                     <<<<< Header is not present\n                                                           |\n                                                           |\n-----------------------------------------------------------------------------------------------------------------------\n",
+            "status": 404
+          },
+          "timeOffsetNanos": 0,
+          "type": "REQUEST_NOT_MATCHED"
+        }
+      ],
+      "timing": {
+        "addedDelay": 0,
+        "processTime": 0,
+        "responseSendTime": 0,
+        "serveTime": 0,
+        "totalTime": 0
+      },
+      "wasMatched": false
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "request": {
+        "absoluteUrl": "http://localhost:8080/form",
+        "body": "name=bob&age=3",
+        "bodyAsBase64": "bmFtZT1ib2ImYWdlPTM=",
+        "browserProxyRequest": false,
+        "clientIp": "127.0.0.1",
+        "cookies": {
+          "session": "abc"
+        },
+        "formParams": {
+          "age": {
+            "key": "age",
+            "values": [
+              "3"
+            ]
+          },
+          "name": {
+            "key": "name",
+            "values": [
+              "bob"
+            ]
+          }
+        },
+        "headers": {
+          "Accept": "*/*",
+          "Content-Length": "14",
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": "session=abc",
+          "Host": "localhost",
+          "User-Agent": "curl"
+        },
+        "host": "localhost",
+        "loggedDate": 0,
+        "loggedDateString": "2024-01-01T00:00:00Z",
+        "method": "POST",
+        "port": 8080,
+        "protocol": "HTTP/1.1",
+        "queryParams": {},
+        "scheme": "http",
+        "url": "/form"
+      },
+      "response": {
+        "body": "ok",
+        "bodyAsBase64": "b2s=",
+        "headers": {
+          "Matched-Stub-Id": "00000000-0000-0000-0000-000000000000",
+          "X-A": "1"
+        },
+        "status": 201
+      },
+      "responseDefinition": {
+        "body": "ok",
+        "headers": {
+          "X-A": "1"
+        },
+        "status": 201
+      },
+      "stubMapping": {
+        "id": "00000000-0000-0000-0000-000000000000",
+        "request": {
+          "headers": {
+            "Content-Type": {
+              "equalTo": "application/x-www-form-urlencoded"
+            }
+          },
+          "method": "POST",
+          "urlPath": "/form"
+        },
+        "response": {
+          "body": "ok",
+          "headers": {
+            "X-A": "1"
+          },
+          "status": 201
+        },
+        "uuid": "00000000-0000-0000-0000-000000000000"
+      },
+      "subEvents": [],
+      "timing": {
+        "addedDelay": 0,
+        "processTime": 0,
+        "responseSendTime": 0,
+        "serveTime": 0,
+        "totalTime": 0
+      },
+      "wasMatched": true
+    }
+  ]
+}

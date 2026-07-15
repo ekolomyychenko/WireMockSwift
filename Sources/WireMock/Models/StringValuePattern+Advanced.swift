@@ -1,0 +1,161 @@
+import Foundation
+
+// Additional matchers beyond the common string operators: date/time,
+// JSON-schema, and XML with options. Keys mirror the WireMock 3.13.2 contract.
+// (Numeric comparison matchers are intentionally absent — see the note in Matchers.swift.)
+
+extension StringValuePattern {
+
+    // MARK: Date / time
+
+    /// The unit for a date/time matcher's `expectedOffset`, mirroring Java WireMock's
+    /// `DateTimeUnit`. Encoded as its uppercase name (`"DAYS"`, `"SECONDS"`, …), the
+    /// canonical form Java emits and the server expects.
+    public enum DateTimeUnit: String, Sendable {
+        case seconds = "SECONDS"
+        case minutes = "MINUTES"
+        case hours = "HOURS"
+        case days = "DAYS"
+        case months = "MONTHS"
+        case years = "YEARS"
+    }
+
+    // Mirrors WireMock 3.13.2's full date/time matcher option set (parity); the
+    // public before/after/equalToDateTime factories forward every option.
+    // swiftlint:disable:next function_parameter_count
+    private static func dateTime(
+        _ key: String,
+        _ value: String,
+        actualFormat: String?,
+        truncateExpected: String?,
+        truncateActual: String?,
+        expectedOffset: Int?,
+        expectedOffsetUnit: DateTimeUnit?,
+        applyTruncationLast: Bool?
+    ) -> Self {
+        var fields: [String: JSONValue] = [key: .string(value)]
+        if let actualFormat { fields["actualFormat"] = .string(actualFormat) }
+        if let truncateExpected { fields["truncateExpected"] = .string(truncateExpected) }
+        if let truncateActual { fields["truncateActual"] = .string(truncateActual) }
+        if let expectedOffset { fields["expectedOffset"] = .int(expectedOffset) }
+        if let expectedOffsetUnit { fields["expectedOffsetUnit"] = .string(expectedOffsetUnit.rawValue) }
+        if let applyTruncationLast { fields["applyTruncationLast"] = .bool(applyTruncationLast) }
+        return .init(fields)
+    }
+
+    public static func before(
+        _ dateTime: String,
+        actualFormat: String? = nil,
+        truncateExpected: String? = nil,
+        truncateActual: String? = nil,
+        expectedOffset: Int? = nil,
+        expectedOffsetUnit: DateTimeUnit? = nil,
+        applyTruncationLast: Bool? = nil
+    ) -> Self {
+        self.dateTime("before", dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,
+                      truncateActual: truncateActual, expectedOffset: expectedOffset,
+                      expectedOffsetUnit: expectedOffsetUnit, applyTruncationLast: applyTruncationLast)
+    }
+
+    public static func after(
+        _ dateTime: String,
+        actualFormat: String? = nil,
+        truncateExpected: String? = nil,
+        truncateActual: String? = nil,
+        expectedOffset: Int? = nil,
+        expectedOffsetUnit: DateTimeUnit? = nil,
+        applyTruncationLast: Bool? = nil
+    ) -> Self {
+        self.dateTime("after", dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,
+                      truncateActual: truncateActual, expectedOffset: expectedOffset,
+                      expectedOffsetUnit: expectedOffsetUnit, applyTruncationLast: applyTruncationLast)
+    }
+
+    public static func equalToDateTime(
+        _ dateTime: String,
+        actualFormat: String? = nil,
+        truncateExpected: String? = nil,
+        truncateActual: String? = nil,
+        expectedOffset: Int? = nil,
+        expectedOffsetUnit: DateTimeUnit? = nil,
+        applyTruncationLast: Bool? = nil
+    ) -> Self {
+        self.dateTime("equalToDateTime", dateTime, actualFormat: actualFormat, truncateExpected: truncateExpected,
+                      truncateActual: truncateActual, expectedOffset: expectedOffset,
+                      expectedOffsetUnit: expectedOffsetUnit, applyTruncationLast: applyTruncationLast)
+    }
+
+    // MARK: JSON schema
+
+    /// JSON Schema versions supported by WireMock.
+    public enum JSONSchemaVersion: String, Sendable {
+        case v4 = "V4", v6 = "V6", v7 = "V7", v201909 = "V201909", v202012 = "V202012"
+    }
+
+    public static func matchingJsonSchema(_ schema: JSONValue, version: JSONSchemaVersion? = nil) -> Self {
+        var fields: [String: JSONValue] = ["matchesJsonSchema": schema]
+        if let version { fields["schemaVersion"] = .string(version.rawValue) }
+        return .init(fields)
+    }
+
+    public static func matchingJsonSchema(raw schema: String, version: JSONSchemaVersion? = nil) throws -> Self {
+        // Fail loudly on malformed input rather than silently degrading to a
+        // `.string` matcher (see `equalToJson(raw:)`).
+        guard let value = JSONValue(parsing: schema) else {
+            throw WireMockError.decodingFailed(underlying: "matchingJsonSchema(raw:) was given invalid JSON")
+        }
+        return matchingJsonSchema(value, version: version)
+    }
+
+    // MARK: XML with options
+
+    /// How XML namespaces are treated when comparing (`equalToXml`). `.off`
+    /// maps to WireMock's `NONE` (avoids clashing with `Optional.none`).
+    public enum NamespaceAwareness: String, Sendable {
+        case strict = "STRICT", off = "NONE", legacy = "LEGACY"
+    }
+
+    public static func equalToXml(
+        _ xml: String,
+        enablePlaceholders: Bool = false,
+        placeholderOpeningDelimiterRegex: String? = nil,
+        placeholderClosingDelimiterRegex: String? = nil,
+        exemptedComparisons: [String]? = nil,
+        ignoreOrderOfSameNode: Bool? = nil,
+        namespaceAwareness: NamespaceAwareness? = nil
+    ) -> Self {
+        var fields: [String: JSONValue] = ["equalToXml": .string(xml)]
+        if enablePlaceholders { fields["enablePlaceholders"] = true }
+        if let placeholderOpeningDelimiterRegex { fields["placeholderOpeningDelimiterRegex"] = .string(placeholderOpeningDelimiterRegex) }
+        if let placeholderClosingDelimiterRegex { fields["placeholderClosingDelimiterRegex"] = .string(placeholderClosingDelimiterRegex) }
+        if let exemptedComparisons { fields["exemptedComparisons"] = .array(exemptedComparisons.map { .string($0) }) }
+        if let ignoreOrderOfSameNode { fields["ignoreOrderOfSameNode"] = .bool(ignoreOrderOfSameNode) }
+        if let namespaceAwareness { fields["namespaceAwareness"] = .string(namespaceAwareness.rawValue) }
+        return .init(fields)
+    }
+
+    // MARK: Multi-value (repeated query/header/form params)
+
+    /// Matches a multi-value param that has EXACTLY the given values (order and
+    /// count must match), each described by a sub-matcher.
+    public static func hasExactly(_ patterns: [StringValuePattern]) -> Self {
+        .init(["hasExactly": .array(patterns.map(\.asJSON))])
+    }
+
+    /// Matches a multi-value param that INCLUDES values satisfying the given
+    /// sub-matchers (others may also be present).
+    public static func includes(_ patterns: [StringValuePattern]) -> Self {
+        .init(["includes": .array(patterns.map(\.asJSON))])
+    }
+
+    /// XPath with a nested sub-matcher applied to the extracted value.
+    public static func matchingXPath(_ expression: String, _ submatcher: StringValuePattern, namespaces: [String: String] = [:]) -> Self {
+        var object = submatcher.fields
+        object["expression"] = .string(expression)
+        var fields: [String: JSONValue] = ["matchesXPath": .object(object)]
+        if !namespaces.isEmpty {
+            fields["xPathNamespaces"] = .object(namespaces.mapValues { .string($0) })
+        }
+        return .init(fields)
+    }
+}

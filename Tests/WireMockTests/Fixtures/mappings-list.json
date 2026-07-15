@@ -1,0 +1,27 @@
+{
+  "mappings": [
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "request": {
+        "headers": {
+          "Content-Type": {
+            "equalTo": "application/x-www-form-urlencoded"
+          }
+        },
+        "method": "POST",
+        "urlPath": "/form"
+      },
+      "response": {
+        "body": "ok",
+        "headers": {
+          "X-A": "1"
+        },
+        "status": 201
+      },
+      "uuid": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "meta": {
+    "total": 1
+  }
+}

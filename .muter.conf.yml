@@ -1,0 +1,29 @@
+# Mutation-testing config for muter (https://github.com/muter-mutation-testing/muter).
+# Run via Scripts/mutation.sh (on-demand, not per-PR — it is slow).
+#
+# Rationale: the golden-encoding suite compares the encoder output against
+# hand-authored literals, so it is only as strong as those literals. Mutation
+# testing perturbs the SOURCE (flip a boolean, drop a call, swap an operator) and
+# checks the tests then FAIL — a surviving mutant in an encoder means a golden (or
+# property) assertion is vacuous and must be tightened. Scope is the encoders.
+#
+# Uses the hermetic test command (no live server) so each mutant runs fast and
+# deterministically; the encoders are fully exercised by the golden + property
+# suites, which need no server.
+executable: /usr/bin/env
+arguments:
+  - swift
+  - test
+  - --skip
+  - Integration
+  - --skip
+  - ResponseOptions
+  - --skip
+  - Live
+  - --skip
+  - ContractIntegration
+exclude:
+  - Tests
+  - Examples
+  - Snippets
+  - Scripts
