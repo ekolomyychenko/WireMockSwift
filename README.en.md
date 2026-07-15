@@ -516,6 +516,13 @@ the host — unit + integration, an iOS build, and the iOS XCUITest example (all
 
 - **The client** (`WireMock`, DSL, verification) is supported on macOS and iOS (both exercised in CI).
 - It requires Java **or** Docker on the host that runs the server (the server itself is written in Java).
+- **Tested platforms.** The library's deployment floor is **iOS 15.0** (it builds and links against the
+  iOS 15 SDK), but iOS 15 is a *compile* floor: an iOS 15 simulator is no longer bootable on any
+  GitHub-hosted runner (the `macos-13` image was retired and runtimes below iOS 16 don't run on newer
+  macOS), so it can't be exercised end-to-end there. CI runs the XCUITest example (`Examples/WireMockXCUIDemo`)
+  across a spread of **iOS 16 · 17 · 18 · 26** on iPhone plus one **iPad** cell — the axis that actually
+  matters for a network client, since URLSession/ATS/Foundation behaviour changes by iOS major, not by
+  device model. The macOS unit + integration suite runs on every push.
 
 ## Parity with Java WireMock
 

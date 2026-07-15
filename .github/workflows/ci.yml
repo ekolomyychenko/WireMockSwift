@@ -122,106 +122,122 @@ jobs:
         # Proves the client compiles and links for iOS.
         run: xcodebuild build -scheme WireMockSwift -destination 'generic/platform=iOS Simulator'
 
-  ios-sim-matrix:
-    name: iOS sim device matrix
-    runs-on: macos-14
-    timeout-minutes: 10
-    outputs:
-      devices: ${{ steps.pick.outputs.devices }}
-    steps:
-      - name: Select the pinned iOS toolchain
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "16.2"
-      - name: Pick several available popular iPhone simulators
-        id: pick
-        run: |
-          set -euo pipefail
-          # Actually-available iPhone model names on THIS image. A name can itself
-          # contain parens (e.g. "iPhone SE (3rd generation)"), so strip only the
-          # trailing " (UDID) (state)" — not everything after the first "(".
-          AVAIL=$(xcrun simctl list devices available \
-            | grep -E '^ *iPhone' \
-            | sed -E 's/^ *//; s/ \([0-9A-F-]{36}\).*$//' \
-            | sort -u)
-          echo "Available iPhone models:"; echo "$AVAIL"
-          # Prefer a small/standard/large spread of popular models across recent
-          # generations; only names actually present are kept, and a fallback stops
-          # an image bump from ever emptying the matrix.
-          SEL=""
-          for want in \
-            "iPhone SE (3rd generation)" \
-            "iPhone 15" "iPhone 15 Pro Max" \
-            "iPhone 16" "iPhone 16 Pro Max" \
-            "iPhone 17" "iPhone 17 Pro Max"; do
-            if echo "$AVAIL" | grep -Fxq "$want"; then
-              SEL="$SEL$want"$'\n'
-            fi
-          done
-          # Fallback: first 3 available if none of the curated names matched.
-          if [ -z "$SEL" ]; then
-            SEL=$(echo "$AVAIL" | head -3)
-          fi
-          # De-dupe, cap at 3, emit a JSON array for the matrix.
-          DEVICES=$(printf '%s\n' "$SEL" | awk 'NF && !seen[$0]++' | head -3 | jq -R . | jq -cs .)
-          echo "Selected devices: $DEVICES"
-          if [ "$DEVICES" = "[]" ]; then
-            echo "::error::no iPhone simulators available on this image"; exit 1
-          fi
-          echo "devices=$DEVICES" >> "$GITHUB_OUTPUT"
-
   ios-xcuitest:
-    name: iOS XCUITest (${{ matrix.device }})
-    needs: ios-sim-matrix
-    runs-on: macos-14
-    # Guards against a wedged simulator boot / hung test running to the 6h default.
-    timeout-minutes: 30
+    # RELEASE coverage across the axis that actually carries risk for a headless
+    # URLSession client: the iOS MAJOR version (URLSession/ATS/Foundation behaviour
+    # forks there — this repo already carries old-Foundation workarounds). Model /
+    # screen-size is irrelevant to this test, so we spend the budget on OS spread +
+    # one iPad idiom cell instead of several phones on one OS. Each cell PINS its
+    # runtime explicitly (an earlier version let simctl enumeration order pick the OS
+    # by accident). iOS 15 is the compile floor only — its simulator is not bootable
+    # on any current hosted runner (macos-13 retired; <16 won't run on macOS 14+), so
+    # the lowest TESTED runtime is iOS 16 (downloaded at job time).
+    name: iOS XCUITest (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    # 40m: the iOS 16 cell adds a multi-GB runtime download before it can test.
+    timeout-minutes: 40
     strategy:
-      # One model's failure still reports the others — don't cancel the whole matrix.
+      # One cell's failure still reports the others (and lets the flaky download cell
+      # be re-run alone).
       fail-fast: false
       matrix:
-        device: ${{ fromJSON(needs.ios-sim-matrix.outputs.devices) }}
+        include:
+          - name: "iOS 16 (floor)"
+            runner: macos-14
+            xcode: "16.2"
+            os_major: "16"
+            devicetype: "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation"
+            idiom: iPhone
+            download: "16.4"      # not preinstalled anywhere — download it
+          - name: "iOS 17"
+            runner: macos-14
+            xcode: "15.4"          # ships the iOS 17.5 runtime
+            os_major: "17"
+            devicetype: "com.apple.CoreSimulator.SimDeviceType.iPhone-15"
+            idiom: iPhone
+            download: ""
+          - name: "iOS 18"
+            runner: macos-15
+            xcode: "16.4"          # ships the iOS 18.6 runtime
+            os_major: "18"
+            devicetype: "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max"
+            idiom: iPhone
+            download: ""
+          - name: "iOS 26 (latest)"
+            runner: macos-15
+            xcode: latest-stable   # newest Xcode → newest iOS 26.x runtime
+            os_major: "26"
+            devicetype: "com.apple.CoreSimulator.SimDeviceType.iPhone-17"
+            idiom: iPhone
+            download: ""
+          - name: "iPad iOS 18"
+            runner: macos-14
+            xcode: "16.2"
+            os_major: "18"
+            devicetype: "com.apple.CoreSimulator.SimDeviceType.iPad-10th-generation"
+            idiom: iPad
+            download: ""
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "16.2"
+          xcode-version: ${{ matrix.xcode }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
       - name: Start WireMock on the host
         run: Scripts/start-wiremock.sh
-      - name: Generate and run the XCUITest example on the simulator
+      - name: Run the XCUITest example on ${{ matrix.name }}
         working-directory: Examples/WireMockXCUIDemo
+        env:
+          OS_MAJOR: ${{ matrix.os_major }}
+          DEVICETYPE: ${{ matrix.devicetype }}
+          IDIOM: ${{ matrix.idiom }}
+          DOWNLOAD: ${{ matrix.download }}
+          CELL: ${{ matrix.name }}
         run: |
           set -euo pipefail
           brew install xcodegen
           xcodegen generate
-          # Resolve the UDID for THIS matrix model by name. The name may contain
-          # parens; matching the trailing " (" before the UDID disambiguates
-          # "iPhone 16" from "iPhone 16 Pro". Guard emptiness LOUDLY (a missing model
-          # is a clear failure, never a silent green).
-          UDID=$(xcrun simctl list devices available \
-            | grep -F "${{ matrix.device }} (" \
-            | grep -oE '[0-9A-F-]{36}' | head -1)
-          if [ -z "$UDID" ]; then
-            echo "::error::simulator '${{ matrix.device }}' is not available on this image"
-            xcrun simctl list devices available
-            exit 1
+          # Download the pinned runtime if it isn't preinstalled (the iOS 16 floor).
+          # Apple's CDN is flaky here, so retry a few times before giving up.
+          if [ -n "$DOWNLOAD" ]; then
+            echo "Downloading iOS $DOWNLOAD runtime ..."
+            ok=""
+            for i in 1 2 3; do
+              if xcodebuild -downloadPlatform iOS -buildVersion "$DOWNLOAD"; then ok=1; break; fi
+              echo "download attempt $i failed; retrying in 30s"; sleep 30
+            done
+            [ -n "$ok" ] || { echo "::error::failed to download iOS $DOWNLOAD runtime after 3 tries"; exit 1; }
           fi
-          # Self-document the exact device + OS runtime under test.
-          echo "Using ${{ matrix.device }} → UDID $UDID"
-          xcrun simctl list devices available | grep -F "$UDID" || true
-          # Pre-boot and wait for full boot — a cold simulator's first network call
-          # is the slowest, and the main cause of the simulator↔host reachability
-          # flake; a warm simulator removes most of it. (-b boots then waits.)
+          # Resolve the NEWEST installed runtime for the PINNED major. Pinning the
+          # major (not a full x.y) keeps the OS-under-test explicit while tolerating
+          # the image trimming a minor version; the exact version is logged below.
+          RT=$(xcrun simctl list runtimes -j | jq -r --arg m "$OS_MAJOR" \
+            '[.runtimes[] | select(.identifier|contains("iOS")) | select(.isAvailable==true) | select(.version|startswith($m+"."))] | sort_by(.version) | last | .identifier // ""')
+          if [ -z "$RT" ]; then
+            echo "::error::no available iOS $OS_MAJOR runtime on this image"; xcrun simctl list runtimes; exit 1
+          fi
+          VER=$(xcrun simctl list runtimes -j | jq -r --arg id "$RT" '.runtimes[]|select(.identifier==$id)|.version')
+          # Create the pinned device on that exact runtime (the UDID inherently pins
+          # the OS for xcodebuild). Fall back to any pre-created device of the right
+          # idiom if the specific model isn't available on this runtime.
+          UDID=$(xcrun simctl create "wm-ci" "$DEVICETYPE" "$RT" 2>/dev/null || true)
+          if [ -z "$UDID" ]; then
+            echo "create of $DEVICETYPE failed; resolving an existing $IDIOM on iOS $VER"
+            UDID=$(xcrun simctl list devices available -j | jq -r --arg rt "$RT" --arg idiom "$IDIOM" \
+              '(.devices[$rt] // []) | map(select(.name|test($idiom;"i"))) | .[0].udid // ""')
+          fi
+          [ -n "$UDID" ] || { echo "::error::no $IDIOM device available on iOS $VER"; xcrun simctl list devices; exit 1; }
+          echo "Cell '$CELL' → $IDIOM on iOS $VER (UDID $UDID)"
+          # Pre-boot and wait for full boot — a cold simulator's first network call is
+          # the slowest, the main cause of the simulator↔host reachability flake.
           xcrun simctl bootstatus "$UDID" -b
           # TEST_RUNNER_* env vars are forwarded to the runner process (prefix
           # stripped): the test sees WIREMOCK_REQUIRED=1 (FAIL, don't XCTSkip) and CI
-          # (so it can assert the required flag actually arrived — see the test's
-          # guard). No -retry-tests-on-failure: a genuine flake stays visible and is
-          # re-run manually, so real instability is never masked green.
+          # (so it can assert the required flag actually arrived). No auto-retry — a
+          # genuine flake stays visible and is re-run manually.
           TEST_RUNNER_WIREMOCK_REQUIRED=1 \
           TEST_RUNNER_CI="${CI:-}" \
           xcodebuild test \
@@ -243,7 +259,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-xcuitest-forensics-${{ matrix.device }}
+          name: ios-xcuitest-forensics-${{ matrix.name }}
           path: |
             Examples/WireMockXCUIDemo/TestResults.xcresult
             Examples/WireMockXCUIDemo/sim-log.txt
