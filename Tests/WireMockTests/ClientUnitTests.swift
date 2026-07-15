@@ -249,7 +249,11 @@ final class MockURLProtocol: URLProtocol {
         return _lastRequest
     }
 
+    // URLProtocol requires these as overridable class methods; `static` would not
+    // override the superclass, so the mock would never intercept requests.
+    // swiftlint:disable:next static_over_final_class
     override class func canInit(with request: URLRequest) -> Bool { true }
+    // swiftlint:disable:next static_over_final_class
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {

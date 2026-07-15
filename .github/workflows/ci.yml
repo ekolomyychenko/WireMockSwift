@@ -49,18 +49,17 @@ jobs:
           path: coverage.lcov
 
   lint:
-    name: SwiftLint (non-blocking)
+    name: SwiftLint
     runs-on: macos-14
-    # Non-blocking until the team curates a baseline; see .swiftlint.yml. Flip to
-    # blocking by removing this line (and add `--strict` below) once clean.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Install SwiftLint
         # Not preinstalled on current macOS runner images.
         run: brew install swiftlint
       - name: Run SwiftLint
-        run: swiftlint lint --reporter github-actions-logging
+        # --strict: warnings fail the build. The tree is clean at this ruleset
+        # (see .swiftlint.yml); keep it that way.
+        run: swiftlint lint --strict --reporter github-actions-logging
 
   ios-build:
     name: iOS build

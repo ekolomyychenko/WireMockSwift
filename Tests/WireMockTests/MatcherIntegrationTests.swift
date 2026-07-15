@@ -109,7 +109,7 @@ final class MatcherIntegrationTests: WireMockIntegrationCase {
         let schema: JSONValue = [
             "type": "object",
             "required": ["name"],
-            "properties": ["name": ["type": "string"]],
+            "properties": ["name": ["type": "string"]]
         ]
         try wireMock.stubFor(
             post(urlEqualTo("/js")).withRequestBody(matchingJsonSchema(schema, version: .v202012)).willReturn(ok())

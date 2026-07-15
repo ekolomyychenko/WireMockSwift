@@ -8,6 +8,9 @@ extension StringValuePattern {
 
     // MARK: Date / time
 
+    // Mirrors WireMock 3.13.2's full date/time matcher option set (parity); the
+    // public before/after/equalToDateTime factories forward every option.
+    // swiftlint:disable:next function_parameter_count
     private static func dateTime(
         _ key: String,
         _ value: String,

@@ -73,7 +73,7 @@ public struct WebhookDefinition: Sendable {
     public func asServeEventListener() -> ServeEventListenerDefinition {
         var parameters: [String: JSONValue] = [
             "method": .string(method.rawValue),
-            "url": .string(url),
+            "url": .string(url)
         ]
         if !headers.isEmpty {
             parameters["headers"] = .object(headers.mapValues { value in

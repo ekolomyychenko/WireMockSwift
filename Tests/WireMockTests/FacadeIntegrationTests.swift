@@ -162,7 +162,7 @@ final class FacadeIntegrationTests: WireMockIntegrationCase {
         let stubs = [
             get(urlEqualTo("/one")).willReturn(ok("1")).build(),
             get(urlEqualTo("/two")).willReturn(ok("2")).build(),
-            get(urlEqualTo("/three")).willReturn(ok("3")).build(),
+            get(urlEqualTo("/three")).willReturn(ok("3")).build()
         ]
         try wireMock.importMappings(stubs)
         for (path, expected) in [("one", "1"), ("two", "2"), ("three", "3")] {
@@ -187,7 +187,7 @@ final class FacadeIntegrationTests: WireMockIntegrationCase {
 
         // Failing cases: each must throw VerificationError carrying actual == 3.
         let failing: [CountMatchingStrategy] = [
-            .exactly(2), .lessThan(3), .lessThanOrExactly(2), .moreThan(3), .moreThanOrExactly(4),
+            .exactly(2), .lessThan(3), .lessThanOrExactly(2), .moreThan(3), .moreThanOrExactly(4)
         ]
         for strategy in failing {
             do {
@@ -325,7 +325,7 @@ final class FacadeIntegrationTests: WireMockIntegrationCase {
         // The register(json:) escape hatch registers a working stub directly.
         try wireMock.register(json: [
             "request": ["method": "GET", "url": "/direct-json"],
-            "response": ["status": 201, "body": "hi"],
+            "response": ["status": 201, "body": "hi"]
         ])
         let (data, http) = try WireMockFixture.hit("direct-json")
         XCTAssertEqual(http.statusCode, 201)

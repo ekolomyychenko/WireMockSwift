@@ -15,7 +15,7 @@ final class GoldenEncodingTests: XCTestCase {
         let stub = get(urlEqualTo("/hello")).willReturn(ok("world")).build()
         let expected: JSONValue = [
             "request": ["method": "GET", "url": "/hello"],
-            "response": ["status": 200, "body": "world"],
+            "response": ["status": 200, "body": "world"]
         ]
         XCTAssertEqual(try json(stub), expected)
     }
@@ -34,13 +34,13 @@ final class GoldenEncodingTests: XCTestCase {
                 "method": "POST",
                 "urlPath": "/things",
                 "headers": ["Content-Type": ["equalTo": "application/json"]],
-                "bodyPatterns": [["matchesJsonPath": "$.name"]],
+                "bodyPatterns": [["matchesJsonPath": "$.name"]]
             ],
             "response": [
                 "status": 200,
                 "headers": ["Content-Type": "application/json"],
-                "jsonBody": ["id": 1],
-            ],
+                "jsonBody": ["id": 1]
+            ]
         ]
         XCTAssertEqual(try json(stub), expected)
     }
@@ -50,7 +50,7 @@ final class GoldenEncodingTests: XCTestCase {
         let expected: JSONValue = [
             "equalToJson": ["a": 1],
             "ignoreArrayOrder": true,
-            "ignoreExtraElements": true,
+            "ignoreExtraElements": true
         ]
         XCTAssertEqual(try json(pattern), expected)
     }
@@ -58,7 +58,7 @@ final class GoldenEncodingTests: XCTestCase {
     func testLogicalCombinator() throws {
         let pattern = and(containing("foo"), notContaining("bar"))
         let expected: JSONValue = [
-            "and": [["contains": "foo"], ["doesNotContain": "bar"]],
+            "and": [["contains": "foo"], ["doesNotContain": "bar"]]
         ]
         XCTAssertEqual(try json(pattern), expected)
     }
@@ -69,7 +69,7 @@ final class GoldenEncodingTests: XCTestCase {
             .withFault(.connectionResetByPeer)
         let expected: JSONValue = [
             "fixedDelayMilliseconds": 500,
-            "fault": "CONNECTION_RESET_BY_PEER",
+            "fault": "CONNECTION_RESET_BY_PEER"
         ]
         XCTAssertEqual(try json(response.definition), expected)
     }
@@ -77,7 +77,7 @@ final class GoldenEncodingTests: XCTestCase {
     func testLogNormalDelay() throws {
         let response = aResponse().withLogNormalRandomDelay(median: 90, sigma: 0.1)
         let expected: JSONValue = [
-            "delayDistribution": ["type": "lognormal", "median": 90.0, "sigma": 0.1],
+            "delayDistribution": ["type": "lognormal", "median": 90.0, "sigma": 0.1]
         ]
         XCTAssertEqual(try json(response.definition), expected)
     }
@@ -85,7 +85,7 @@ final class GoldenEncodingTests: XCTestCase {
     func testMultiValueResponseHeader() throws {
         let response = aResponse().withHeader("Set-Cookie", ["a=1", "b=2"])
         let expected: JSONValue = [
-            "headers": ["Set-Cookie": ["a=1", "b=2"]],
+            "headers": ["Set-Cookie": ["a=1", "b=2"]]
         ]
         XCTAssertEqual(try json(response.definition), expected)
     }
@@ -108,7 +108,7 @@ final class GoldenEncodingTests: XCTestCase {
         let expected: JSONValue = [
             "after": "2020-01-01T00:00:00Z",
             "expectedOffset": 3,
-            "expectedOffsetUnit": "days",
+            "expectedOffsetUnit": "days"
         ]
         XCTAssertEqual(try json(pattern), expected)
     }
@@ -117,7 +117,7 @@ final class GoldenEncodingTests: XCTestCase {
         let pattern = matchingJsonSchema(["type": "object"], version: .v202012)
         let expected: JSONValue = [
             "matchesJsonSchema": ["type": "object"],
-            "schemaVersion": "V202012",
+            "schemaVersion": "V202012"
         ]
         XCTAssertEqual(try json(pattern), expected)
     }
@@ -346,7 +346,7 @@ final class GoldenEncodingTests: XCTestCase {
             "placeholderOpeningDelimiterRegex": "\\$\\{",
             "placeholderClosingDelimiterRegex": "\\}",
             "exemptedComparisons": ["NAMESPACE_URI"],
-            "ignoreOrderOfSameNode": true,
+            "ignoreOrderOfSameNode": true
         ]
         XCTAssertEqual(try json(pattern), expected)
         // Plain equalToXml stays minimal.
@@ -365,7 +365,7 @@ final class GoldenEncodingTests: XCTestCase {
         let pattern = StringValuePattern.matchingXPath("/note/to", containing("Bob"), namespaces: ["t": "urn:t"])
         let expected: JSONValue = [
             "matchesXPath": ["expression": "/note/to", "contains": "Bob"],
-            "xPathNamespaces": ["t": "urn:t"],
+            "xPathNamespaces": ["t": "urn:t"]
         ]
         XCTAssertEqual(try json(pattern), expected)
     }
@@ -389,7 +389,7 @@ final class GoldenEncodingTests: XCTestCase {
             "truncateActual": "first day of month",
             "expectedOffset": 3,
             "expectedOffsetUnit": "days",
-            "applyTruncationLast": true,
+            "applyTruncationLast": true
         ]
         XCTAssertEqual(try json(pattern), expected)
     }
@@ -579,7 +579,7 @@ final class GoldenEncodingTests: XCTestCase {
             (put(urlEqualTo("/x")), "PUT"), (patch(urlEqualTo("/x")), "PATCH"),
             (delete(urlEqualTo("/x")), "DELETE"), (head(urlEqualTo("/x")), "HEAD"),
             (options(urlEqualTo("/x")), "OPTIONS"), (trace(urlEqualTo("/x")), "TRACE"),
-            (any(urlEqualTo("/x")), "ANY"), (request(.getOrHead, urlEqualTo("/x")), "GET_OR_HEAD"),
+            (any(urlEqualTo("/x")), "ANY"), (request(.getOrHead, urlEqualTo("/x")), "GET_OR_HEAD")
         ]
         for (builder, method) in cases {
             XCTAssertEqual(try json(builder.willReturn(ok()).build()).objectValue?["request"]?.objectValue?["method"],
@@ -605,7 +605,7 @@ final class GoldenEncodingTests: XCTestCase {
             (deleteRequestedFor(urlEqualTo("/x")), "DELETE"), (headRequestedFor(urlEqualTo("/x")), "HEAD"),
             (optionsRequestedFor(urlEqualTo("/x")), "OPTIONS"), (anyRequestedFor(urlEqualTo("/x")), "ANY"),
             (traceRequestedFor(urlEqualTo("/x")), "TRACE"),
-            (requestedFor(.put, urlEqualTo("/x")), "PUT"),
+            (requestedFor(.put, urlEqualTo("/x")), "PUT")
         ]
         for (builder, method) in cases {
             XCTAssertEqual(try json(builder.pattern).objectValue?["method"], .string(method), "verb \(method)")
@@ -667,7 +667,7 @@ final class GoldenEncodingTests: XCTestCase {
         let cases: [(ResponseDefinitionBuilder, Int)] = [
             (created(), 201), (noContent(), 204), (badRequest(), 400), (badRequestEntity(), 422),
             (unauthorized(), 401), (forbidden(), 403), (notFound(), 404),
-            (serverError(), 500), (serviceUnavailable(), 503),
+            (serverError(), 500), (serviceUnavailable(), 503)
         ]
         for (builder, status) in cases {
             XCTAssertEqual(try json(builder.definition).objectValue?["status"], .int(status), "status \(status)")
