@@ -217,14 +217,29 @@ final class ClientUnitTests: XCTestCase {
 final class MockURLProtocol: URLProtocol {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var _handler: (@Sendable (URLRequest) -> (Int, String))?
+    nonisolated(unsafe) private static var _dataHandler: (@Sendable (URLRequest) -> (Int, Data))?
     nonisolated(unsafe) private static var _lastRequest: URLRequest?
+    nonisolated(unsafe) private static var _lastBody: Data?
     nonisolated(unsafe) private static var _failure: URLError?
 
     static func respond(_ handler: @escaping @Sendable (URLRequest) -> (Int, String)) {
         lock.lock(); defer { lock.unlock() }
         _handler = handler
+        _dataHandler = nil
         _failure = nil
         _lastRequest = nil
+        _lastBody = nil
+    }
+
+    /// Like `respond`, but returns raw bytes — so a test can emit a **non-UTF8**
+    /// or binary response body (which the `String`-based `respond` can't express).
+    static func respondData(_ handler: @escaping @Sendable (URLRequest) -> (Int, Data)) {
+        lock.lock(); defer { lock.unlock() }
+        _dataHandler = handler
+        _handler = nil
+        _failure = nil
+        _lastRequest = nil
+        _lastBody = nil
     }
 
     /// Makes the next load fail at the transport level (connection refused,
@@ -240,13 +255,38 @@ final class MockURLProtocol: URLProtocol {
     static func reset() {
         lock.lock(); defer { lock.unlock() }
         _handler = nil
+        _dataHandler = nil
         _failure = nil
         _lastRequest = nil
+        _lastBody = nil
     }
 
     static var lastRequest: URLRequest? {
         lock.lock(); defer { lock.unlock() }
         return _lastRequest
+    }
+
+    /// The body bytes of the last intercepted request. URLSession moves `httpBody`
+    /// into `httpBodyStream` before the protocol sees it, so we read the stream —
+    /// letting a test assert the client sent exactly the bytes it was given.
+    static var lastBody: Data? {
+        lock.lock(); defer { lock.unlock() }
+        return _lastBody
+    }
+
+    private static func capturedBody(of request: URLRequest) -> Data? {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open(); defer { stream.close() }
+        var data = Data()
+        let size = 4096
+        var buffer = [UInt8](repeating: 0, count: size)
+        while stream.hasBytesAvailable {
+            let read = stream.read(&buffer, maxLength: size)
+            if read <= 0 { break }
+            data.append(buffer, count: read)
+        }
+        return data
     }
 
     // URLProtocol requires these as overridable class methods; `static` would not
@@ -259,7 +299,9 @@ final class MockURLProtocol: URLProtocol {
     override func startLoading() {
         MockURLProtocol.lock.lock()
         MockURLProtocol._lastRequest = request
+        MockURLProtocol._lastBody = MockURLProtocol.capturedBody(of: request)
         let handler = MockURLProtocol._handler
+        let dataHandler = MockURLProtocol._dataHandler
         let failure = MockURLProtocol._failure
         MockURLProtocol.lock.unlock()
 
@@ -269,20 +311,27 @@ final class MockURLProtocol: URLProtocol {
             return
         }
 
-        // If the session was torn down / handler cleared, fail the load cleanly
-        // instead of force-unwrapping on a background thread.
-        guard let url = request.url, let handler else {
+        // If the session was torn down / both handlers cleared, fail the load
+        // cleanly instead of force-unwrapping on a background thread.
+        guard let url = request.url, handler != nil || dataHandler != nil else {
             client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
             return
         }
-        let (status, body) = handler(request)
+        let status: Int
+        let bodyData: Data
+        if let dataHandler {
+            (status, bodyData) = dataHandler(request)
+        } else {
+            let (code, body) = handler!(request)
+            (status, bodyData) = (code, Data(body.utf8))
+        }
         guard let response = HTTPURLResponse(url: url, statusCode: status,
                                              httpVersion: "HTTP/1.1", headerFields: nil) else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
         }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocol(self, didLoad: bodyData)
         client?.urlProtocolDidFinishLoading(self)
     }
 

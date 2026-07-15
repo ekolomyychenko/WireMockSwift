@@ -729,4 +729,35 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(encoded?["ids"], ["id1"])
         XCTAssertEqual(encoded?["allowNonProxied"], true)
     }
+
+    // MARK: - Repeated matcher on one key accumulates (Java parity)
+
+    /// Two `withHeader` calls on the same name must AND-combine (not overwrite),
+    /// staying one matcher object per key on the wire (the shape the server accepts).
+    func testRepeatedHeaderMatcherCombinesWithAnd() throws {
+        let stub = get(urlEqualTo("/x"))
+            .withHeader("X-Test", containing("foo"))
+            .withHeader("X-Test", containing("bar"))
+            .willReturn(ok()).build()
+        let headers = try json(stub).objectValue?["request"]?.objectValue?["headers"]?.objectValue
+        XCTAssertEqual(headers?["X-Test"], ["and": [["contains": "foo"], ["contains": "bar"]]])
+    }
+
+    /// Three calls flatten into a single 3-element AND rather than nesting.
+    func testThreeRepeatedMatchersFlattenIntoOneAnd() throws {
+        let pattern = getRequestedFor(urlEqualTo("/x"))
+            .withQueryParam("q", containing("a"))
+            .withQueryParam("q", containing("b"))
+            .withQueryParam("q", containing("c"))
+            .pattern
+        let q = try json(pattern).objectValue?["queryParameters"]?.objectValue
+        XCTAssertEqual(q?["q"], ["and": [["contains": "a"], ["contains": "b"], ["contains": "c"]]])
+    }
+
+    /// A single `withHeader` is unchanged — no spurious AND wrapper.
+    func testSingleHeaderMatcherIsNotWrapped() throws {
+        let stub = get(urlEqualTo("/x")).withHeader("X", equalTo("v")).willReturn(ok()).build()
+        let headers = try json(stub).objectValue?["request"]?.objectValue?["headers"]?.objectValue
+        XCTAssertEqual(headers?["X"], ["equalTo": "v"])
+    }
 }

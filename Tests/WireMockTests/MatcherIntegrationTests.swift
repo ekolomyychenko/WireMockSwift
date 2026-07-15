@@ -400,4 +400,25 @@ final class MatcherIntegrationTests: WireMockIntegrationCase {
         WireMockFixture.assertMiss(try WireMockFixture.hit("any", method: "POST", headers: headers, body: twoParts("other a", "other b")),
                    "ANY fails when no part contains target")
     }
+
+    // MARK: Repeated matcher on one header accumulates (Java parity, end-to-end)
+
+    /// Two `withHeader` calls on the same name AND-combine into one matcher; the
+    /// server must accept the `{"and":[…]}` shape and require BOTH constraints.
+    /// This is the live counterpart to the golden encoding test — it proves the
+    /// combined shape is a real contract the 3.13.2 server honours, not just JSON.
+    func testRepeatedHeaderMatcherAccumulatesOnServer() throws {
+        try wireMock.stubFor(
+            get(urlEqualTo("/andhdr"))
+                .withHeader("X-Test", containing("foo"))
+                .withHeader("X-Test", containing("bar"))
+                .willReturn(ok())
+        )
+        WireMockFixture.assertMatch(try WireMockFixture.hit("andhdr", headers: ["X-Test": "xfoobar"]),
+                    "both constraints satisfied → match")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("andhdr", headers: ["X-Test": "foo"]),
+                   "only one constraint satisfied → no match")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("andhdr", headers: ["X-Test": "bar"]),
+                   "only the other constraint satisfied → no match")
+    }
 }
