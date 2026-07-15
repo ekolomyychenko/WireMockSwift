@@ -57,6 +57,30 @@ final class RequestExpectationTests: WireMockIntegrationCase {
             .toHaveJsonPath("$.items[0].sku", equalTo("ABC"))
     }
 
+    /// Presence-only overloads (`toHave{Header,Cookie}(_ name:)`) and the general
+    /// positional `toHaveBody(_ matcher:)` — a key must exist with any value.
+    func testPresenceOnlyOverloadsAndGeneralBody() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/trace")).willReturn(ok()))
+        try WireMockFixture.hit(
+            "trace", method: "POST",
+            headers: ["X-Trace": "abc123", "Cookie": "sid=s-1"],
+            body: Data("hello".utf8)
+        )
+
+        try wireMock.expect(postRequestedFor(urlPathEqualTo("/trace")))
+            .toHaveHeader("X-Trace")                 // present, any value
+            .toHaveCookie("sid")                     // present, any value
+            .toHaveBody(StringValuePattern.equalTo("hello"))   // general positional overload
+
+        // Presence fails when the key is genuinely absent.
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/trace"))).toHaveHeader("X-Missing")
+        ) { XCTAssertTrue(String(describing: $0).contains("header X-Missing"), String(describing: $0)) }
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/trace"))).toHaveCookie("absent")
+        ) { XCTAssertTrue(String(describing: $0).contains("cookie absent"), String(describing: $0)) }
+    }
+
     func testBasicAuth() throws {
         try wireMock.stubFor(get(urlPathEqualTo("/secure")).willReturn(ok()))
         let credentials = Data("bob:secret".utf8).base64EncodedString()
@@ -78,7 +102,7 @@ final class RequestExpectationTests: WireMockIntegrationCase {
         let schema: JSONValue = [
             "type": "object",
             "required": ["id"],
-            "properties": ["id": ["type": "number"]],
+            "properties": ["id": ["type": "number"]]
         ]
         try wireMock.stubFor(post(urlPathEqualTo("/valid")).willReturn(ok()))
         try wireMock.stubFor(post(urlPathEqualTo("/invalid")).willReturn(ok()))
@@ -305,6 +329,46 @@ final class RequestExpectationTests: WireMockIntegrationCase {
             // appears somewhere (it's also in the request URL echoed in the dump).
             let message = String(describing: error)
             XCTAssertTrue(message.contains("Expected exactly query params"), message)
+            XCTAssertTrue(message.contains("but had"), message)
+        }
+    }
+
+    /// A `toNot*` security negative must catch a leaking request even when a
+    /// second, clean request also matched the base pattern — the old
+    /// "narrow-by-absent, count >= 1" reading passed here (footgun).
+    func testNegativeCatchesLeakDespiteCleanDuplicate() throws {
+        try wireMock.stubFor(get(urlPathEqualTo("/authorize")).willReturn(ok()))
+        try WireMockFixture.hit("authorize?state=x")                        // clean
+        try WireMockFixture.hit("authorize?state=y&client_secret=leak")     // leaks the secret
+
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/authorize"))).toNotHaveQueryParam("client_secret")
+        ) { error in
+            let message = String(describing: error)
+            XCTAssertTrue(message.contains("no query param client_secret"), message)
+            XCTAssertTrue(message.contains("1 carried it"), message)
+        }
+    }
+
+    func testExactlyFormParams() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/token")).willReturn(ok()))
+        try WireMockFixture.hit("token", method: "POST",
+                                headers: ["Content-Type": "application/x-www-form-urlencoded"],
+                                body: Data("grant_type=authorization_code&code=abc".utf8))
+        try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+            .toHaveExactlyFormParams(["grant_type": "authorization_code", "code": "abc"])
+
+        // An extra field in the body (a leaked client_secret) fails the exact set.
+        try wireMock.stubFor(post(urlPathEqualTo("/token2")).willReturn(ok()))
+        try WireMockFixture.hit("token2", method: "POST",
+                                headers: ["Content-Type": "application/x-www-form-urlencoded"],
+                                body: Data("grant_type=authorization_code&client_secret=leak".utf8))
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/token2")))
+                .toHaveExactlyFormParams(["grant_type": "authorization_code"])
+        ) { error in
+            let message = String(describing: error)
+            XCTAssertTrue(message.contains("Expected exactly form params"), message)
             XCTAssertTrue(message.contains("but had"), message)
         }
     }

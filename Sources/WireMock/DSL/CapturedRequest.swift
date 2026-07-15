@@ -8,11 +8,14 @@ public struct CapturedRequest: Sendable {
     /// The underlying journal entry.
     public let logged: LoggedRequest
 
+    /// Wraps a journal entry for typed access.
     public init(logged: LoggedRequest) { self.logged = logged }
 
     // MARK: - Typed accessors
 
+    /// The request method, or `nil` if the journal entry omitted it.
     public var method: HTTPMethod? { logged.method }
+    /// The request URL (path and query), or `nil` if absent.
     public var url: String? { logged.url }
 
     /// The raw request body as text, if any.
@@ -63,13 +66,60 @@ public struct CapturedRequest: Sendable {
     func queryItems() -> [URLQueryItem] {
         guard let raw = logged.url,
               let query = raw.split(separator: "?", maxSplits: 1).dropFirst().first else { return [] }
-        var components = URLComponents()
-        // Treat '+' as a space (the application/x-www-form-urlencoded convention
-        // servers use when decoding query strings). A literal plus arrives as
-        // %2B and survives; URLComponents only percent-decodes and would leave a
-        // bare '+' untouched.
-        components.percentEncodedQuery = query.replacingOccurrences(of: "+", with: "%20")
-        return components.queryItems ?? []
+        return Self.decodeURLEncoded(String(query))
+    }
+
+    /// All values for an `application/x-www-form-urlencoded` body parameter (a key
+    /// can repeat). Empty if the body is missing or empty. A valueless param
+    /// (`flag&x=1`) is reported as one empty string, mirroring `queryParam(_:)`.
+    ///
+    /// The body is decoded as-is — this does not check `Content-Type`, so a
+    /// non-form body just yields no matches. The token endpoint of an OAuth/OIDC
+    /// provider posts form-encoded, so this is how you pull `code_verifier`,
+    /// `grant_type`, `redirect_uri`, etc. back out for correlation.
+    public func formParams(_ name: String) -> [String] {
+        formItems().filter { $0.name == name }.map { $0.value ?? "" }
+    }
+
+    /// The first value for an `application/x-www-form-urlencoded` body parameter,
+    /// or `nil` if absent.
+    public func formParam(_ name: String) -> String? { formParams(name).first }
+
+    /// The form items parsed from the logged body. Internal — `formParams(_:)`
+    /// builds on it.
+    func formItems() -> [URLQueryItem] {
+        guard let body = logged.body, !body.isEmpty else { return [] }
+        return Self.decodeURLEncoded(body)
+    }
+
+    /// Decodes an `application/x-www-form-urlencoded` string (a URL query string
+    /// or a form-encoded body) into query items.
+    ///
+    /// Treats '+' as a space — the form-urlencoded convention servers use when
+    /// decoding. A literal plus arrives as %2B and survives.
+    ///
+    /// Parses by hand rather than via `URLComponents.percentEncodedQuery`, whose
+    /// setter **traps the whole process** (`Fatal error: … invalid characters`)
+    /// on a stray `%` or `#` — shapes that arrive routinely (an unescaped `%` in
+    /// a value, a `#` in the URL, or any non-form body the accessors are
+    /// documented to tolerate). A malformed percent-escape is left verbatim here
+    /// instead of crashing.
+    static func decodeURLEncoded(_ raw: String) -> [URLQueryItem] {
+        raw.split(separator: "&", omittingEmptySubsequences: true).map { pair in
+            let halves = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            let name = formDecode(String(halves[0]))
+            // A valueless param (`flag`) has no '=' and reports a nil value, which
+            // the accessors surface as "" — matching WireMock/URLComponents.
+            let value = halves.count > 1 ? formDecode(String(halves[1])) : nil
+            return URLQueryItem(name: name, value: value)
+        }
+    }
+
+    /// Percent-decodes one form-urlencoded component, treating '+' as a space.
+    /// A malformed escape (e.g. `50%`) is returned unchanged rather than trapping.
+    private static func formDecode(_ component: String) -> String {
+        let spaced = component.replacingOccurrences(of: "+", with: " ")
+        return spaced.removingPercentEncoding ?? spaced
     }
 
     /// A view for pulling values out of this request (for correlation).
@@ -87,6 +137,12 @@ public struct RequestExtractor: Sendable {
 
     /// The first value of a query parameter, or `nil`.
     public func queryParam(_ name: String) -> String? { request.queryParam(name).first }
+
+    /// The first value of an `application/x-www-form-urlencoded` body parameter,
+    /// or `nil`. Use it to correlate the OAuth/OIDC token endpoint — e.g. pull
+    /// `code_verifier` back out to check it against the `code_challenge` sent to
+    /// `/authorize`.
+    public func formParam(_ name: String) -> String? { request.formParam(name) }
 
     /// The raw request body as text.
     public func body() -> String? { request.bodyString }

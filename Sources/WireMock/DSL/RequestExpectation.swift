@@ -46,45 +46,98 @@ public struct RequestExpectation: Sendable {
 
     // MARK: - Headers / query / cookies / form (server-delegated)
 
+    /// Requires a matching request whose `name` header satisfies `matcher`.
     @discardableResult
     public func toHaveHeader(_ name: String, _ matcher: StringValuePattern) throws -> RequestExpectation {
         try refine("header \(name)") { $0.withHeader(name, matcher) }
     }
 
+    /// Requires that **no** matching request carries the `name` header (any value).
     @discardableResult
     public func toNotHaveHeader(_ name: String) throws -> RequestExpectation {
-        try refine("no header \(name)") { $0.withoutHeader(name) }
+        try refineNegative("no header \(name)",
+                           present: { $0.withHeader(name, Self.present) },
+                           absent: { $0.withoutHeader(name) })
     }
 
+    /// Requires a matching request whose `name` query parameter satisfies `matcher`.
     @discardableResult
     public func toHaveQueryParam(_ name: String, _ matcher: StringValuePattern) throws -> RequestExpectation {
         try refine("query param \(name)") { $0.withQueryParam(name, matcher) }
     }
 
+    /// Requires that **no** matching request carries the `name` query parameter.
     @discardableResult
     public func toNotHaveQueryParam(_ name: String) throws -> RequestExpectation {
-        try refine("no query param \(name)") { $0.withoutQueryParam(name) }
+        try refineNegative("no query param \(name)",
+                           present: { $0.withQueryParam(name, Self.present) },
+                           absent: { $0.withoutQueryParam(name) })
     }
 
+    /// Requires a matching request whose `name` cookie satisfies `matcher`.
     @discardableResult
     public func toHaveCookie(_ name: String, _ matcher: StringValuePattern) throws -> RequestExpectation {
         try refine("cookie \(name)") { $0.withCookie(name, matcher) }
     }
 
+    /// Requires that **no** matching request carries the `name` cookie.
     @discardableResult
     public func toNotHaveCookie(_ name: String) throws -> RequestExpectation {
-        try refine("no cookie \(name)") { $0.withCookie(name, .absent) }
+        try refineNegative("no cookie \(name)",
+                           present: { $0.withCookie(name, Self.present) },
+                           absent: { $0.withCookie(name, .absent) })
     }
 
+    /// Requires a matching request whose `name` form-body parameter satisfies `matcher`.
     @discardableResult
     public func toHaveFormParam(_ name: String, _ matcher: StringValuePattern) throws -> RequestExpectation {
         try refine("form param \(name)") { $0.withFormParam(name, matcher) }
     }
 
+    /// Requires that **no** matching request carries the `name` form-body parameter.
     @discardableResult
     public func toNotHaveFormParam(_ name: String) throws -> RequestExpectation {
-        try refine("no form param \(name)") { $0.withoutFormParam(name) }
+        try refineNegative("no form param \(name)",
+                           present: { $0.withFormParam(name, Self.present) },
+                           absent: { $0.withoutFormParam(name) })
     }
+
+    // MARK: - Presence (name only, any value)
+
+    /// Requires the header to be present with **any** value (including empty).
+    /// For a non-empty value use the matcher overload with `.matching(".+")`.
+    @discardableResult
+    public func toHaveHeader(_ name: String) throws -> RequestExpectation {
+        try refine("header \(name)") { $0.withHeader(name, Self.present) }
+    }
+
+    /// Requires the query parameter to be present with **any** value (including
+    /// empty) — e.g. `state`/`nonce` on an OAuth `/authorize` request. For a
+    /// non-empty value use the matcher overload with `.matching(".+")`.
+    @discardableResult
+    public func toHaveQueryParam(_ name: String) throws -> RequestExpectation {
+        try refine("query param \(name)") { $0.withQueryParam(name, Self.present) }
+    }
+
+    /// Requires the cookie to be present with **any** value (including empty).
+    /// For a non-empty value use the matcher overload with `.matching(".+")`.
+    @discardableResult
+    public func toHaveCookie(_ name: String) throws -> RequestExpectation {
+        try refine("cookie \(name)") { $0.withCookie(name, Self.present) }
+    }
+
+    /// Requires the form parameter to be present with **any** value (including
+    /// empty) — e.g. `code_verifier` on an OAuth `/token` request. For a
+    /// non-empty value use the matcher overload with `.matching(".+")`.
+    @discardableResult
+    public func toHaveFormParam(_ name: String) throws -> RequestExpectation {
+        try refine("form param \(name)") { $0.withFormParam(name, Self.present) }
+    }
+
+    /// The matcher used by the presence-only overloads: any value is accepted,
+    /// but the key must exist (WireMock treats a missing key as a non-match when
+    /// a value matcher is specified). `.*` also accepts an empty value.
+    private static let present: StringValuePattern = .matching(".*")
 
     // MARK: - Auth
 
@@ -103,6 +156,7 @@ public struct RequestExpectation: Sendable {
         try refine("bearer token") { $0.withHeader("Authorization", .matching("Bearer \(pattern)")) }
     }
 
+    /// Requires an `Authorization: Basic …` header for these credentials.
     @discardableResult
     public func toHaveBasicAuth(username: String, password: String) throws -> RequestExpectation {
         try refine("basic auth") { $0.withBasicAuth(username: username, password: password) }
@@ -285,23 +339,41 @@ public struct RequestExpectation: Sendable {
     /// matching is "contains", so this is evaluated on the captured request(s).
     @discardableResult
     public func toHaveExactlyQueryParams(_ params: [String: String]) throws -> RequestExpectation {
+        try assertExactly(params, kind: "query params") { $0.queryItems() }
+    }
+
+    /// Requires the matching request(s) to carry EXACTLY these form-body params —
+    /// any extra param fails. The form counterpart of `toHaveExactlyQueryParams`;
+    /// the token endpoint's `application/x-www-form-urlencoded` body is the prime
+    /// place to prove no extra field (e.g. a `client_secret`) leaked into the body.
+    @discardableResult
+    public func toHaveExactlyFormParams(_ params: [String: String]) throws -> RequestExpectation {
+        try assertExactly(params, kind: "form params") { $0.formItems() }
+    }
+
+    /// Shared exact-set check for query/form params: every matching request must
+    /// carry precisely `params` (same keys, each with exactly the one given
+    /// value) as decoded by `items`.
+    private func assertExactly(
+        _ params: [String: String],
+        kind: String,
+        items: (CapturedRequest) -> [URLQueryItem]
+    ) throws -> RequestExpectation {
         let requests = try fetchSorted()
         guard !requests.isEmpty else {
-            throw makeError(builder, actual: 0, check: "exact query params", spec: countSpec)
+            throw makeError(builder, actual: 0, check: "exact \(kind)", spec: countSpec)
         }
         for req in requests {
             var actual: [String: [String]] = [:]
-            for item in req.queryItems() { actual[item.name, default: []].append(item.value ?? "") }
-            let expectedKeys = Set(params.keys)
-            let actualKeys = Set(actual.keys)
-            if expectedKeys != actualKeys {
+            for item in items(req) { actual[item.name, default: []].append(item.value ?? "") }
+            if Set(params.keys) != Set(actual.keys) {
                 throw RequestExpectationError(
-                    message: "Expected exactly query params \(params.keys.sorted()) on \(req.method?.description ?? "?") \(req.url ?? "?"), but had \(actual.keys.sorted())"
+                    message: "Expected exactly \(kind) \(params.keys.sorted()) on \(req.method?.description ?? "?") \(req.url ?? "?"), but had \(actual.keys.sorted())"
                 )
             }
             for (key, value) in params where actual[key] != [value] {
                 throw RequestExpectationError(
-                    message: "Expected query param '\(key)'=\(value) but was \(actual[key] ?? []) on \(req.url ?? "?")"
+                    message: "Expected \(kind.dropLast()) '\(key)'=\(value) but was \(actual[key] ?? []) on \(req.url ?? "?")"
                 )
             }
         }
@@ -346,14 +418,55 @@ public struct RequestExpectation: Sendable {
 
     /// Applies a matcher to the pattern, re-counts server-side, and validates the
     /// count still satisfies `countSpec`; on failure names the just-added check.
+    ///
+    /// A positive field check also requires the narrowed count to be **at least
+    /// one** — otherwise an upper-bound-only spec (`.atMost`/`.lessThan`, which is
+    /// satisfied by 0) would make the assertion vacuous: `toHaveBeenSent(.atMost(5))
+    /// .toHaveHeader("Authorization")` would pass even if no request carried the
+    /// header. When only that floor fails (the declared spec is otherwise
+    /// satisfied), the error is reported against the `.atLeast(1)` floor.
     private func refine(_ check: String, _ transform: (RequestPatternBuilder) -> RequestPatternBuilder) throws -> RequestExpectation {
         let refined = transform(builder)
         let actual = try wireMock.count(refined)
-        guard countSpec.isSatisfied(by: actual) else {
-            throw makeError(refined, actual: actual, check: check, spec: countSpec)
+        guard actual >= 1, countSpec.isSatisfied(by: actual) else {
+            let effectiveSpec = countSpec.isSatisfied(by: actual) ? CountSpec.atLeast(1) : countSpec
+            throw makeError(refined, actual: actual, check: check, spec: effectiveSpec)
         }
         var copy = self
         copy.builder = refined
+        return copy
+    }
+
+    /// The negative counterpart of ``refine(_:_:)``: asserts that **no** request
+    /// matching the current pattern carries the field, by counting the requests
+    /// that *do* (the pattern narrowed by the positive matcher) and requiring
+    /// zero.
+    ///
+    /// This is deliberately stronger than "narrow by the absent matcher and check
+    /// the count still satisfies `countSpec`": that weaker reading passes as long
+    /// as *some* request lacked the field, silently tolerating a second request
+    /// that leaked it — a real footgun for a security negative like
+    /// `toNotHaveQueryParam("client_secret")`. The builder is still narrowed by
+    /// the absent matcher for any subsequent chained checks.
+    private func refineNegative(
+        _ check: String,
+        present presentTransform: (RequestPatternBuilder) -> RequestPatternBuilder,
+        absent absentTransform: (RequestPatternBuilder) -> RequestPatternBuilder
+    ) throws -> RequestExpectation {
+        let offending = presentTransform(builder)
+        let count = try wireMock.count(offending)
+        guard count == 0 else {
+            var message = "Expected \(check) on any request matching \(Self.summary(builder)), but \(count) carried it"
+            if let matched = try? wireMock.findAll(offending), !matched.isEmpty {
+                message += ":"
+                for (index, request) in matched.enumerated() {
+                    message += "\n  #\(index + 1)  \(Self.compactLine(request))"
+                }
+            }
+            throw RequestExpectationError(message: message)
+        }
+        var copy = self
+        copy.builder = absentTransform(builder)
         return copy
     }
 

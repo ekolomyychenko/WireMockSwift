@@ -50,6 +50,33 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
         }
     }
 
+    /// A positive field check after an upper-bound-only count spec must NOT
+    /// vacuously pass when the field is absent (the narrowed count is 0, which
+    /// `.atMost`/`.lessThan` would otherwise accept).
+    func testPositiveCheckAfterUpperBoundSpecIsNotVacuous() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/token")).willReturn(ok()))
+        try WireMockFixture.hit("token", method: "POST")   // no Authorization header
+        try WireMockFixture.hit("token", method: "POST")
+        for spec in [CountSpec.atMost(5), .lessThan(5)] {
+            XCTAssertThrowsError(
+                try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+                    .toHaveBeenSent(spec)
+                    .toHaveHeader("Authorization")   // absent -> must fail, not pass
+            ) { error in
+                let message = String(describing: error)
+                XCTAssertTrue(message.contains("header Authorization"), message)
+                XCTAssertTrue(message.contains("found 0"), message)
+            }
+        }
+        // Sanity: when the header IS present it still passes under .atMost.
+        try wireMock.resetAll()
+        try wireMock.stubFor(post(urlPathEqualTo("/token")).willReturn(ok()))
+        try WireMockFixture.hit("token", method: "POST", headers: ["Authorization": "Bearer x"])
+        try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+            .toHaveBeenSent(.atMost(5))
+            .toHaveHeader("Authorization")
+    }
+
     func testAtMostExceededDumps() throws {
         try wireMock.stubFor(get(urlPathEqualTo("/poll")).willReturn(ok()))
         for _ in 0..<3 { try WireMockFixture.hit("poll") }

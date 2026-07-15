@@ -296,6 +296,56 @@ _ = req.header("X-Request-Id"); _ = req.queryParam("page"); _ = req.bodyJSON
 This layer goes beyond Java parity (Java WireMock has no capture/extract); complex body matching still
 runs on the server.
 
+### OAuth 2.0 / OIDC recipes
+
+When your app is a client of an identity provider (Google ID / Yandex ID-style), a few extra helpers
+cover the standard checks on the requests it sends:
+
+```swift
+// /authorize — presence-only checks (state/nonce/PKCE), plus security negatives
+try wireMock.expect(getRequestedFor(urlPathEqualTo("/authorize")))
+    .toHaveBeenSentOnce()
+    .toHaveQueryParam("state", matching(".+"))               // present AND non-empty
+    .toHaveQueryParam("nonce", matching(".+"))
+    .toHaveQueryParam("code_challenge", matching(".+"))
+    .toHaveQueryParam("scope", containing("openid"))
+    .toHaveQueryParam("code_challenge_method", equalTo("S256"))   // no PKCE downgrade to "plain"
+    .toNotHaveQueryParam("client_secret")                    // a secret must never ride in the URL
+
+// /token — form-body extraction lets you correlate across requests
+let authorize = try wireMock.expect(getRequestedFor(urlPathEqualTo("/authorize"))).single()
+let token     = try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+    .toHaveFormParam("code_verifier", matching(".+"))        // present AND non-empty
+    .toHaveFormParam("grant_type", equalTo("authorization_code"))
+    .single()
+// Exactly this field set and nothing extra (e.g. no secret leaked into the body):
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+    .toHaveExactlyFormParams(["grant_type": "authorization_code", "code": "AUTHCODE",
+                              "redirect_uri": "https://app/cb", "code_verifier": "VERIFIER123"])
+XCTAssertEqual(authorize.extract().queryParam("redirect_uri"),
+               token.extract().formParam("redirect_uri"))    // redirect_uri parity
+
+// client_assertion / id_token_hint / DPoP / bearer are JWTs — decode and assert claims
+let jwt = try token.extract().jwt(formParam: "client_assertion")
+XCTAssertEqual(jwt.claim("iss")?.stringValue, "my-client-id")   // signature is NOT verified
+
+// Whole-flow ordering: authorize → token → userinfo
+try wireMock.verifyInOrder([
+    getRequestedFor(urlPathEqualTo("/authorize")),
+    postRequestedFor(urlPathEqualTo("/token")),
+    getRequestedFor(urlPathEqualTo("/userinfo")),
+])
+```
+
+The presence overload `toHaveQueryParam("state")` (no matcher) only requires the key to exist — an empty
+value (`?state=`) passes too. For the security-sensitive `state`/`nonce`/`code_challenge`, use
+`matching(".+")` to require a non-empty value. `verifyInOrder` matches each step server-side and compares
+the journal's `loggedDate` (millisecond resolution) to judge order — real flows are separated by
+round-trips, so ties don't arise. `JWT(decoding:)` decodes header/payload only; it does **not** verify the
+signature (that needs the issuer's keys). To
+correlate PKCE end-to-end (`code_challenge == BASE64URL(SHA256(code_verifier))`), extract both values and
+compute the S256 hash yourself (e.g. with CryptoKit).
+
 ## Scenarios (state management)
 
 ```swift

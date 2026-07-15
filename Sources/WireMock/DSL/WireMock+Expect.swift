@@ -10,7 +10,7 @@ import Foundation
 // try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
 //     .toHaveBeenSent(.once)
 //     .toHaveBearerToken("eyJ...")
-//     .toHaveJsonBody("$.items[0].sku", equalTo("ABC"))
+//     .toHaveJsonPath("$.items[0].sku", equalTo("ABC"))
 //
 // let id = try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
 //     .toHaveBeenSent(.once)

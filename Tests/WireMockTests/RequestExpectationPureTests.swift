@@ -7,9 +7,13 @@ import XCTest
 /// exercise indirectly.
 final class RequestExpectationPureTests: XCTestCase {
 
-    /// Builds a `CapturedRequest` from a raw journal-shaped JSON object.
+    /// Builds a `CapturedRequest` from a raw journal-shaped JSON object. The JSON
+    /// is a compile-time literal, so a decode failure is a test bug — trap loudly
+    /// rather than thread `throws` through every caller (and satisfy `force_try`).
     private func captured(_ json: String) -> CapturedRequest {
-        let logged = try! JSONDecoder().decode(LoggedRequest.self, from: Data(json.utf8))
+        guard let logged = try? JSONDecoder().decode(LoggedRequest.self, from: Data(json.utf8)) else {
+            fatalError("invalid fixture JSON: \(json)")
+        }
         return CapturedRequest(logged: logged)
     }
 
@@ -18,7 +22,7 @@ final class RequestExpectationPureTests: XCTestCase {
     private let sample: JSONValue = [
         "id": "ord_42",
         "items": [["sku": "ABC"], ["sku": "DEF"]],
-        "nested": ["a": ["b": 7]],
+        "nested": ["a": ["b": 7]]
     ]
 
     func testJSONPathHappyShapes() throws {
@@ -214,18 +218,18 @@ final class RequestExpectationPureTests: XCTestCase {
 
     // MARK: - Error rendering (compactLine / summary)
 
-    func testCompactLineRendering() {
+    func testCompactLineRendering() throws {
         let longBody = String(repeating: "x", count: 100)
         let line = RequestExpectation.compactLine(
-            try! JSONDecoder().decode(LoggedRequest.self,
-                from: Data(#"{"method": "POST", "url": "/o", "headers": {"Content-Type": "application/json"}, "body": "\#(longBody)"}"#.utf8))
+            try WireMockFixture.decode(LoggedRequest.self,
+                #"{"method": "POST", "url": "/o", "headers": {"Content-Type": "application/json"}, "body": "\#(longBody)"}"#)
         )
         XCTAssertTrue(line.contains("POST /o"), line)
         XCTAssertTrue(line.contains("Content-Type=application/json"), line)
         XCTAssertTrue(line.contains("…"), line)                        // truncated
         XCTAssertFalse(line.contains(longBody), line)                  // not the full 100 chars
 
-        let empty = RequestExpectation.compactLine(try! JSONDecoder().decode(LoggedRequest.self, from: Data("{}".utf8)))
+        let empty = RequestExpectation.compactLine(try WireMockFixture.decode(LoggedRequest.self, "{}"))
         XCTAssertEqual(empty, "? ?")                                   // nil method/url, no body= segment
     }
 

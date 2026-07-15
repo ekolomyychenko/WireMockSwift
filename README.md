@@ -296,6 +296,56 @@ _ = req.header("X-Request-Id"); _ = req.queryParam("page"); _ = req.bodyJSON
 Слой выходит за рамки Java-паритета (в Java WireMock нет capture/extract); сложный матчинг тела
 по-прежнему выполняет сервер.
 
+### Рецепты OAuth 2.0 / OIDC
+
+Когда приложение — клиент identity-провайдера (уровня Google ID / Yandex ID), несколько дополнительных
+хелперов закрывают стандартные проверки исходящих запросов:
+
+```swift
+// /authorize — проверки наличия (state/nonce/PKCE) и security-негативы
+try wireMock.expect(getRequestedFor(urlPathEqualTo("/authorize")))
+    .toHaveBeenSentOnce()
+    .toHaveQueryParam("state", matching(".+"))               // присутствует И непустой
+    .toHaveQueryParam("nonce", matching(".+"))
+    .toHaveQueryParam("code_challenge", matching(".+"))
+    .toHaveQueryParam("scope", containing("openid"))
+    .toHaveQueryParam("code_challenge_method", equalTo("S256"))   // нет PKCE-downgrade на "plain"
+    .toNotHaveQueryParam("client_secret")                    // секрет не должен попадать в URL
+
+// /token — извлечение form-параметров для корреляции между запросами
+let authorize = try wireMock.expect(getRequestedFor(urlPathEqualTo("/authorize"))).single()
+let token     = try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+    .toHaveFormParam("code_verifier", matching(".+"))        // присутствует И непустой
+    .toHaveFormParam("grant_type", equalTo("authorization_code"))
+    .single()
+// Ровно этот набор полей и ничего лишнего (напр. секрет не утёк в тело):
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+    .toHaveExactlyFormParams(["grant_type": "authorization_code", "code": "AUTHCODE",
+                              "redirect_uri": "https://app/cb", "code_verifier": "VERIFIER123"])
+XCTAssertEqual(authorize.extract().queryParam("redirect_uri"),
+               token.extract().formParam("redirect_uri"))    // совпадение redirect_uri
+
+// client_assertion / id_token_hint / DPoP / bearer — это JWT: декодируем и проверяем claims
+let jwt = try token.extract().jwt(formParam: "client_assertion")
+XCTAssertEqual(jwt.claim("iss")?.stringValue, "my-client-id")   // подпись НЕ проверяется
+
+// Порядок всего потока: authorize → token → userinfo
+try wireMock.verifyInOrder([
+    getRequestedFor(urlPathEqualTo("/authorize")),
+    postRequestedFor(urlPathEqualTo("/token")),
+    getRequestedFor(urlPathEqualTo("/userinfo")),
+])
+```
+
+Presence-overload `toHaveQueryParam("state")` (без матчера) требует лишь наличия ключа — пустое значение
+(`?state=`) тоже проходит. Для security-чувствительных `state`/`nonce`/`code_challenge` используйте
+`matching(".+")`, чтобы потребовать непустое значение. `verifyInOrder` матчит каждый шаг на сервере и
+сравнивает `loggedDate` из журнала (разрешение — миллисекунды), чтобы судить о порядке; реальные потоки
+разделены round-trip'ами, так что коллизий не возникает. `JWT(decoding:)` декодирует только header/payload
+и **не** проверяет подпись (для этого нужны
+ключи издателя). Чтобы сверить PKCE end-to-end (`code_challenge == BASE64URL(SHA256(code_verifier))`),
+извлеки оба значения и посчитай S256-хеш сам (например, через CryptoKit).
+
 ## Сценарии (управление состоянием)
 
 ```swift

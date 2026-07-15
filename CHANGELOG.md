@@ -5,7 +5,7 @@ All notable changes to WireMockSwift are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-07-16
 
 ### Added
 
@@ -24,6 +24,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ("too many"). The JSON-from-file overload takes an optional `subdirectory:` (for `.copy`'d resource
   folders) and reports read failures as `RequestExpectationError`, consistent with the bundle overload.
   Purely additive — `verify(...)` and `VerificationError` are unchanged.
+- **Identity-provider assertion helpers** — additive helpers aimed at OAuth 2.0 / OIDC flows.
+  Presence-only overloads `toHaveHeader/toHaveQueryParam/toHaveCookie/toHaveFormParam(_ name)`
+  ("key present, any value" — e.g. `state`/`nonce`/`code_verifier`). Form-body extraction:
+  `CapturedRequest.formParams(_:)`/`formParam(_:)` and `RequestExtractor.formParam(_:)`, which parse
+  the `application/x-www-form-urlencoded` body so you can correlate the token endpoint (PKCE
+  `code_verifier`, `redirect_uri` parity). `WireMock.verifyInOrder([RequestPatternBuilder])` — a
+  cross-pattern ordering check (e.g. `authorize → token → userinfo`) judged on the journal's
+  `loggedDate`, throwing `SequenceVerificationError`; matching stays server-side, only the timeline is
+  compared (millisecond resolution). `JWT(decoding:)` — a **signature-unverified** JWT decoder
+  exposing `header`/`payload`/`claim(_:)`, with `RequestExtractor` conveniences `bearerJWT()`,
+  `jwt(header:)`, `jwt(formParam:)`, `jwt(queryParam:)` for `client_assertion`, `id_token_hint`, DPoP,
+  and JWT bearer tokens. Signature verification is intentionally out of scope (test assertions on
+  outgoing requests inspect claims, not signatures). `toHaveExactlyFormParams` mirrors
+  `toHaveExactlyQueryParams` for the form body (the prime place to prove no extra field — e.g. a
+  `client_secret` — leaked into the token request). Purely additive.
+  - `toNot*` checks now assert **no** matching request carries the field (the count of requests that
+    *do* must be zero), instead of the weaker "at least one request lacked it" — the latter silently
+    passed when a clean duplicate request coexisted with a leaking one (a security-negative footgun).
+  - Form/query-param decoding parses by hand instead of via `URLComponents.percentEncodedQuery`, whose
+    setter *trapped the whole process* on a stray `%` or `#`; a malformed escape is now left verbatim.
+  - `verifyInOrder` decides ordering by exhaustive search over the per-step candidates, so overlapping
+    step patterns with same-millisecond timestamps no longer produce a false failure.
+  - A positive field check (`toHaveHeader`/`toHaveQueryParam`/…) chained after an upper-bound-only count
+    spec (`.atMost`/`.lessThan`, satisfied by 0) now requires the narrowed count to be at least one, so
+    the check can no longer vacuously pass when the field is entirely absent.
 
 ## [0.1.0] - 2026-07-15
 
@@ -58,4 +83,5 @@ Verified against WireMock **3.13.2**.
 - **Platforms** — macOS 12+ and iOS 15+ (iOS 15 is a compile floor; tested from iOS 16 up,
   including an iPad idiom, in CI).
 
+[0.2.0]: https://github.com/ekolomyychenko/WireMockSwift/releases/tag/0.2.0
 [0.1.0]: https://github.com/ekolomyychenko/WireMockSwift/releases/tag/0.1.0
