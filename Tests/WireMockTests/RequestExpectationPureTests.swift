@@ -70,6 +70,24 @@ final class RequestExpectationPureTests: XCTestCase {
         XCTAssertThrowsError(try JSONPathLite.evaluate("$.nested.a.b[0]", on: sample))   // index into number
     }
 
+    /// Pin the DISTINCT error-message kinds, not just "some error" — a mutant that
+    /// swaps "key not found" for "index out of range" (or drops the offending key)
+    /// would otherwise survive.
+    func testJSONPathErrorMessagesAreSpecific() {
+        func message(_ path: String) -> String {
+            do {
+                _ = try JSONPathLite.evaluate(path, on: sample)
+                return "<no error>"
+            } catch {
+                return String(describing: error)
+            }
+        }
+        XCTAssertTrue(message("$.missing").contains("key 'missing' not found"), message("$.missing"))
+        XCTAssertTrue(message("$.items[9]").contains("index 9 out of range"), message("$.items[9]"))
+        XCTAssertTrue(message("$.items[").contains("unterminated '['"), message("$.items["))
+        XCTAssertTrue(message("$.").contains("empty segment"), message("$."))
+    }
+
     // MARK: - CapturedRequest: headers
 
     func testHeaderCaseInsensitiveAndMultiValue() {
@@ -105,6 +123,12 @@ final class RequestExpectationPureTests: XCTestCase {
         XCTAssertEqual(captured(#"{"url": "/s?tag=a&tag=b"}"#).queryParam("tag"), ["a", "b"]) // repeated key
         XCTAssertEqual(captured(#"{"url": "/s"}"#).queryParam("x"), [])                  // no query string
         XCTAssertTrue(captured(#"{"url": "/s"}"#).queryItems().isEmpty)
+        // A literal '=' in the value survives (maxSplits: 1 on the '=' split).
+        XCTAssertEqual(captured(#"{"url": "/s?token=a=b"}"#).queryParam("token"), ["a=b"])
+        // Empty pairs from leading/doubled '&' are omitted, not decoded as blank items.
+        XCTAssertEqual(captured(#"{"url": "/s?&a=1"}"#).queryParam("a"), ["1"])
+        XCTAssertEqual(captured(#"{"url": "/s?a=1&&b=2"}"#).queryParam("b"), ["2"])
+        XCTAssertEqual(captured(#"{"url": "/s?a=1&&b=2"}"#).queryItems().count, 2)       // not 3 (no empty item)
     }
 
     // MARK: - bodyJSON / RequestExtractor

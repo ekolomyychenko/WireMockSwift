@@ -361,7 +361,12 @@ public struct RequestExpectation: Sendable {
     ) throws -> RequestExpectation {
         let requests = try fetchSorted()
         guard !requests.isEmpty else {
-            throw makeError(builder, actual: 0, check: "exact \(kind)", spec: countSpec)
+            // Report against the `.atLeast(1)` floor, not the declared `countSpec`:
+            // an upper-bound-only spec (`.atMost`/`.lessThan`) is *satisfied* by 0, so
+            // "Expected at most 3 … found 0" would misattribute the failure. The real
+            // reason is there is no request to check the exact param set on. Mirrors
+            // `refine`'s effectiveSpec handling.
+            throw makeError(builder, actual: 0, check: "exact \(kind)", spec: .atLeast(1))
         }
         for req in requests {
             var actual: [String: [String]] = [:]

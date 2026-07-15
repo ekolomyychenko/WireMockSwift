@@ -99,6 +99,27 @@ final class OAuthAssertionPureTests: XCTestCase {
         }
     }
 
+    /// A payload that is valid JSON but NOT an object (a bare array here) decodes
+    /// fine, but `claim(_:)` returns nil for every name — the non-object branch of
+    /// `payload.objectValue?[name]`.
+    func testJWTClaimNilForNonObjectPayload() throws {
+        let token = [b64url(#"{"alg":"none"}"#), b64url("[1,2,3]")].joined(separator: ".")
+        let jwt = try JWT(decoding: token)
+        XCTAssertEqual(jwt.payload, .array([.int(1), .int(2), .int(3)]))
+        XCTAssertNil(jwt.claim("anything"))
+    }
+
+    /// The `jwt(header:)` and `jwt(queryParam:)` extractors throw a source-specific
+    /// message when the header / query param is absent (only the bearer + form-param
+    /// missing paths were covered before).
+    func testExtractorJWTMissingHeaderAndQuery() {
+        let empty = captured("{}").extract()
+        XCTAssertThrowsError(try empty.jwt(header: "DPoP")) { assertJWTError($0, contains: "No 'DPoP' header") }
+        XCTAssertThrowsError(try empty.jwt(queryParam: "id_token_hint")) {
+            assertJWTError($0, contains: "No 'id_token_hint' query parameter")
+        }
+    }
+
     private func assertJWTError(_ error: Error, contains needle: String) {
         XCTAssertTrue(error is RequestExpectationError, "expected RequestExpectationError, got \(error)")
         XCTAssertTrue(String(describing: error).contains(needle), String(describing: error))

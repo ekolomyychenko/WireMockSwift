@@ -380,9 +380,12 @@ final class RequestExpectationUnitTests: XCTestCase {
     func testCountSpecIsSatisfied() {
         XCTAssertTrue(CountSpec.once.isSatisfied(by: 1))
         XCTAssertFalse(CountSpec.once.isSatisfied(by: 2))
+        XCTAssertFalse(CountSpec.once.isSatisfied(by: 0))     // once must reject zero (not `<= 1`)
         XCTAssertTrue(CountSpec.never.isSatisfied(by: 0))
         XCTAssertFalse(CountSpec.never.isSatisfied(by: 1))
         XCTAssertTrue(CountSpec.times(3).isSatisfied(by: 3))
+        XCTAssertFalse(CountSpec.times(3).isSatisfied(by: 4))  // exactly-N must reject over-count (not `>= n`)
+        XCTAssertFalse(CountSpec.times(3).isSatisfied(by: 2))
         XCTAssertTrue(CountSpec.atLeast(2).isSatisfied(by: 2))
         XCTAssertTrue(CountSpec.atLeast(2).isSatisfied(by: 9))
         XCTAssertFalse(CountSpec.atLeast(2).isSatisfied(by: 1))
@@ -395,6 +398,7 @@ final class RequestExpectationUnitTests: XCTestCase {
         XCTAssertTrue(CountSpec.between(2...5).isSatisfied(by: 2))
         XCTAssertTrue(CountSpec.between(2...5).isSatisfied(by: 5))
         XCTAssertFalse(CountSpec.between(2...5).isSatisfied(by: 6))
+        XCTAssertFalse(CountSpec.between(2...5).isSatisfied(by: 1))  // below lower bound (not just `<= upper`)
     }
 
     func testCountSpecShortfall() {

@@ -66,6 +66,10 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
                 let message = String(describing: error)
                 XCTAssertTrue(message.contains("header Authorization"), message)
                 XCTAssertTrue(message.contains("found 0"), message)
+                // The failure must be re-reported against the .atLeast(1) floor, not the
+                // satisfied upper-bound spec — pins the `effectiveSpec` rewrite.
+                XCTAssertTrue(message.contains("at least 1"), message)
+                XCTAssertFalse(message.contains(spec.description), message)
             }
         }
         // Sanity: when the header IS present it still passes under .atMost.
@@ -164,6 +168,19 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
         ) { XCTAssertTrue(String(describing: $0).contains("no cookie session"), String(describing: $0)) }
     }
 
+    /// `toNotHaveFormParam` is only ever asserted in the passing direction elsewhere —
+    /// this is its failing positive control: a request that DOES carry the form param
+    /// must make it throw (the form counterpart of the header/query/cookie negatives).
+    func testNegativeFormParamFailsWhenPresent() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/leak")).willReturn(ok()))
+        try WireMockFixture.hit("leak", method: "POST",
+                                headers: ["Content-Type": "application/x-www-form-urlencoded"],
+                                body: Data("grant_type=password&client_secret=oops".utf8))
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/leak"))).toNotHaveFormParam("client_secret")
+        ) { XCTAssertTrue(String(describing: $0).contains("no form param client_secret"), String(describing: $0)) }
+    }
+
     // MARK: - Cookie (positive)
 
     func testToHaveCookieHappyAndFail() throws {
@@ -233,6 +250,44 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
         try wireMock.stubFor(get(urlPathEqualTo("/q3")).willReturn(ok()))
         try WireMockFixture.hit("q3?flag&x=1")
         try wireMock.expect(getRequestedFor(urlPathEqualTo("/q3"))).toHaveExactlyQueryParams(["flag": "", "x": "1"])
+    }
+
+    /// `toHaveExactly*` must check EVERY matching request, not just the first — the
+    /// same clean-duplicate footgun `refineNegative` guards against. Two requests
+    /// match; only the SECOND leaks an extra param, so the exact-set check must fail.
+    func testExactlyParamsCheckEveryRequestNotJustFirst() throws {
+        try wireMock.stubFor(get(urlPathEqualTo("/qq")).willReturn(ok()))
+        try WireMockFixture.hit("qq?page=1")                 // clean, first
+        try WireMockFixture.hit("qq?page=1&debug=true")      // extra param, second
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/qq"))).toHaveExactlyQueryParams(["page": "1"])
+        ) { XCTAssertTrue(String(describing: $0).contains("Expected exactly query params"), String(describing: $0)) }
+
+        try wireMock.stubFor(post(urlPathEqualTo("/ff")).willReturn(ok()))
+        try WireMockFixture.hit("ff", method: "POST",
+                                headers: ["Content-Type": "application/x-www-form-urlencoded"],
+                                body: Data("grant_type=client_credentials".utf8))                 // clean, first
+        try WireMockFixture.hit("ff", method: "POST",
+                                headers: ["Content-Type": "application/x-www-form-urlencoded"],
+                                body: Data("grant_type=client_credentials&client_secret=leak".utf8)) // leaks, second
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/ff"))).toHaveExactlyFormParams(["grant_type": "client_credentials"])
+        ) { XCTAssertTrue(String(describing: $0).contains("Expected exactly form params"), String(describing: $0)) }
+    }
+
+    /// The empty-set branch of `toHaveExactly*` must report against the `.atLeast(1)`
+    /// floor, not the declared upper-bound spec (which 0 *satisfies*). Otherwise the
+    /// message reads "at most 3 … found 0", misattributing the failure.
+    func testExactlyParamsEmptyReportsAtLeastOneNotUpperBound() throws {
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/exact-none")))
+                .toHaveBeenSent(.atMost(3))                 // satisfied by 0, does not throw
+                .toHaveExactlyQueryParams(["page": "1"])    // 0 requests -> must report the floor
+        ) { error in
+            let message = String(describing: error)
+            XCTAssertTrue(message.contains("at least 1"), message)
+            XCTAssertFalse(message.contains("at most 3"), message)
+        }
     }
 
     // MARK: - Body branches
