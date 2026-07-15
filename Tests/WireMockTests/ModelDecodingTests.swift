@@ -4,10 +4,9 @@ import XCTest
 import FoundationNetworking
 #endif
 
-/// Decoding tests for the model types, driven from the exact JSON shapes the
-/// WireMock server emits (captured from the live 3.13.2 server). Split into pure
-/// decoding (no server) and a few live-server round-trips that assert the same
-/// fields survive real traffic.
+/// Pure (hermetic, no-server) decoding tests for the model types, driven from the
+/// exact JSON shapes the WireMock server emits (captured from the live 3.13.2
+/// server). The matching live-server round-trips live in `ModelDecodingLiveTests`.
 final class ModelDecodingTests: XCTestCase {
 
     // MARK: - LoggedRequest
@@ -127,64 +126,6 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(scenario.name, "flow")
         XCTAssertEqual(scenario.state, "Started")
         XCTAssertEqual(scenario.possibleStates, ["Started", "next"])
-    }
-
-    // MARK: - Live decode round-trips
-
-    func testLiveLoggedRequestFormParamsAndProtocol() throws {
-        let wireMock = try WireMockFixture.clientOrSkip()
-        try wireMock.stubFor(post(urlPathEqualTo("/form")).willReturn(ok()))
-        try WireMockFixture.hit(
-            "form", method: "POST",
-            headers: ["Content-Type": "application/x-www-form-urlencoded"],
-            body: Data("name=bob&age=3".utf8)
-        )
-        let logged = try wireMock.findAll(postRequestedFor(urlPathEqualTo("/form")))
-        let req = try XCTUnwrap(logged.first)
-        XCTAssertEqual(req.method, "POST")
-        // protocol/browserProxyRequest are populated by the server.
-        XCTAssertEqual(req.protocolVersion, "HTTP/1.1")
-        XCTAssertEqual(req.browserProxyRequest, false)
-        // formParams should include the posted fields.
-        let formName = req.formParams?.objectValue?["name"]?.objectValue?["values"]?.arrayValue?.first
-        XCTAssertEqual(formName, "bob")
-    }
-
-    func testLiveServeEventWasMatchedTrueAndFalse() throws {
-        let wireMock = try WireMockFixture.clientOrSkip()
-        try wireMock.stubFor(get(urlEqualTo("/hit")).willReturn(ok()))
-        _ = try WireMockFixture.hit("hit")      // matched
-        _ = try WireMockFixture.hit("nope")     // unmatched
-
-        let events = try wireMock.getAllServeEvents()
-        let hit = try XCTUnwrap(events.first { $0.request.url == "/hit" })
-        let miss = try XCTUnwrap(events.first { $0.request.url == "/nope" })
-        XCTAssertEqual(hit.wasMatched, true)
-        XCTAssertEqual(miss.wasMatched, false)
-    }
-
-    func testLiveNearMissDistanceIsPositive() throws {
-        let wireMock = try WireMockFixture.clientOrSkip()
-        try wireMock.stubFor(get(urlEqualTo("/expected")).willReturn(ok()))
-        _ = try WireMockFixture.hit("expectd")  // near miss
-
-        let misses = try wireMock.findNearMissesForAllUnmatched()
-        let miss = try XCTUnwrap(misses.first)
-        let distance = try XCTUnwrap(miss.matchResult?.distance)
-        XCTAssertGreaterThan(distance, 0)
-    }
-
-    func testLiveServeEventCarriesSubEventsForUnmatched() throws {
-        // End-to-end proof (not just hardcoded-JSON decode): the real 3.13.2
-        // server attaches a REQUEST_NOT_MATCHED subEvent to an unmatched serve
-        // event, and getAllServeEvents() decodes it.
-        let wireMock = try WireMockFixture.clientOrSkip()
-        _ = try WireMockFixture.hit("totally-unmatched-xyz")
-        let events = try wireMock.getAllServeEvents()
-        let unmatched = try XCTUnwrap(events.first { $0.request.url == "/totally-unmatched-xyz" })
-        let sub = try XCTUnwrap(unmatched.subEvents?.first, "server should attach a subEvent to an unmatched event")
-        XCTAssertEqual(sub.type, "REQUEST_NOT_MATCHED")
-        XCTAssertNotNil(sub.data, "the subEvent should carry a diff/report payload")
     }
 
     // MARK: - Acceptance coverage: journal response/timing, multi-value cookie, diffs

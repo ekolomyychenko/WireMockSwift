@@ -8,19 +8,7 @@ import FoundationNetworking
 /// untested: mapping CRUD, serve-event lookup/removal, near-miss queries,
 /// explicit scenario state, bulk import, exhaustive count strategies (including
 /// failures), and global-settings round-trips.
-final class FacadeIntegrationTests: XCTestCase {
-    private var wireMock: WireMock!
-
-    override func setUpWithError() throws {
-        wireMock = try WireMockFixture.clientOrSkip()
-    }
-
-    override func tearDownWithError() throws {
-        if wireMock != nil {
-            try? wireMock.setGlobalFixedDelay(0)
-            try? wireMock.resetAll()
-        }
-    }
+final class FacadeIntegrationTests: WireMockIntegrationCase {
 
     // MARK: Mapping CRUD
 
@@ -111,7 +99,9 @@ final class FacadeIntegrationTests: XCTestCase {
         try wireMock.stubFor(get(urlEqualTo("/viaproxy")).willReturn(aResponse().proxiedFrom(deadTarget)))
         _ = try WireMockFixture.hit("viaproxy")
 
-        let ids = try wireMock.takeSnapshotIds()
+        // persist: false — otherwise the generated stubs are persistent and
+        // survive resetAll(), leaking into other suites on the shared server.
+        let ids = try wireMock.takeSnapshotIds(RecordSpec(persist: false))
         XCTAssertFalse(ids.isEmpty, "outputFormat=ids should return the generated stub ids")
         XCTAssertTrue(ids.allSatisfy { UUID(uuidString: $0) != nil }, "each id should be a UUID")
     }

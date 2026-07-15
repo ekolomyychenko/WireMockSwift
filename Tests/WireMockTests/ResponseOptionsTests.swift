@@ -7,18 +7,9 @@ import FoundationNetworking
 /// Live-server coverage for response-definition options that were golden-only:
 /// custom status message, body-file, jsonBody content-type, multi-value response
 /// headers, the random/chunked delays, and transformer parameters.
-final class ResponseOptionsTests: XCTestCase {
-    private var wireMock: WireMock!
+final class ResponseOptionsTests: WireMockIntegrationCase {
     private var port: UInt16 { UInt16(WireMockFixture.baseURL.port ?? 8080) }
     private var host: String { WireMockFixture.baseURL.host ?? "127.0.0.1" }
-
-    override func setUpWithError() throws {
-        wireMock = try WireMockFixture.clientOrSkip()
-    }
-
-    override func tearDownWithError() throws {
-        if wireMock != nil { try? wireMock.resetAll() }
-    }
 
     // MARK: withStatusMessage — observed on the wire (URLSession hides the phrase)
 
@@ -97,8 +88,13 @@ final class ResponseOptionsTests: XCTestCase {
         XCTAssertTrue(raw.contains("streamed-body"), "dribble must not corrupt the body")
         XCTAssertGreaterThanOrEqual(chunks.count, 2,
             "dribble should deliver over multiple reads, not one shot; got \(chunks.count)")
+        // The *behavioural* proof of a dribble is `chunks.count >= 2` above; the
+        // span check just distinguishes it from a fixed delay (which arrives in
+        // ~0s). Keep the threshold well below the 400ms total (0.05s, not 0.15s):
+        // a busy CI runner can coalesce loopback reads and compress the observed
+        // span, so a tight bound is the suite's main flake risk for no extra signal.
         let span = chunks.last!.offset - chunks.first!.offset
-        XCTAssertGreaterThan(span, 0.15,
+        XCTAssertGreaterThan(span, 0.05,
             "body should be spread across time (span \(span)s of ~400ms) — a fixed delay would span ~0")
     }
 

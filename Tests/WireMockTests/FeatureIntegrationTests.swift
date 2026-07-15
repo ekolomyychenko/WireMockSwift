@@ -7,20 +7,8 @@ import FoundationNetworking
 /// Live-server coverage for feature areas that were previously golden-only:
 /// proxying, faults, response-level delays, multipart, webhooks, multi-value
 /// matchers, cookies/basic-auth, XML/XPath, and server info endpoints.
-final class FeatureIntegrationTests: XCTestCase {
-    private var wireMock: WireMock!
+final class FeatureIntegrationTests: WireMockIntegrationCase {
     private var base: URL { WireMockFixture.baseURL }
-
-    override func setUpWithError() throws {
-        wireMock = try WireMockFixture.clientOrSkip()
-    }
-
-    override func tearDownWithError() throws {
-        if wireMock != nil {
-            try? wireMock.setGlobalFixedDelay(0)
-            try? wireMock.resetAll()
-        }
-    }
 
     // MARK: Proxy (end-to-end through the same server)
 

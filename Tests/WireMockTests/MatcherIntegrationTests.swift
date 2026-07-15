@@ -9,18 +9,9 @@ import FoundationNetworking
 /// (404), so a broken matcher can't pass. All matchers used here are verified to
 /// be accepted by WireMock 3.13.2 (201, not 422); the 4.x-only numeric matchers
 /// are covered by golden encoding only.
-final class MatcherIntegrationTests: XCTestCase {
-    private var wireMock: WireMock!
+final class MatcherIntegrationTests: WireMockIntegrationCase {
     private let jsonHeaders = ["Content-Type": "application/json"]
     private let xmlHeaders = ["Content-Type": "application/xml"]
-
-    override func setUpWithError() throws {
-        wireMock = try WireMockFixture.clientOrSkip()
-    }
-
-    override func tearDownWithError() throws {
-        if wireMock != nil { try? wireMock.resetAll() }
-    }
 
     // MARK: binaryEqualTo
 
@@ -276,6 +267,97 @@ final class MatcherIntegrationTests: XCTestCase {
             get(urlPathEqualTo("/hp")).withPort(1).willReturn(ok())
         )
         WireMockFixture.assertMiss(try WireMockFixture.hit("hp"), "wrong port must not match")
+    }
+
+    func testWrongHostAloneDoesNotMatch() throws {
+        // Isolate host: everything else about the request matches; only withHost
+        // is wrong. The combined positive above can't prove withHost is enforced
+        // (a dropped host constraint would still pass), so pin it on its own.
+        try wireMock.stubFor(
+            get(urlPathEqualTo("/hostonly")).withHost(equalTo("not-this-host.example")).willReturn(ok())
+        )
+        WireMockFixture.assertMiss(try WireMockFixture.hit("hostonly"),
+                                   "a wrong host alone must prevent the match")
+    }
+
+    func testWrongSchemeAloneDoesNotMatch() throws {
+        // Isolate scheme: the server is reached over http, so a stub that requires
+        // https must NOT match — proving withScheme is enforced independently.
+        try wireMock.stubFor(
+            get(urlPathEqualTo("/schemeonly")).withScheme("https").willReturn(ok())
+        )
+        WireMockFixture.assertMiss(try WireMockFixture.hit("schemeonly"),
+                                   "an https-only stub must not match an http request")
+    }
+
+    // MARK: String equivalence classes (empty / unicode / special chars)
+
+    func testEmptyStringQueryParamMatcher() throws {
+        // Boundary: equalTo("") must match a present-but-empty value and reject a
+        // non-empty one. (An *absent* body isn't the same as an empty string on
+        // this server, so pin the boundary on a present query value.)
+        try wireMock.stubFor(
+            get(urlPathEqualTo("/emptyq")).withQueryParam("q", equalTo("")).willReturn(ok())
+        )
+        WireMockFixture.assertMatch(try WireMockFixture.hit("emptyq?q="),
+                                    "an empty value must match equalTo(\"\")")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("emptyq?q=x"),
+                                   "a non-empty value must not match equalTo(\"\")")
+    }
+
+    func testUnicodeBodyMatcher() throws {
+        // Non-ASCII (accents, emoji, CJK) must round-trip through the matcher intact.
+        let payload = "café ☕ 日本語"
+        try wireMock.stubFor(
+            post(urlEqualTo("/uni")).withRequestBody(equalTo(payload)).willReturn(ok())
+        )
+        WireMockFixture.assertMatch(try WireMockFixture.hit("uni", method: "POST", body: Data(payload.utf8)),
+                                    "the exact unicode body must match")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("uni", method: "POST", body: Data("cafe coffee".utf8)),
+                                   "a different (ASCII-folded) body must not match")
+    }
+
+    func testSpecialCharacterBodyMatcher() throws {
+        // Sub-delimiters and whitespace that often get mangled by encoders. Send
+        // an explicit text/plain type: with no Content-Type WireMock tries to
+        // form-parse an `a=b&...` body and 500s — that's a content-type concern,
+        // not what this test is about (verbatim special-char matching).
+        let payload = "a=b & c=d? 50% #frag"
+        let textHeaders = ["Content-Type": "text/plain"]
+        try wireMock.stubFor(
+            post(urlEqualTo("/special")).withRequestBody(equalTo(payload)).willReturn(ok())
+        )
+        WireMockFixture.assertMatch(try WireMockFixture.hit("special", method: "POST", headers: textHeaders, body: Data(payload.utf8)),
+                                    "special characters must be compared verbatim")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("special", method: "POST", headers: textHeaders, body: Data("a=b".utf8)))
+    }
+
+    // MARK: multipart fileName (plain-string, verbatim — previously golden-only)
+
+    func testMultipartFileNameMatchesVerbatim() throws {
+        // fileName is a plain String compared verbatim (not a StringValuePattern),
+        // so a malformed value would be silently ignored by the server. Prove it
+        // is actually enforced: the right filename matches, a wrong one misses.
+        let boundary = "BND"
+        func filePart(named fileName: String) -> Data {
+            let text = "--\(boundary)\r\n"
+                + "Content-Disposition: form-data; name=\"doc\"; filename=\"\(fileName)\"\r\n"
+                + "Content-Type: text/plain\r\n\r\ncontent\r\n"
+                + "--\(boundary)--\r\n"
+            return Data(text.utf8)
+        }
+        let headers = ["Content-Type": "multipart/form-data; boundary=\(boundary)"]
+        try wireMock.stubFor(
+            post(urlEqualTo("/upload"))
+                .withMultipartRequestBody(
+                    MultipartValuePattern(fileName: "report.txt", bodyPatterns: [containing("content")])
+                )
+                .willReturn(ok())
+        )
+        WireMockFixture.assertMatch(try WireMockFixture.hit("upload", method: "POST", headers: headers, body: filePart(named: "report.txt")),
+                                    "the matching filename part must match")
+        WireMockFixture.assertMiss(try WireMockFixture.hit("upload", method: "POST", headers: headers, body: filePart(named: "other.txt")),
+                                   "a different filename must not match")
     }
 
     // MARK: multipart ALL vs ANY

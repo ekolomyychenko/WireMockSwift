@@ -308,8 +308,14 @@ extension WireMock {
     ) throws {
         struct ImportOptions: Encodable { let duplicatePolicy: String?; let deleteAllNotInImport: Bool? }
         struct ImportBody: Encodable { let mappings: [StubMapping]; let importOptions: ImportOptions? }
+        // When we send `importOptions` at all we must include `deleteAllNotInImport`:
+        // WireMock 3.13.2 unconditionally unboxes it server-side, so omitting it
+        // (e.g. `duplicatePolicy: .ignore` alone) triggers a 500 NullPointerException.
+        // Default it to `false` (the server's own default) so a bare duplicatePolicy
+        // call is safe.
         let options = (duplicatePolicy != nil || deleteAllNotInImport != nil)
-            ? ImportOptions(duplicatePolicy: duplicatePolicy?.rawValue, deleteAllNotInImport: deleteAllNotInImport)
+            ? ImportOptions(duplicatePolicy: duplicatePolicy?.rawValue,
+                            deleteAllNotInImport: deleteAllNotInImport ?? false)
             : nil
         try admin.send("POST", "mappings/import", body: ImportBody(mappings: mappings, importOptions: options))
     }

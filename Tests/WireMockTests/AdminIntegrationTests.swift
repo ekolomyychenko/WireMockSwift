@@ -7,25 +7,7 @@ import FoundationNetworking
 /// End-to-end coverage of verification, scenarios, settings, recording, files,
 /// metadata, and the raw escape hatch — all against a real WireMock server.
 /// Auto-skips when no server is reachable.
-final class AdminIntegrationTests: XCTestCase {
-    private var wireMock: WireMock!
-
-    override func setUpWithError() throws {
-        wireMock = try WireMockFixture.clientOrSkip()
-    }
-
-    override func tearDownWithError() throws {
-        if wireMock != nil {
-            // `POST /__admin/reset` does NOT clear a global fixed delay, so a test
-            // that sets one (and fails before its own cleanup) would leak it into
-            // every subsequent test. Reset it explicitly.
-            try? wireMock.setGlobalFixedDelay(0)
-            // resetAll() doesn't stop an in-progress recording, so if a recording
-            // test aborts before its own stop, clear it here (best-effort).
-            _ = try? wireMock.stopRecording()
-            try? wireMock.resetAll()
-        }
-    }
+final class AdminIntegrationTests: WireMockIntegrationCase {
 
     // MARK: Verification & journal
 
@@ -156,13 +138,23 @@ final class AdminIntegrationTests: XCTestCase {
         XCTAssertEqual(stopped, "Stopped")
     }
 
-    func testSnapshotEndpoint() throws {
-        try wireMock.stubFor(get(urlEqualTo("/rec")).willReturn(ok("recorded")))
-        try WireMockFixture.hit("rec")
-        // Requests already served by a stub are not re-snapshotted; the call
-        // must still succeed and decode to a (here empty) mapping list.
-        let snapshot = try wireMock.takeSnapshot()
-        XCTAssertTrue(snapshot.isEmpty)
+    func testSnapshotGeneratesMappingFromProxiedRequest() throws {
+        // `takeSnapshot` turns *proxied* journal entries into stub mappings (a
+        // request already served by a local stub is NOT re-snapshotted). Proxy to
+        // a dead sub-path so the forwarded request is journalled without a real
+        // backend, then prove the snapshot returns a concrete generated mapping.
+        // (Asserting only `isEmpty` here would pass even if takeSnapshot always
+        // returned [], which is why the previous version proved nothing.)
+        let deadTarget = WireMockFixture.baseURL.absoluteString + "/nowhere"
+        try wireMock.stubFor(get(urlEqualTo("/snapme")).willReturn(aResponse().proxiedFrom(deadTarget)))
+        _ = try WireMockFixture.hit("snapme")
+
+        // persist: false — a snapshot defaults to PERSISTENT stubs, which survive
+        // resetAll() and would leak into every later suite sharing this server.
+        let snapshot = try wireMock.takeSnapshot(RecordSpec(persist: false))
+        XCTAssertFalse(snapshot.isEmpty, "a proxied request must yield at least one generated mapping")
+        XCTAssertTrue(snapshot.contains { $0.request.url == "/snapme" },
+                      "the generated mapping must describe the proxied request; got \(snapshot.map { $0.request.url })")
     }
 
     // MARK: Files
@@ -226,6 +218,28 @@ final class AdminIntegrationTests: XCTestCase {
         let oldStatus = try WireMockFixture.hit("old").1.statusCode
         XCTAssertEqual(newStatus, 200)
         XCTAssertEqual(oldStatus, 404, "deleteAllNotInImport should remove /old")
+    }
+
+    func testImportMappingsIgnoreVsOverwriteOnIdCollision() throws {
+        // The whole point of duplicatePolicy is what happens when an imported id
+        // already exists. IGNORE keeps the incumbent; OVERWRITE replaces it. The
+        // suite previously only exercised OVERWRITE, so IGNORE could have been
+        // silently broken (or the two swapped) and stayed green.
+        let id = UUID()
+        let original = get(urlEqualTo("/dup")).willReturn(ok("A")).withId(id).build()
+        let replacement = get(urlEqualTo("/dup")).willReturn(ok("B")).withId(id).build()
+
+        try wireMock.importMappings([original])
+        XCTAssertEqual(String(decoding: try WireMockFixture.hit("dup").0, as: UTF8.self), "A",
+                       "precondition: the original mapping serves A")
+
+        try wireMock.importMappings([replacement], duplicatePolicy: .ignore)
+        XCTAssertEqual(String(decoding: try WireMockFixture.hit("dup").0, as: UTF8.self), "A",
+                       "IGNORE must keep the incumbent mapping for a colliding id")
+
+        try wireMock.importMappings([replacement], duplicatePolicy: .overwrite)
+        XCTAssertEqual(String(decoding: try WireMockFixture.hit("dup").0, as: UTF8.self), "B",
+                       "OVERWRITE must replace the mapping for the colliding id")
     }
 
     func testRemoveStubByPattern() throws {

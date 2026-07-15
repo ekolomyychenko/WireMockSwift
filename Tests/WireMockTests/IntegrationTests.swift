@@ -13,21 +13,7 @@ import FoundationNetworking
 /// docker run --rm -p 8080:8080 wiremock/wiremock:3.13.2
 /// swift test
 /// ```
-final class IntegrationTests: XCTestCase {
-    private var wireMock: WireMock!
-
-    override func setUpWithError() throws {
-        // Use the shared bootstrap so this suite inherits the WIREMOCK_REQUIRED=1
-        // fail-fast guard — otherwise it would silently XCTSkip in CI while every
-        // other live suite fails on a missing server.
-        wireMock = try WireMockFixture.clientOrSkip()
-    }
-
-    override func tearDownWithError() throws {
-        if wireMock != nil {
-            try? wireMock.resetAll()
-        }
-    }
+final class IntegrationTests: WireMockIntegrationCase {
 
     /// The core round-trip: register a stub, hit it, verify it was recorded.
     func testStubHitAndVerify() throws {

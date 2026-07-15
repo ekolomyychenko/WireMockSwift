@@ -21,24 +21,44 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - name: Download WireMock standalone
-        run: |
-          # Pin the version (matches the ios-xcuitest job) so the integration
-          # suite can't silently drift onto a newer 3.x than we verify against.
-          curl -sL -o wiremock.jar \
-            https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.13.2/wiremock-standalone-3.13.2.jar
       - name: Start WireMock and wait for readiness
-        run: |
-          java -jar wiremock.jar --port 8080 --disable-banner &
-          for i in $(seq 1 30); do curl -sf http://localhost:8080/__admin/health && break; sleep 1; done
-          curl -sf http://localhost:8080/__admin/health || { echo "WireMock never became ready" >&2; exit 1; }
+        # Version pin + readiness gate live in Scripts/start-wiremock.sh, shared
+        # with the ios-xcuitest job and local Scripts/test.sh.
+        run: Scripts/start-wiremock.sh
       - name: Build
         run: swift build -Xswiftc -strict-concurrency=complete
-      - name: Test (unit + integration)
+      - name: Test (unit + integration) with coverage
         env:
           # Fail (don't skip) the integration suites if the server isn't reachable.
           WIREMOCK_REQUIRED: "1"
-        run: swift test
+        run: swift test --enable-code-coverage
+      - name: Export code coverage (lcov)
+        run: |
+          BIN=$(swift build --show-bin-path)
+          XCTEST=$(find "$BIN" -name '*.xctest' | head -1)
+          PROF=$(find .build -name default.profdata | head -1)
+          xcrun llvm-cov export -format=lcov \
+            -instr-profile "$PROF" \
+            "$XCTEST/Contents/MacOS/$(basename "$XCTEST" .xctest)" \
+            > coverage.lcov
+          echo "coverage.lcov: $(grep -c '^SF:' coverage.lcov) files, $(wc -l < coverage.lcov) lines"
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: coverage.lcov
+
+  lint:
+    name: SwiftLint (non-blocking)
+    runs-on: macos-14
+    # Non-blocking until the team curates a baseline; see .swiftlint.yml. Flip to
+    # blocking by removing this line (and add `--strict` below) once clean.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run SwiftLint
+        # swiftlint is preinstalled on the macOS runner image.
+        run: swiftlint lint --reporter github-actions-logging
 
   ios-build:
     name: iOS build
@@ -66,12 +86,7 @@ jobs:
           distribution: temurin
           java-version: "21"
       - name: Start WireMock on the host
-        run: |
-          curl -sL -o wiremock.jar \
-            https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.13.2/wiremock-standalone-3.13.2.jar
-          java -jar wiremock.jar --port 8080 --disable-banner &
-          for i in $(seq 1 30); do curl -sf http://localhost:8080/__admin/health && break; sleep 1; done
-          curl -sf http://localhost:8080/__admin/health || { echo "WireMock never ready" >&2; exit 1; }
+        run: Scripts/start-wiremock.sh
       - name: Generate and run the XCUITest example on a simulator
         working-directory: Examples/WireMockXCUIDemo
         run: |

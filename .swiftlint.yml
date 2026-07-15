@@ -1,0 +1,25 @@
+# SwiftLint configuration for WireMockSwift.
+#
+# Deliberately lenient to start: the CI `lint` job is non-blocking
+# (continue-on-error) so it surfaces findings without red-flagging the build.
+# Once the team curates a baseline, drop `continue-on-error` in ci.yml and/or
+# tighten the rules below.
+included:
+  - Sources
+  - Tests
+
+disabled_rules:
+  - line_length            # long golden-JSON literals and doc comments
+  - todo
+  - function_body_length
+  - type_body_length
+  - file_length
+  - cyclomatic_complexity
+  - identifier_name        # short DSL names (id, ok, js, ee) are intentional
+  - nesting
+  - large_tuple            # (Data, HTTPURLResponse) test tuples
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - redundant_nil_coalescing

@@ -7,17 +7,8 @@ import FoundationNetworking
 /// Error-path coverage: unmatched requests, admin calls that must surface
 /// `WireMockError.unexpectedStatus`, and client-side validation that must throw
 /// before hitting the network.
-final class ErrorPathTests: XCTestCase {
-    private var wireMock: WireMock!
+final class ErrorPathTests: WireMockIntegrationCase {
     private let randomID = UUID()
-
-    override func setUpWithError() throws {
-        wireMock = try WireMockFixture.clientOrSkip()
-    }
-
-    override func tearDownWithError() throws {
-        if wireMock != nil { try? wireMock.resetAll() }
-    }
 
     // MARK: Client-side validation (no network)
 

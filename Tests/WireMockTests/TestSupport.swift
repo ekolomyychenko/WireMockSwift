@@ -132,3 +132,36 @@ extension WireMockFixture {
         return result
     }
 }
+
+// MARK: - Base case for live-server suites
+
+/// Base class for integration suites that need a live WireMock server.
+///
+/// Provides a reset `wireMock` client in `setUp` (honouring the skip-vs-fail
+/// policy via `WIREMOCK_REQUIRED`) and a **superset** cleanup in `tearDown`, so
+/// individual suites no longer redeclare the same lifecycle — and can't drift in
+/// what they reset. `resetAll()` alone clears neither a global delay nor an
+/// in-progress recording, so both are neutralized here as well.
+///
+/// - Important: these suites share one server and reset it in `setUp`; they are
+///   **not** parallel-safe. Run serially (the default `swift test`).
+class WireMockIntegrationCase: XCTestCase {
+    /// A freshly reset client for the shared server. Force-unwrapped because
+    /// `setUp` either assigns it or skips/fails the test before any body runs.
+    var wireMock: WireMock!
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        wireMock = try WireMockFixture.clientOrSkip()
+    }
+
+    override func tearDownWithError() throws {
+        if wireMock != nil {
+            try? wireMock.setGlobalFixedDelay(0)
+            _ = try? wireMock.stopRecording()
+            try? wireMock.resetAll()
+        }
+        wireMock = nil
+        try super.tearDownWithError()
+    }
+}

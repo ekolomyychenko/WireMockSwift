@@ -153,6 +153,62 @@ final class ClientUnitTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - Custom query percent-encoding (the reason AdminClient hand-encodes)
+
+    func testQueryValueEscapesPlusAndSubDelimiters() throws {
+        // AdminClient encodes query values itself and drops `+&=?#` from the
+        // allowed set, because Jetty reads `+` in a query as a space (which would
+        // corrupt an ISO-8601 `since=...+01:00`). This asserts on the URL that
+        // actually goes on the wire — a regression that removed the hand-encoding
+        // would still return a valid-looking client value, so only the wire form
+        // catches it. One value carries all four sub-delimiters at once.
+        MockURLProtocol.respond { _ in (200, #"{"requests":[]}"#) }
+        let client = makeClient()
+        _ = try client.getServeEvents(since: "a+b&c=d#e")
+
+        let url = try XCTUnwrap(MockURLProtocol.lastRequest?.url?.absoluteString)
+        XCTAssertTrue(url.contains("since=a%2Bb%26c%3Dd%23e"),
+                      "query value must be percent-encoded on the wire, got: \(url)")
+        XCTAssertFalse(url.contains("+"), "a raw + would be misread as a space by Jetty: \(url)")
+    }
+
+    func testIso8601OffsetSurvivesAsPercentEncodedPlus() throws {
+        // The concrete case the hand-encoding exists for: a positive UTC offset.
+        MockURLProtocol.respond { _ in (200, #"{"requests":[]}"#) }
+        let client = makeClient()
+        _ = try client.getServeEvents(since: "2024-01-01T00:00:00+01:00")
+
+        let url = try XCTUnwrap(MockURLProtocol.lastRequest?.url?.absoluteString)
+        XCTAssertTrue(url.contains("2024-01-01T00:00:00%2B01:00"),
+                      "the +01:00 offset must reach the server as %2B, got: \(url)")
+    }
+
+    // MARK: - saveMappings persists via POST /__admin/mappings/save
+
+    func testSaveMappingsPostsToSaveEndpoint() throws {
+        MockURLProtocol.respond { _ in (200, "") }
+        let client = makeClient()
+        try client.saveMappings()
+
+        let request = try XCTUnwrap(MockURLProtocol.lastRequest)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/__admin/mappings/save")
+    }
+
+    // MARK: - Transport failure surfaces as .transport
+
+    func testTransportFailureSurfacesAsTransport() throws {
+        // A connection-level failure (no HTTP response at all) must be mapped to
+        // WireMockError.transport, not leak the raw URLError to callers.
+        MockURLProtocol.respondFailure(URLError(.cannotConnectToHost))
+        let client = makeClient()
+        XCTAssertThrowsError(try client.getAllServeEvents()) { error in
+            guard case WireMockError.transport = error else {
+                return XCTFail("expected .transport, got \(error)")
+            }
+        }
+    }
 }
 
 /// A `URLProtocol` that returns canned responses and records the last request.
@@ -162,16 +218,29 @@ final class MockURLProtocol: URLProtocol {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var _handler: (@Sendable (URLRequest) -> (Int, String))?
     nonisolated(unsafe) private static var _lastRequest: URLRequest?
+    nonisolated(unsafe) private static var _failure: URLError?
 
     static func respond(_ handler: @escaping @Sendable (URLRequest) -> (Int, String)) {
         lock.lock(); defer { lock.unlock() }
         _handler = handler
+        _failure = nil
+        _lastRequest = nil
+    }
+
+    /// Makes the next load fail at the transport level (connection refused,
+    /// timeout, …) so the client's `.transport` mapping can be exercised
+    /// without a real unreachable socket.
+    static func respondFailure(_ error: URLError) {
+        lock.lock(); defer { lock.unlock() }
+        _failure = error
+        _handler = nil
         _lastRequest = nil
     }
 
     static func reset() {
         lock.lock(); defer { lock.unlock() }
         _handler = nil
+        _failure = nil
         _lastRequest = nil
     }
 
@@ -187,7 +256,14 @@ final class MockURLProtocol: URLProtocol {
         MockURLProtocol.lock.lock()
         MockURLProtocol._lastRequest = request
         let handler = MockURLProtocol._handler
+        let failure = MockURLProtocol._failure
         MockURLProtocol.lock.unlock()
+
+        // Simulate a transport-level failure (no HTTP response at all).
+        if let failure {
+            client?.urlProtocol(self, didFailWithError: failure)
+            return
+        }
 
         // If the session was torn down / handler cleared, fail the load cleanly
         // instead of force-unwrapping on a background thread.
