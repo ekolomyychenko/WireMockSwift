@@ -56,8 +56,10 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+      - name: Install SwiftLint
+        # Not preinstalled on current macOS runner images.
+        run: brew install swiftlint
       - name: Run SwiftLint
-        # swiftlint is preinstalled on the macOS runner image.
         run: swiftlint lint --reporter github-actions-logging
 
   ios-build:
