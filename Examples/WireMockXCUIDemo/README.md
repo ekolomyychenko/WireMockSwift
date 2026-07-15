@@ -26,6 +26,12 @@ xcodebuild test -project WireMockXCUIDemo.xcodeproj -scheme SampleApp \
 ```
 
 > Имя/версию симулятора подставь под то, что установлено у тебя (`xcrun simctl list devices available`).
-> В CI устройство выбирается автоматически — см. джобу `ios-xcuitest` в `.github/workflows/ci.yml`.
+> В CI устройство не зашивается: джоба `ios-sim-matrix` выбирает несколько реально доступных
+> популярных iPhone, и `ios-xcuitest` гоняет пример по каждому (см. `.github/workflows/ci.yml`).
+>
+> **Важно про green-skip:** если сервер недоступен (или ты случайно указал реальное устройство,
+> а не симулятор — там `localhost` не форвардится на хост), тест по умолчанию делает `XCTSkip` и
+> прогон выглядит зелёным. Чтобы недоступность **падала**, запусти с `TEST_RUNNER_WIREMOCK_REQUIRED=1`
+> (Xcode прокинет его в раннер как `WIREMOCK_REQUIRED=1`) — именно так и делает CI.
 
 `.xcodeproj` генерируется из `project.yml` (в git не коммитится — запусти `xcodegen generate`).

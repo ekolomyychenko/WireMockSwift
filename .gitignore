@@ -6,6 +6,7 @@ Package.resolved
 # Xcode
 xcuserdata/
 *.xcodeproj
+*.xcresult
 
 # macOS
 .DS_Store
@@ -16,4 +17,5 @@ xcuserdata/
 
 # WireMock standalone server artifacts (downloaded/created by Scripts/start-wiremock.sh)
 wiremock-standalone-*.jar
-.wiremock.pid
+.wiremock*.pid
+wiremock-*.log
