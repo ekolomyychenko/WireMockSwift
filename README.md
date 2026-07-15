@@ -224,12 +224,16 @@ try wireMock.verify(.lessThan(5), getRequestedFor(urlEqualTo("/ping")))
 let count   = try wireMock.count(getRequestedFor(urlEqualTo("/ping")))
 let matched = try wireMock.findAll(postRequestedFor(urlEqualTo("/things")))
 let events  = try wireMock.getAllServeEvents()
+let recent  = try wireMock.getServeEvents(limit: 10, unmatchedOnly: true)   // + since:/matchingStub: — серверные фильтры журнала
 let unmatched = try wireMock.getUnmatchedRequests()
 let nearMisses = try wireMock.findNearMissesForAllUnmatched()
 
 try wireMock.resetRequests()                                   // очистить журнал
 try wireMock.removeServeEvents(matching: getRequestedFor(urlEqualTo("/ping")))
 ```
+
+Каждый `ServeEvent` несёт `subEvents` — диагностику, которую прикладывает сервер (например, отчёт
+`REQUEST_NOT_MATCHED` для несовпавшего запроса).
 
 `RequestPatternBuilder` поддерживает те же критерии, что и создание стабов (`withHeader`, `withoutHeader`,
 `withQueryParam`, `withCookie`, `withRequestBody`, `withBasicAuth` и т. д.).
@@ -270,7 +274,7 @@ aResponse().withFault(.connectionResetByPeer)   // .emptyResponse, .malformedRes
 
 // Задержки:
 aResponse().withFixedDelay(500)
-aResponse().withLogNormalRandomDelay(median: 90, sigma: 0.1)
+aResponse().withLogNormalRandomDelay(median: 90, sigma: 0.1, maxValue: 300)  // maxValue опц. ограничивает выборку (мс)
 aResponse().withUniformRandomDelay(lower: 15, upper: 25)
 aResponse().withChunkedDribbleDelay(numberOfChunks: 5, totalDuration: 1000)
 
@@ -286,6 +290,7 @@ try wireMock.startRecording(targetBaseUrl: "https://api.example.com")
 let generated = try wireMock.stopRecording()   // [StubMapping]
 let status = try wireMock.getRecordingStatus()
 let snapshot = try wireMock.takeSnapshot()
+let ids = try wireMock.takeSnapshotIds()       // как takeSnapshot, но возвращает id сгенерированных стабов
 // ⚠️ `targetBaseUrl` должен указывать на ОТДЕЛЬНЫЙ апстрим — направив его обратно на
 //    тот же экземпляр WireMock, вы создадите петлю самопроксирования, которая зависает.
 
@@ -353,6 +358,7 @@ try wireMock.register(json: ["request": ["method": "GET", "url": "/x"],
 - `.transport(underlying:)` — отказ соединения, таймаут, DNS и т. д.
 - `.decodingFailed(underlying:)` — ответ сервера не удалось декодировать.
 - `.invalidBaseURL(_:)` — сконфигурированный URL был некорректным.
+- `.requestJournalDisabled` — журнал запросов сервера выключен, счётчики/история недоступны.
 
 Несовпадения счётчиков верификации бросают **`VerificationError(expected:actual:)`**.
 
@@ -377,8 +383,7 @@ let wireMock = WireMock(baseURL: URL(string: "http://ci-host:8080")!,
 ## Использование в тестах
 
 Клиент **синхронный** (как Java WireMock): вызовы блокирующие, что в тестах безвредно — вы всё равно
-ждёте каждый шаг последовательно. Никакого `async`/`await` в обычных тестах не нужно. Сбрасывайте
-**сервер** через `resetAll()` (а не клиент — всё состояние там).
+ждёте каждый шаг последовательно. Никакого `async`/`await` в обычных тестах не нужно.
 
 ### Синхронно (основной способ)
 
@@ -408,9 +413,6 @@ func testCheckout() async throws {
     try await wireMock.callAsync { try $0.verify(getRequestedFor(urlEqualTo("/cart"))) }
 }
 ```
-
-> Прямой вызов синхронного метода из `async`-контекста заблокирует cooperative-поток — из `async`
-> используйте `callAsync`. В обычных (синхронных) тестах он не нужен.
 
 ### Логирование (Allure и т.п.)
 
@@ -458,11 +460,6 @@ xcodebuild test -scheme MyApp -destination 'platform=iOS Simulator,name=iPhone 1
   процесс UI-теста настраивает стабы через клиент `WireMock` на `localhost:8080`.
 
 ### XCUITest (проверено на симуляторе)
-
-> **Сервер — это Java-процесс, который должен работать на хосте** (как jar или через Docker); он не
-> может запускаться внутри симулятора/бандла iOS-тестов. Запустите сервер на **хосте** — как jar
-> (работает везде, где есть лишь JDK) **или** через Docker, если доступен, — и подключайтесь из
-> симулятора.
 
 Подключите продукт `WireMock` к вашему **таргету UI-тестов**. Тест-раннер (на симуляторе) и настраивает
 стабы, и управляет приложением; `localhost:8080` внутри симулятора достигает сервера на хосте:

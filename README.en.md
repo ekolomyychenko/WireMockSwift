@@ -225,12 +225,16 @@ try wireMock.verify(.lessThan(5), getRequestedFor(urlEqualTo("/ping")))
 let count   = try wireMock.count(getRequestedFor(urlEqualTo("/ping")))
 let matched = try wireMock.findAll(postRequestedFor(urlEqualTo("/things")))
 let events  = try wireMock.getAllServeEvents()
+let recent  = try wireMock.getServeEvents(limit: 10, unmatchedOnly: true)   // + since:/matchingStub: — server-side journal filters
 let unmatched = try wireMock.getUnmatchedRequests()
 let nearMisses = try wireMock.findNearMissesForAllUnmatched()
 
 try wireMock.resetRequests()                                   // clear the journal
 try wireMock.removeServeEvents(matching: getRequestedFor(urlEqualTo("/ping")))
 ```
+
+Every `ServeEvent` carries `subEvents` — diagnostics the server attaches (e.g. a `REQUEST_NOT_MATCHED`
+report for an unmatched request).
 
 `RequestPatternBuilder` supports the same criteria as stub creation (`withHeader`, `withoutHeader`,
 `withQueryParam`, `withCookie`, `withRequestBody`, `withBasicAuth`, etc.).
@@ -271,7 +275,7 @@ aResponse().withFault(.connectionResetByPeer)   // .emptyResponse, .malformedRes
 
 // Delays:
 aResponse().withFixedDelay(500)
-aResponse().withLogNormalRandomDelay(median: 90, sigma: 0.1)
+aResponse().withLogNormalRandomDelay(median: 90, sigma: 0.1, maxValue: 300)  // maxValue optionally caps the sample (ms)
 aResponse().withUniformRandomDelay(lower: 15, upper: 25)
 aResponse().withChunkedDribbleDelay(numberOfChunks: 5, totalDuration: 1000)
 
@@ -287,6 +291,7 @@ try wireMock.startRecording(targetBaseUrl: "https://api.example.com")
 let generated = try wireMock.stopRecording()   // [StubMapping]
 let status = try wireMock.getRecordingStatus()
 let snapshot = try wireMock.takeSnapshot()
+let ids = try wireMock.takeSnapshotIds()       // like takeSnapshot, but returns the generated stub ids
 // ⚠️ `targetBaseUrl` must point at a SEPARATE upstream — pointing it back at the same
 //    WireMock instance creates a self-proxying loop that hangs.
 
@@ -354,6 +359,7 @@ Every call throws a typed **`WireMockError`** (all `CustomStringConvertible`):
 - `.transport(underlying:)` — connection refused, timeout, DNS, etc.
 - `.decodingFailed(underlying:)` — the server response could not be decoded.
 - `.invalidBaseURL(_:)` — the configured URL was malformed.
+- `.requestJournalDisabled` — the server's request journal is off, so counts/history are unavailable.
 
 Verification count mismatches throw **`VerificationError(expected:actual:)`**.
 
@@ -378,8 +384,7 @@ dev cert (safer than disabling ATS globally): `WireMock(baseURL: url, session: m
 ## Usage in tests
 
 The client is **synchronous** (like Java WireMock): calls block, which is harmless in tests — you await
-each step sequentially anyway. No `async`/`await` is needed in ordinary tests. Reset the **server** via
-`resetAll()` (not the client — all state is there).
+each step sequentially anyway. No `async`/`await` is needed in ordinary tests.
 
 ### Synchronous (the primary way)
 
@@ -409,9 +414,6 @@ func testCheckout() async throws {
     try await wireMock.callAsync { try $0.verify(getRequestedFor(urlEqualTo("/cart"))) }
 }
 ```
-
-> Calling a synchronous method directly from an `async` context would block the cooperative thread — from
-> `async`, use `callAsync`. In ordinary (synchronous) tests it isn't needed.
 
 ### Logging (Allure etc.)
 
@@ -459,10 +461,6 @@ Passing the URL to the app under test:
   the UI-test process configures stubs through a `WireMock` client on `localhost:8080`.
 
 ### XCUITest (verified on the simulator)
-
-> **The server is a Java process that must run on the host** (as a jar or via Docker); it cannot launch
-> inside the simulator/iOS test bundle. Start the server on the **host** — as a jar (works anywhere a JDK
-> is present) **or** via Docker if available — and connect from the simulator.
 
 Link the `WireMock` product into your **UI-test target**. The test runner (on the simulator) both
 configures stubs and drives the app; `localhost:8080` inside the simulator reaches the server on the host:

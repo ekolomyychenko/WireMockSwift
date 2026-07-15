@@ -144,7 +144,7 @@ Java-сервер регистрирует стаб; ответ декодиру
 ## Конфигурация: порт не хардкодится
 
 Адрес сервера всегда параметризуется — нигде не зашит жёстко на `8080`:
-- `WireMock(host:port:)`, `WireMock(scheme:host:port:)`, `WireMock(baseURL:)` — любой порт/хост.
+- `WireMock(host:port:)` / `WireMock(scheme:host:port:)` (**failable** `init?` — `nil` на кривом host/port), `WireMock(baseURL:)` — любой порт/хост.
 - Тесты и примеры читают адрес из `WIREMOCK_URL` (для XCUITest его можно задать, например, через
   `.xctestplan`; при отсутствии — дефолт `http://localhost:8080`), что позволяет запускать несколько
   инстансов WireMock на разных портах (например, для параллельных сьютов).
@@ -171,6 +171,7 @@ Java-сервер регистрирует стаб; ответ декодиру
 ## Обработка ошибок
 
 - `WireMockError`: `.unexpectedStatus(code:body:)`, `.transport`, `.decodingFailed`,
-  `.invalidBaseURL`. Таймаут транспорта (safety-wait чуть больше request timeout) отменяет задачу и
-  бросается как `.transport`.
+  `.invalidBaseURL`, `.requestJournalDisabled` (журнал выключен — журнальные методы
+  `count`/`getServeEvents`/… бросают его). Таймаут транспорта (safety-wait чуть больше request timeout)
+  отменяет задачу и бросается как `.transport`.
 - `VerificationError(expected:actual:)` — при несовпадении числа запросов в `verify`.
