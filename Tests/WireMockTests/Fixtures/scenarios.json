@@ -1,0 +1,29 @@
+{
+  "scenarios": [
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "mappings": [
+        {
+          "id": "00000000-0000-0000-0000-000000000000",
+          "newScenarioState": "next",
+          "request": {
+            "method": "GET",
+            "urlPath": "/scenario"
+          },
+          "requiredScenarioState": "Started",
+          "response": {
+            "status": 200
+          },
+          "scenarioName": "flow",
+          "uuid": "00000000-0000-0000-0000-000000000000"
+        }
+      ],
+      "name": "flow",
+      "possibleStates": [
+        "next",
+        "Started"
+      ],
+      "state": "Started"
+    }
+  ]
+}

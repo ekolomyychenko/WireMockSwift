@@ -16,7 +16,10 @@ let package = Package(
         ),
         .testTarget(
             name: "WireMockTests",
-            dependencies: ["WireMock"]
+            dependencies: ["WireMock"],
+            // Real server responses captured by Scripts/capture-fixtures.sh, loaded
+            // via Bundle.module by RecordedContractTests to pin the decode contract.
+            resources: [.copy("Fixtures")]
         ),
     ]
 )
