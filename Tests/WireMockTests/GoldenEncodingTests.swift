@@ -655,6 +655,39 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(resp["proxyUrlPrefixToRemove"], "/prefix")
     }
 
+    func testBulkWithHeadersAndQueryParamsEncode() throws {
+        let req = try json(get(urlEqualTo("/x"))
+            .withHeaders(["X-A": equalTo("1"), "X-B": containing("z")])
+            .withQueryParams(["q1": equalTo("a"), "q2": matching("b.*")])
+            .willReturn(ok()).build())
+            .objectValue?["request"]?.objectValue
+        XCTAssertEqual(req?["headers"]?.objectValue?["X-A"], ["equalTo": "1"])
+        XCTAssertEqual(req?["headers"]?.objectValue?["X-B"], ["contains": "z"])
+        XCTAssertEqual(req?["queryParameters"]?.objectValue?["q1"], ["equalTo": "a"])
+        XCTAssertEqual(req?["queryParameters"]?.objectValue?["q2"], ["matches": "b.*"])
+    }
+
+    func testBulkWithHeadersAccumulatesWithSingle() throws {
+        // A bulk entry on a key already set by withHeader must AND, not overwrite.
+        let req = try json(get(urlEqualTo("/x"))
+            .withHeader("X-A", equalTo("1"))
+            .withHeaders(["X-A": containing("2")])
+            .willReturn(ok()).build())
+            .objectValue?["request"]?.objectValue
+        XCTAssertEqual(req?["headers"]?.objectValue?["X-A"], ["and": [["equalTo": "1"], ["contains": "2"]]])
+    }
+
+    func testGetOrHeadFreeFunctionEncodes() throws {
+        XCTAssertEqual(try json(getOrHead(urlEqualTo("/x")).willReturn(ok()).build()).objectValue?["request"]?.objectValue?["method"], "GET_OR_HEAD")
+        XCTAssertEqual(try json(getOrHeadRequestedFor(urlEqualTo("/x")).pattern).objectValue?["method"], "GET_OR_HEAD")
+    }
+
+    func testResponseTemplatingConvenienceEncodes() throws {
+        XCTAssertEqual(ResponseTransformer.responseTemplate, "response-template")
+        let resp = try json(aResponse().withResponseTemplating().definition).objectValue
+        XCTAssertEqual(resp?["transformers"], ["response-template"])
+    }
+
     func testProxyBuilderCarriesForwardBaseResponseConfig() throws {
         // Base config set before proxiedFrom must survive onto the proxy builder.
         let response = aResponse().withHeader("X-Base", "kept").proxiedFrom("http://b")

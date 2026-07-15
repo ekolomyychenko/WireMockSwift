@@ -50,6 +50,11 @@ public struct MappingBuilder: Sendable {
         delegatingRequest { $0.withHeader(name, pattern) }
     }
 
+    /// Adds several header matchers at once (Java `withHeaders`).
+    public func withHeaders(_ patterns: [String: StringValuePattern]) -> Self {
+        delegatingRequest { $0.withHeaders(patterns) }
+    }
+
     /// Requires the header to be absent.
     public func withoutHeader(_ name: String) -> Self {
         delegatingRequest { $0.withoutHeader(name) }
@@ -57,6 +62,11 @@ public struct MappingBuilder: Sendable {
 
     public func withQueryParam(_ name: String, _ pattern: StringValuePattern) -> Self {
         delegatingRequest { $0.withQueryParam(name, pattern) }
+    }
+
+    /// Adds several query-parameter matchers at once (Java `withQueryParams`).
+    public func withQueryParams(_ patterns: [String: StringValuePattern]) -> Self {
+        delegatingRequest { $0.withQueryParams(patterns) }
     }
 
     /// Requires the query parameter to be absent.

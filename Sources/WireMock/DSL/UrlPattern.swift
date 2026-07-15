@@ -70,6 +70,8 @@ public func head(_ url: UrlPattern) -> MappingBuilder { MappingBuilder(method: .
 public func options(_ url: UrlPattern) -> MappingBuilder { MappingBuilder(method: .options, url: url) }
 /// Start a stub for a TRACE request to the given URL.
 public func trace(_ url: UrlPattern) -> MappingBuilder { MappingBuilder(method: .trace, url: url) }
+/// Start a stub matching a GET or a HEAD request (WireMock's `GET_OR_HEAD`).
+public func getOrHead(_ url: UrlPattern) -> MappingBuilder { MappingBuilder(method: .getOrHead, url: url) }
 /// Start a stub matching requests of any HTTP method.
 public func any(_ url: UrlPattern) -> MappingBuilder { MappingBuilder(method: .any, url: url) }
 /// Start a stub for an arbitrary HTTP method.

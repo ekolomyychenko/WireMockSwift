@@ -163,6 +163,12 @@ public struct ResponseDefinition: Codable, Sendable, Hashable {
     public var additionalProxyRequestHeaders: [String: HeaderValue]?
     public var removeProxyRequestHeaders: [String]?
     public var proxyUrlPrefixToRemove: String?
+    // NOTE: `preserveHostHeader` / `preserveProxyHeaderCase` are deliberately NOT
+    // here. In WireMock 3.x they are server-launch options
+    // (`WireMockConfiguration.preserveHostHeader`, CLI `--preserve-host-header`),
+    // NOT ResponseDefinition JSON fields — the server rejects them with HTTP 422
+    // ("Unrecognized field preserveHostHeader"). A remote admin client cannot set
+    // them per-stub; they belong to how the server was started.
 
     public init() {}
 }

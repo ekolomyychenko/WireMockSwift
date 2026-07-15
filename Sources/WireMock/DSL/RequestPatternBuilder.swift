@@ -34,12 +34,24 @@ public struct RequestPatternBuilder: Sendable {
         mutating { $0.headers = ($0.headers ?? [:]).merging([name: matcher], uniquingKeysWith: Self.combined) }
     }
 
+    /// Adds several header matchers at once (Java `withHeaders`). Each entry
+    /// accumulates with any existing matcher on the same name, like `withHeader`.
+    public func withHeaders(_ matchers: [String: StringValuePattern]) -> Self {
+        matchers.reduce(self) { $0.withHeader($1.key, $1.value) }
+    }
+
     public func withoutHeader(_ name: String) -> Self {
         withHeader(name, .absent)
     }
 
     public func withQueryParam(_ name: String, _ matcher: StringValuePattern) -> Self {
         mutating { $0.queryParameters = ($0.queryParameters ?? [:]).merging([name: matcher], uniquingKeysWith: Self.combined) }
+    }
+
+    /// Adds several query-parameter matchers at once (Java `withQueryParams`).
+    /// Each entry accumulates with any existing matcher on the same name.
+    public func withQueryParams(_ matchers: [String: StringValuePattern]) -> Self {
+        matchers.reduce(self) { $0.withQueryParam($1.key, $1.value) }
     }
 
     /// Requires the query parameter to be absent.
@@ -108,6 +120,7 @@ public func deleteRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .in
 public func headRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .head, url: url) }
 public func optionsRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .options, url: url) }
 public func traceRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .trace, url: url) }
+public func getOrHeadRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .getOrHead, url: url) }
 public func anyRequestedFor(_ url: UrlPattern) -> RequestPatternBuilder { .init(method: .any, url: url) }
 
 /// Verifies requests for an arbitrary method (mirrors Java `requestedFor(method, url)`).

@@ -108,6 +108,18 @@ public extension ResponseDefinitionProviding {
     /// Disables gzip on the response (WireMock does this via a
     /// `Content-Encoding: none` header, not a JSON field).
     func withGzipDisabled() -> Self { withHeader("Content-Encoding", "none") }
+
+    /// Enables the built-in Handlebars response templating transformer
+    /// (`ResponseTransformer.responseTemplate`). Handlebars rendering happens
+    /// server-side; this just names the transformer on the stub.
+    func withResponseTemplating() -> Self { withTransformers(ResponseTransformer.responseTemplate) }
+}
+
+/// Well-known WireMock response transformer names, so callers don't hardcode the
+/// magic string `"response-template"`.
+public enum ResponseTransformer {
+    /// The built-in Handlebars response templating transformer.
+    public static let responseTemplate = "response-template"
 }
 
 /// The proxy-only extension of `ResponseDefinitionBuilder`, returned by
@@ -146,6 +158,12 @@ public struct ProxyResponseDefinitionBuilder: Sendable {
     public func withProxyUrlPrefixToRemove(_ prefix: String) -> Self {
         mutating { $0.proxyUrlPrefixToRemove = prefix }
     }
+
+    // NOTE: no `withPreserveHostHeader` here. Unlike Java's *embedded* server
+    // builder, host-header preservation in WireMock 3.x is a server-launch option
+    // (`--preserve-host-header`), not a per-stub response field — the standalone
+    // server this client drives rejects it with HTTP 422. Configure it when
+    // starting the server, not through this DSL.
 }
 
 extension ResponseDefinitionBuilder: ResponseDefinitionProviding {}
