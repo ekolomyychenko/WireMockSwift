@@ -141,6 +141,11 @@ jobs:
           # Target an available iPhone simulator by UDID (robust — no name pinning).
           UDID=$(xcrun simctl list devices available | grep "iPhone" | grep -oE '[0-9A-F-]{36}' | head -1)
           echo "Using simulator UDID: $UDID"
+          # Pre-boot the simulator and wait until it is fully up before testing.
+          # A cold simulator's first network call is the slowest, and is the main
+          # cause of the intermittent simulator↔host WireMock reachability flake;
+          # a warm simulator removes most of it. (-b boots if needed, then waits.)
+          xcrun simctl bootstatus "$UDID" -b
           # TEST_RUNNER_* env vars are forwarded to the XCUITest runner process
           # (prefix stripped), so the test sees WIREMOCK_REQUIRED=1 and FAILS —
           # rather than XCTSkip-ing green — if it can't reach the server.
