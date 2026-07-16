@@ -358,6 +358,63 @@ final class RequestExpectationMockedTests: XCTestCase {
         }
     }
 
+    // MARK: - because(_:) — caller rationale appended to failures
+
+    /// `.because("…")` appends the rationale to the failing check's message, and the
+    /// original message (check name, endpoint) stays intact.
+    func testBecauseAppendsRationaleToFailure() {
+        let mock = MockAdminTransport().enqueueCount(0).enqueueNoNearMisses()
+        XCTAssertThrowsError(
+            try mock.client().expect(getRequestedFor(urlPathEqualTo("/token")))
+                .because("PKCE is mandatory (RFC 7636)")
+                .toHaveQueryParam("code_challenge", matching(".+"))
+        ) { error in
+            let m = self.message(of: error)
+            XCTAssertTrue(m.contains("— PKCE is mandatory (RFC 7636)"), "rationale appended: \(m)")
+            XCTAssertTrue(m.contains("query param code_challenge"), "original message intact: \(m)")
+        }
+    }
+
+    /// Without `.because`, no rationale line is added (guards the `reason == nil` arm).
+    func testWithoutBecauseNoRationaleLine() {
+        let mock = MockAdminTransport().enqueueCount(0).enqueueNoNearMisses()
+        XCTAssertThrowsError(
+            try mock.client().expect(getRequestedFor(urlPathEqualTo("/token")))
+                .toHaveQueryParam("code_challenge", matching(".+"))
+        ) { XCTAssertFalse(self.message(of: $0).contains("\n  — "), self.message(of: $0)) }
+    }
+
+    // MARK: - Message clarity (W2 endpoint, W3 zero-match hint)
+
+    /// W2: a shortfall names WHICH pattern was under-matched, not just "found 0".
+    func testShortfallMessageNamesEndpoint() {
+        let mock = MockAdminTransport().enqueueCount(0).enqueueNoNearMisses()
+        XCTAssertThrowsError(
+            try mock.client().expect(postRequestedFor(urlPathEqualTo("/orders")))
+                .toHaveHeader("X-Trace", equalTo("abc"))
+        ) { error in
+            let m = self.message(of: error)
+            XCTAssertTrue(m.contains("pattern: POST /orders"), "names the endpoint: \(m)")
+            XCTAssertTrue(m.contains("X-Trace"), m)
+        }
+    }
+
+    /// W3: `single()`/`first()` on zero matches add a "what to check" hint.
+    func testZeroMatchTerminalsGiveHint() {
+        let m1 = MockAdminTransport().enqueueFind(rawRequests: "[]")
+        XCTAssertThrowsError(try m1.client().expect(getRequestedFor(anyUrl)).single()) { error in
+            let m = self.message(of: error)
+            XCTAssertTrue(m.contains("but found 0"), m)
+            XCTAssertTrue(m.contains("matched no captured request"), "W3 hint: \(m)")
+        }
+        let m2 = MockAdminTransport().enqueueFind(rawRequests: "[]")
+        XCTAssertThrowsError(try m2.client().expect(getRequestedFor(anyUrl)).first()) { error in
+            let m = self.message(of: error)
+            XCTAssertTrue(m.contains("but found none"), m)
+            XCTAssertTrue(m.contains("matched no captured request"), "W3 hint: \(m)")
+        }
+    }
+
     // MARK: - toHaveJsonBody(equalToRaw:) surfaces the layer's own error type
 
     /// Invalid raw JSON must throw `RequestExpectationError`, not the underlying
@@ -369,7 +426,8 @@ final class RequestExpectationMockedTests: XCTestCase {
             try wireMock.expect(postRequestedFor(anyUrl)).toHaveJsonBody(equalToRaw: "{not valid json")
         ) { error in
             XCTAssertTrue(error is RequestExpectationError, "expected RequestExpectationError, got \(type(of: error))")
-            XCTAssertTrue(self.message(of: error).contains("invalid JSON"), self.message(of: error))
+            // W4: the underlying reason is surfaced (colon + detail), not swallowed.
+            XCTAssertTrue(self.message(of: error).contains("invalid JSON:"), self.message(of: error))
         }
     }
 }

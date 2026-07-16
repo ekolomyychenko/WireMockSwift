@@ -242,7 +242,9 @@ public struct VerificationError: Error, CustomStringConvertible, Sendable {
             var line = "  closest request was: \(method) \(request.url ?? "?")"
             if let distance = closest.matchResult?.distance {
                 let rounded = (distance * 100).rounded() / 100
-                line += " (distance \(rounded))"
+                // Label the raw WireMock match score so "distance 0.14" isn't a bare,
+                // unitless number: it's a 0…1 dissimilarity, lower = closer to matching.
+                line += " (match distance \(rounded) — lower is closer)"
             }
             return line
         }

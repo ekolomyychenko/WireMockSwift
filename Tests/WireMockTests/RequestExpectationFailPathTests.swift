@@ -345,7 +345,12 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
         // wrong value, matching keys
         XCTAssertThrowsError(
             try wireMock.expect(getRequestedFor(urlPathEqualTo("/q"))).toHaveExactlyQueryParams(["page": "2"])
-        ) { XCTAssertTrue(String(describing: $0).contains("Expected query param 'page'"), String(describing: $0)) }
+        ) { error in
+            let m = String(describing: error)
+            // W5: expected and actual quoted symmetrically.
+            XCTAssertTrue(m.contains("Expected query param 'page' == \"2\""), m)
+            XCTAssertTrue(m.contains("but was [\"1\"]"), m)
+        }
         // no matching request at all
         XCTAssertThrowsError(
             try wireMock.expect(getRequestedFor(urlPathEqualTo("/q-none"))).toHaveExactlyQueryParams(["page": "1"])

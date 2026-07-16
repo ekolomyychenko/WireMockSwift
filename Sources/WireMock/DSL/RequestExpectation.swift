@@ -14,11 +14,40 @@ public struct RequestExpectation: Sendable {
     /// one", so `expect(x).toHaveHeader(...)` means "some request matched, with
     /// this header". `toHaveBeenSent` overrides it.
     private var countSpec: CountSpec
+    /// A caller-supplied rationale appended to any failure message from the checks
+    /// that follow. Set via ``because(_:)``; nil by default.
+    private var reason: String?
 
     init(wireMock: WireMock, builder: RequestPatternBuilder) {
         self.wireMock = wireMock
         self.builder = builder
         self.countSpec = .atLeast(1)
+        self.reason = nil
+    }
+
+    // MARK: - Context
+
+    /// Attaches an explanatory note that is appended to the failure message of every
+    /// check **after** this call in the chain — the WireMockSwift analogue of
+    /// XCTAssert's `message:` / Nimble's `because:`. Use it to record *why* an
+    /// expectation matters, so a failure reads as a requirement, not just a mismatch:
+    ///
+    /// ```swift
+    /// try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+    ///     .because("PKCE is mandatory for the mobile client (RFC 7636)")
+    ///     .toHaveFormParam("code_verifier", matching(".+"))
+    /// ```
+    ///
+    /// Because the chain short-circuits on the first failing check, the note lands on
+    /// whichever check fails. Place it **before** the checks it should annotate;
+    /// repeating it is last-wins (so interleaving `.because(...)` before each check
+    /// gives per-check rationales). It does not propagate past ``extract()`` into
+    /// ``RequestExtractor``/``JWT``.
+    @discardableResult
+    public func because(_ reason: String) -> RequestExpectation {
+        var copy = self
+        copy.reason = reason
+        return copy
     }
 
     // MARK: - Count
@@ -133,7 +162,7 @@ public struct RequestExpectation: Sendable {
             for (index, req) in leaking.enumerated() {
                 message += "\n  #\(index + 1)  \(Self.compactLine(req.logged))"
             }
-            throw RequestExpectationError(message: message)
+            throw fail(message)
         }
         return refined
     }
@@ -286,7 +315,8 @@ public struct RequestExpectation: Sendable {
             // Keep the layer's "only RequestExpectationError escapes" contract: the
             // underlying `equalToJson(raw:)` throws WireMockError on malformed JSON,
             // which the file/bundle overloads (and callers) shouldn't have to catch.
-            throw RequestExpectationError(message: "toHaveJsonBody(equalToRaw:) was given invalid JSON")
+            // Surface the underlying reason so the caller can see WHAT is malformed.
+            throw fail("toHaveJsonBody(equalToRaw:) was given invalid JSON: \(error.localizedDescription)")
         }
         return try refine("json body") { $0.withRequestBody(matcher) }
     }
@@ -304,7 +334,7 @@ public struct RequestExpectation: Sendable {
         } catch {
             // Wrap the raw Foundation read error so both file overloads fail with
             // the layer's own error type (the bundle overload already does).
-            throw RequestExpectationError(message: "Cannot read JSON file at \(url.path): \(error.localizedDescription)")
+            throw fail("Cannot read JSON file at \(url.path): \(error.localizedDescription)")
         }
         return try toHaveJsonBody(equalToRaw: text, ignoreExtraElements: ignoreExtraElements, ignoreArrayOrder: ignoreArrayOrder)
     }
@@ -325,7 +355,7 @@ public struct RequestExpectation: Sendable {
         ignoreArrayOrder: Bool = false
     ) throws -> RequestExpectation {
         guard let url = bundle.url(forResource: name, withExtension: ext, subdirectory: subdirectory) else {
-            throw RequestExpectationError(message: "JSON fixture '\(name).\(ext)' not found in bundle at \(bundle.bundlePath)")
+            throw fail("JSON fixture '\(name).\(ext)' not found in bundle at \(bundle.bundlePath)")
         }
         return try toHaveJsonBody(equalToFile: url, ignoreExtraElements: ignoreExtraElements, ignoreArrayOrder: ignoreArrayOrder)
     }
@@ -416,14 +446,13 @@ public struct RequestExpectation: Sendable {
             var actual: [String: [String]] = [:]
             for item in items(req) { actual[item.name, default: []].append(item.value ?? "") }
             if Set(params.keys) != Set(actual.keys) {
-                throw RequestExpectationError(
-                    message: "Expected exactly \(kind) \(params.keys.sorted()) on \(req.method?.description ?? "?") \(req.url ?? "?"), but had \(actual.keys.sorted())"
-                )
+                throw fail("Expected exactly \(kind) \(params.keys.sorted()) on \(req.method?.description ?? "?") \(req.url ?? "?"), but had \(actual.keys.sorted())")
             }
             for (key, value) in params where actual[key] != [value] {
-                throw RequestExpectationError(
-                    message: "Expected \(kind.dropLast()) '\(key)'=\(value) but was \(actual[key] ?? []) on \(req.url ?? "?")"
-                )
+                // Quote expected and actual symmetrically so a value with spaces isn't
+                // ambiguous (was: bare expected vs array-literal actual).
+                let had = (actual[key] ?? []).map { "\"\($0)\"" }.joined(separator: ", ")
+                throw fail("Expected \(kind.dropLast()) '\(key)' == \"\(value)\" but was [\(had)] on \(req.method?.description ?? "?") \(req.url ?? "?")")
             }
         }
         return self
@@ -435,7 +464,8 @@ public struct RequestExpectation: Sendable {
     public func single() throws -> CapturedRequest {
         let all = try fetchSorted()
         guard all.count == 1 else {
-            throw RequestExpectationError(message: "Expected exactly one request matching \(Self.summary(builder)), but found \(all.count)" + dump(all))
+            let hint = all.isEmpty ? " — the pattern matched no captured request (check the URL/method, or that the flow ran)" : ""
+            throw fail("Expected exactly one request matching \(Self.summary(builder)), but found \(all.count)\(hint)" + dump(all))
         }
         return all[0]
     }
@@ -529,7 +559,7 @@ public struct RequestExpectation: Sendable {
                     message += "\n  #\(index + 1)  \(Self.compactLine(request))"
                 }
             }
-            throw RequestExpectationError(message: message)
+            throw fail(message)
         }
         var copy = self
         copy.builder = absentTransform(builder)
@@ -543,7 +573,7 @@ public struct RequestExpectation: Sendable {
     }
 
     private func notFound() -> RequestExpectationError {
-        RequestExpectationError(message: "Expected at least one request matching \(Self.summary(builder)), but found none")
+        fail("Expected at least one request matching \(Self.summary(builder)), but found none — the pattern matched no captured request (check the URL/method, or that the flow ran)")
     }
 
     /// Builds the failure message: reuses `VerificationError`'s near-miss diff on
@@ -559,7 +589,10 @@ public struct RequestExpectation: Sendable {
         if spec.isShortfall(actual) {
             let misses = (try? wireMock.findNearMisses(for: rb)) ?? []
             let rendered = VerificationError(expected: spec.description, actual: actual, nearMisses: misses).description
-            return RequestExpectationError(message: rendered + note)
+            // Name the endpoint: `VerificationError.description` omits it, so a shortfall
+            // would otherwise report "found 0" without saying WHICH pattern was
+            // under-matched — the too-many branch below already names it.
+            return fail(rendered + note + "\n  pattern: \(Self.summary(rb))")
         }
         var message = "Expected \(spec.description) matching request(s) for \(Self.summary(rb)) but found \(actual)\(note)"
         if actual > 0, let matched = try? wireMock.findAll(rb), !matched.isEmpty {
@@ -568,7 +601,16 @@ public struct RequestExpectation: Sendable {
                 message += "\n  #\(index + 1)  \(Self.compactLine(request))"
             }
         }
-        return RequestExpectationError(message: message)
+        return fail(message)
+    }
+
+    /// Wraps a composed failure message as a `RequestExpectationError`, appending the
+    /// caller's ``because(_:)`` rationale (when set) so every failure in the chain
+    /// carries the same context. The single funnel every throw in this type routes
+    /// through.
+    private func fail(_ message: String) -> RequestExpectationError {
+        guard let reason else { return RequestExpectationError(message: message) }
+        return RequestExpectationError(message: "\(message)\n  — \(reason)")
     }
 
     private func dump(_ requests: [CapturedRequest]) -> String {
