@@ -4394,6 +4394,33 @@
         "children": [
           {
             "kind": "Function",
+            "name": "because",
+            "printedName": "because(_:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "RequestExpectation",
+                "printedName": "WireMock.RequestExpectation",
+                "usr": "s:8WireMock18RequestExpectationV"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:8WireMock18RequestExpectationV7becauseyACSSF",
+            "mangledName": "$s8WireMock18RequestExpectationV7becauseyACSSF",
+            "moduleName": "WireMock",
+            "declAttributes": [
+              "DiscardableResult"
+            ],
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
             "name": "toHaveBeenSent",
             "printedName": "toHaveBeenSent(_:)",
             "children": [

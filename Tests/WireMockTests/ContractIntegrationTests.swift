@@ -273,6 +273,42 @@ final class ContractIntegrationTests: WireMockIntegrationCase {
                       "filtered snapshot must return the proxied mapping; got \(snapshot.map { $0.request.url })")
     }
 
+    // MARK: Journal-query endpoints accept rich matcher patterns — was implicit-only
+
+    /// The `expect(...)` layer POSTs a `RequestPattern` to `/requests/count` and
+    /// `/requests/find`. Until now the server's ACCEPTANCE of a journal query carrying
+    /// rich matchers (`cookies` + `formParameters` + `matchesJsonPath`) was only proven
+    /// *implicitly* — a 422 would surface as an opaque `expect` failure. This frames it
+    /// directly: a pattern with all three fields must be accepted (no throw), and a
+    /// matching subset must actually count/find the request end-to-end. If a future
+    /// server tightened journal-query deserialization, this goes red as a clear contract
+    /// failure, not a mysterious assertion miss.
+    func testJournalQueryAcceptsRichMatcherPattern() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/journal-rich")).willReturn(ok()))
+        try WireMockFixture.hit(
+            "journal-rich", method: "POST",
+            headers: ["Content-Type": "application/json", "Cookie": "sid=s1"],
+            body: Data(#"{"id":7}"#.utf8)
+        )
+
+        // Acceptance: a pattern combining cookies + formParameters + matchesJsonPath must
+        // not 422 on the journal-query endpoints. It won't MATCH (no form param on a JSON
+        // body), but count/findAll returning at all proves the server accepted the query.
+        let richPattern = postRequestedFor(urlPathEqualTo("/journal-rich"))
+            .withCookie("sid", equalTo("s1"))
+            .withFormParam("grant_type", equalTo("x"))
+            .withRequestBody(matchingJsonPath("$.id"))
+        XCTAssertNoThrow(try wireMock.count(richPattern), "journal /requests/count must accept the rich pattern")
+        XCTAssertNoThrow(try wireMock.findAll(richPattern), "journal /requests/find must accept the rich pattern")
+
+        // End-to-end: a matching subset (cookie + JSONPath value) actually finds the request.
+        let matchPattern = postRequestedFor(urlPathEqualTo("/journal-rich"))
+            .withCookie("sid", equalTo("s1"))
+            .withRequestBody(matchingJsonPath("$.id", equalTo("7")))
+        XCTAssertEqual(try wireMock.count(matchPattern), 1, "cookie + JSONPath journal query must match the request")
+        XCTAssertEqual(try wireMock.findAll(matchPattern).count, 1)
+    }
+
     // MARK: New WS2 ergonomics — proven live so they aren't golden-only either
 
     func testGetOrHeadStubMatchesGetAndHeadLive() throws {

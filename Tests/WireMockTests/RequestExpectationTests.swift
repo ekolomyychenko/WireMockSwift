@@ -18,6 +18,7 @@ final class RequestExpectationTests: WireMockIntegrationCase {
         try wireMock.expect(getRequestedFor(urlEqualTo("/ping"))).toHaveBeenSent(.atMost(3))
         try wireMock.expect(getRequestedFor(urlEqualTo("/ping"))).toHaveBeenSent(.between(2...5))
         try wireMock.expect(getRequestedFor(urlEqualTo("/ping"))).toHaveBeenSent(.moreThan(2))
+        try wireMock.expect(getRequestedFor(urlEqualTo("/ping"))).toHaveBeenSent(.lessThan(5))
         try wireMock.expect(getRequestedFor(urlEqualTo("/absent"))).toNeverHaveBeenSent()
     }
 
@@ -293,6 +294,11 @@ final class RequestExpectationTests: WireMockIntegrationCase {
 
         try wireMock.expect(postRequestedFor(urlPathEqualTo("/file")))
             .toHaveJsonBody(equalToFile: url)
+        // The valid `equalToRaw:` path was only ever covered transitively (via the
+        // file overload, which calls it); pin its own live round-trip so the server
+        // is proven to accept the parsed operand.
+        try wireMock.expect(postRequestedFor(urlPathEqualTo("/file")))
+            .toHaveJsonBody(equalToRaw: #"{"id":7}"#)
     }
 
     // MARK: Capture / extract / correlation

@@ -81,6 +81,67 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
             .toHaveHeader("Authorization")
     }
 
+    /// The range/comparison count specs (`.between`/`.moreThan`/`.lessThan`) and an
+    /// `.atLeast(n>1)` shortfall must FAIL against a LIVE server, not only under the
+    /// hermetic mock — TESTING.md principle #1 wants match+miss on the real server for
+    /// each spec (the passing side lives in `RequestExpectationTests.testCountSpecs`).
+    /// Each case asserts the spec's own `description` string reaches the message, so a
+    /// mutant swapping the rendered spec dies.
+    func testRangeAndComparisonCountSpecsFailLive() throws {
+        // .between too-many: 6 sent, allowed 2...5.
+        try wireMock.stubFor(get(urlPathEqualTo("/r-between")).willReturn(ok()))
+        for _ in 0..<6 { try WireMockFixture.hit("r-between") }
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/r-between"))).toHaveBeenSent(.between(2...5))
+        ) { error in
+            let m = String(describing: error)
+            XCTAssertTrue(m.contains("between 2 and 5"), m)
+            XCTAssertTrue(m.contains("found 6"), m)
+        }
+
+        // .moreThan shortfall: 2 sent, needs > 3.
+        try wireMock.stubFor(get(urlPathEqualTo("/r-more")).willReturn(ok()))
+        for _ in 0..<2 { try WireMockFixture.hit("r-more") }
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/r-more"))).toHaveBeenSent(.moreThan(3))
+        ) { XCTAssertTrue(String(describing: $0).contains("more than 3"), String(describing: $0)) }
+
+        // .lessThan too-many: 5 sent, needs < 3.
+        try wireMock.stubFor(get(urlPathEqualTo("/r-less")).willReturn(ok()))
+        for _ in 0..<5 { try WireMockFixture.hit("r-less") }
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/r-less"))).toHaveBeenSent(.lessThan(3))
+        ) { error in
+            let m = String(describing: error)
+            XCTAssertTrue(m.contains("fewer than 3"), m)
+            XCTAssertTrue(m.contains("found 5"), m)
+        }
+
+        // .atLeast(n>1) shortfall: 1 sent, needs >= 3.
+        try wireMock.stubFor(get(urlPathEqualTo("/r-least")).willReturn(ok()))
+        try WireMockFixture.hit("r-least")
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/r-least"))).toHaveBeenSent(.atLeast(3))
+        ) { XCTAssertTrue(String(describing: $0).contains("at least 3"), String(describing: $0)) }
+    }
+
+    /// The exact-string `toHaveBody(equalTo:)` and the general positional
+    /// `toHaveBody(_ matcher:)` overloads are only asserted in the passing direction
+    /// elsewhere (`RequestExpectationTests`). Their misses close principle #1's
+    /// "a matcher that always matches would pass" gap on these two entry points.
+    func testGeneralBodyMatchersFailOnMismatch() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/gb")).willReturn(ok()))
+        try WireMockFixture.hit("gb", method: "POST", body: Data("hello world".utf8))
+        // exact-string overload, wrong value
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/gb"))).toHaveBody(equalTo: "goodbye")
+        ) { XCTAssertTrue(String(describing: $0).contains("body"), String(describing: $0)) }
+        // general positional overload, wrong value
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/gb"))).toHaveBody(StringValuePattern.equalTo("goodbye"))
+        ) { XCTAssertTrue(String(describing: $0).contains("body"), String(describing: $0)) }
+    }
+
     func testAtMostExceededDumps() throws {
         try wireMock.stubFor(get(urlPathEqualTo("/poll")).willReturn(ok()))
         for _ in 0..<3 { try WireMockFixture.hit("poll") }

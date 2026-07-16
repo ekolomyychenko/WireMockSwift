@@ -430,4 +430,37 @@ final class RequestExpectationMockedTests: XCTestCase {
             XCTAssertTrue(self.message(of: error).contains("invalid JSON:"), self.message(of: error))
         }
     }
+
+    // MARK: - toHaveJsonBody(equalToFile:) input errors throw HERMETICALLY (before any server call)
+
+    /// A missing file URL and a missing bundle resource both throw the layer's own
+    /// `RequestExpectationError` **before** touching the server — so they must be
+    /// pinned server-less. The live counterpart lives in the integration
+    /// `RequestExpectationFailPathTests`, which XCTSkips without a server and is
+    /// invisible to `muter`; this deterministic input-validation path (TESTING.md
+    /// principle #4) belongs in the hermetic suite so a skip-storm can't hide it.
+    func testJsonBodyFileUrlUnreadableThrowsRequestExpectationError() {
+        let wireMock = MockAdminTransport().client()   // no responses enqueued: throw precedes any call
+        let bogus = URL(fileURLWithPath: "/nonexistent/definitely-not-here-\(#function).json")
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(anyUrl)).toHaveJsonBody(equalToFile: bogus)
+        ) { error in
+            XCTAssertTrue(error is RequestExpectationError, "expected RequestExpectationError, got \(type(of: error))")
+            XCTAssertTrue(self.message(of: error).contains("Cannot read JSON file"), self.message(of: error))
+        }
+    }
+
+    /// The bundle overload surfaces a missing resource as the layer's own error naming
+    /// the fixture, not a bare Foundation nil — also hermetic (throws before the server).
+    func testJsonBodyMissingBundleResourceThrowsRequestExpectationError() {
+        let wireMock = MockAdminTransport().client()
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(anyUrl)).toHaveJsonBody(equalToFile: "nope", bundle: .module)
+        ) { error in
+            XCTAssertTrue(error is RequestExpectationError, "expected RequestExpectationError, got \(type(of: error))")
+            let msg = self.message(of: error)
+            XCTAssertTrue(msg.contains("not found in bundle"), msg)
+            XCTAssertTrue(msg.contains("nope.json"), "should name the missing fixture: \(msg)")
+        }
+    }
 }
