@@ -113,10 +113,17 @@ public struct RequestExpectation: Sendable {
         let leaking = try wireMock.findAll(builder)
             .map(CapturedRequest.init)
             .filter { req in
-                // Only treat the body as a form leak when it plausibly IS form-encoded.
-                // A non-form body (e.g. JSON whose text incidentally contains "&name=")
-                // must not fabricate a phantom form param and false-fail this negative.
-                guard let body = req.bodyString, Self.looksFormEncoded(body) else { return false }
+                guard let body = req.bodyString, !body.isEmpty else { return false }
+                // Skip only recognisably structured data (valid JSON, or a body that
+                // opens with `{`/`[`/`<`): its incidental "&name=" substrings would
+                // fabricate a phantom form param and false-fail this negative. Every
+                // other body is decoded form-wise. This is deliberately a *blacklist*
+                // (skip JSON/XML) rather than a strict character allowlist: a real
+                // form-encoded leak whose value isn't percent-encoded — e.g. a raw
+                // `redirect_uri=https://app/cb`, whose `:`/`/` an allowlist rejects —
+                // must still be caught, or the content-type-evading secret leak this
+                // scan exists to find would be silently missed.
+                if Self.looksStructuredNonForm(body, json: req.bodyJSON) { return false }
                 return req.formItems().contains { $0.name == name }
             }
         guard leaking.isEmpty else {
@@ -574,14 +581,20 @@ public struct RequestExpectation: Sendable {
         return line
     }
 
-    /// Whether `body` plausibly is an `application/x-www-form-urlencoded` payload.
-    /// A well-formed form body uses only these characters; a JSON/text body (with
-    /// `{`, `"`, `:`, spaces, …) is rejected so its incidental `&key=` substrings
-    /// don't fabricate a phantom form param in the content-type-agnostic leak scan.
-    private static let formURLEncodedCharacters = Set(
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~*%+&="
-    )
-    private static func looksFormEncoded(_ body: String) -> Bool {
-        !body.isEmpty && body.allSatisfy { formURLEncodedCharacters.contains($0) }
+    /// Whether `body` is recognisably structured data (JSON or XML) rather than a
+    /// form-urlencoded payload, and so must be skipped by the form-leak scan. A
+    /// structured body's incidental `&key=` substrings would otherwise fabricate a
+    /// phantom form param and false-fail a `toNotHaveFormParam` negative.
+    ///
+    /// A body counts as structured when it parses as valid JSON, or when its first
+    /// non-whitespace character opens a JSON object/array (`{`/`[`) or an XML/HTML
+    /// document (`<`) — covering malformed-but-clearly-structured bodies too. Any
+    /// other body is treated as a candidate form payload and scanned, so a
+    /// form-encoded secret leak carrying an un-percent-encoded value (whose reserved
+    /// characters a strict allowlist would wrongly reject) is still caught.
+    private static func looksStructuredNonForm(_ body: String, json: JSONValue?) -> Bool {
+        if json != nil { return true }
+        guard let first = body.first(where: { !$0.isWhitespace }) else { return false }
+        return first == "{" || first == "[" || first == "<"
     }
 }

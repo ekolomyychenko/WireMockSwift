@@ -220,8 +220,11 @@ enum JSONPathLite {
                 }
                 i += 1 // consume ']'
                 let spaceless = inner.trimmingCharacters(in: .whitespaces)
-                let isQuoted = (spaceless.hasPrefix("'") && spaceless.hasSuffix("'"))
-                    || (spaceless.hasPrefix("\"") && spaceless.hasSuffix("\""))
+                // Require ≥2 chars so a lone quote (`$[']`) isn't read as its own
+                // opening-and-closing quote around an empty key.
+                let isQuoted = spaceless.count >= 2
+                    && ((spaceless.hasPrefix("'") && spaceless.hasSuffix("'"))
+                        || (spaceless.hasPrefix("\"") && spaceless.hasSuffix("\"")))
                 if isQuoted {
                     // A quoted key is always a key, even if it looks numeric
                     // (`$['0']` is the object key "0", not array index 0).

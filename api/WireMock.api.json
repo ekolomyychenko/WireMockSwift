@@ -3553,7 +3553,7 @@
       {
         "kind": "Function",
         "name": "equalToXml",
-        "printedName": "equalToXml(_:)",
+        "printedName": "equalToXml(_:enablePlaceholders:placeholderOpeningDelimiterRegex:placeholderClosingDelimiterRegex:exemptedComparisons:ignoreOrderOfSameNode:namespaceAwareness:)",
         "children": [
           {
             "kind": "TypeNominal",
@@ -3566,11 +3566,101 @@
             "name": "String",
             "printedName": "Swift.String",
             "usr": "s:SS"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Bool",
+            "printedName": "Swift.Bool",
+            "hasDefaultArg": true,
+            "usr": "s:Sb"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.String?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "[Swift.String]?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Array",
+                "printedName": "[Swift.String]",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "usr": "s:Sa"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "Swift.Bool?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Bool",
+                "printedName": "Swift.Bool",
+                "usr": "s:Sb"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
+          },
+          {
+            "kind": "TypeNominal",
+            "name": "Optional",
+            "printedName": "WireMock.StringValuePattern.NamespaceAwareness?",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "NamespaceAwareness",
+                "printedName": "WireMock.StringValuePattern.NamespaceAwareness",
+                "usr": "s:8WireMock18StringValuePatternV18NamespaceAwarenessO"
+              }
+            ],
+            "hasDefaultArg": true,
+            "usr": "s:Sq"
           }
         ],
         "declKind": "Func",
-        "usr": "s:8WireMock10equalToXmlyAA18StringValuePatternVSSF",
-        "mangledName": "$s8WireMock10equalToXmlyAA18StringValuePatternVSSF",
+        "usr": "s:8WireMock10equalToXml_18enablePlaceholders32placeholderOpeningDelimiterRegex0h7ClosingjK019exemptedComparisons21ignoreOrderOfSameNode18namespaceAwarenessAA18StringValuePatternVSS_SbSSSgAKSaySSGSgSbSgAJ09NamespaceU0OSgtF",
+        "mangledName": "$s8WireMock10equalToXml_18enablePlaceholders32placeholderOpeningDelimiterRegex0h7ClosingjK019exemptedComparisons21ignoreOrderOfSameNode18namespaceAwarenessAA18StringValuePatternVSS_SbSSSgAKSaySSGSgSbSgAJ09NamespaceU0OSgtF",
         "moduleName": "WireMock",
         "funcSelfKind": "NonMutating"
       },

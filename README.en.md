@@ -289,7 +289,7 @@ let orderId = try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
 try wireMock.expect(postRequestedFor(urlPathEqualTo("/payments")))
     .toHaveJsonPath("$.orderId", equalTo(orderId.stringValue ?? ""))
 
-// first() / last() (by loggedDate) / single() / all() give typed CapturedRequest accessors
+// single() / first() / last() (by loggedDate) give a CapturedRequest; all() gives [CapturedRequest]
 let req = try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders"))).single()
 _ = req.header("X-Request-Id"); _ = req.queryParam("page"); _ = req.bodyJSON
 ```

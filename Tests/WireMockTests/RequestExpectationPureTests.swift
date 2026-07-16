@@ -74,6 +74,10 @@ final class RequestExpectationPureTests: XCTestCase {
         XCTAssertEqual(try JSONPathLite.evaluate("$[\"a]", on: double), .int(43))
         // Trailing-only quote is likewise literal.
         XCTAssertEqual(try JSONPathLite.evaluate("$[a']", on: ["a'": 44]), .int(44))
+        // A lone quote is one unbalanced quote, not an empty quoted key: it must be
+        // the literal key "'" (uniform with the half-quoted cases above), not "".
+        XCTAssertEqual(try JSONPathLite.evaluate("$[']", on: ["'": 45]), .int(45))
+        XCTAssertEqual(try JSONPathLite.evaluate("$[\"]", on: ["\"": 46]), .int(46))
     }
 
     func testJSONPathErrorEdges() {

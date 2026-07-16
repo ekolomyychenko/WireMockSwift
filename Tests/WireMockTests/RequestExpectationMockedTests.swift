@@ -163,6 +163,41 @@ final class RequestExpectationMockedTests: XCTestCase {
         }
     }
 
+    /// Regression: a real form-encoded leak whose value is NOT percent-encoded — a
+    /// raw `redirect_uri=https://app/cb`, whose `:`/`/` a strict character allowlist
+    /// rejects — must still be caught. The earlier `looksFormEncoded` allowlist let a
+    /// single reserved character anywhere in the body suppress the whole scan, so
+    /// `client_secret` slipped through as a silent false pass. The blacklist gate
+    /// (skip only recognisably structured JSON/XML) fires the scan here.
+    func testNotHaveFormParamCatchesLeakWithRawUnencodedValue() {
+        let mock = MockAdminTransport()
+            .enqueueCount(0)   // server-side form matching misses it (no form Content-Type)
+            .enqueueFind(rawRequests:
+                #"[{"url":"/token","method":"POST","body":"grant_type=authorization_code&redirect_uri=https://app/cb&client_secret=SEKRET"}]"#)
+        let wireMock = mock.client()
+
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/token"))).toNotHaveFormParam("client_secret")
+        ) { error in
+            XCTAssertTrue(self.message(of: error).contains("client_secret"), self.message(of: error))
+        }
+    }
+
+    /// A malformed-but-clearly-structured body (opens with `{` yet doesn't parse as
+    /// JSON) must still be skipped by the leak scan — its incidental `&client_secret=`
+    /// substring must not fabricate a phantom form param. Locks the `{`/`[`/`<`
+    /// prefix arm of the blacklist, not just the valid-JSON arm.
+    func testNotHaveFormParamIgnoresMalformedJsonPrefixBody() throws {
+        let mock = MockAdminTransport()
+            .enqueueCount(0)
+            .enqueueFind(rawRequests: #"[{"url":"/x","method":"POST","body":"{\"note\":\"a&client_secret=b\""}]"#)
+        let wireMock = mock.client()
+
+        XCTAssertNoThrow(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/x"))).toNotHaveFormParam("client_secret")
+        )
+    }
+
     // MARK: - toHaveJsonBody(equalToRaw:) surfaces the layer's own error type
 
     /// Invalid raw JSON must throw `RequestExpectationError`, not the underlying
