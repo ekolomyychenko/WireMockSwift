@@ -236,6 +236,23 @@ final class RequestExpectationMockedTests: XCTestCase {
         )
     }
 
+    /// A count spec that explicitly ACCEPTS zero (`.never`) opts out of the floor:
+    /// chaining a negative after it is trivially true (no request → nothing leaked)
+    /// and must NOT trip the floor. Guards against the over-strict `>= 1` reading.
+    func testNegativeAfterNeverSpecPassesVacuously() {
+        let mock = MockAdminTransport()
+            .enqueueCount(0)   // toNeverHaveBeenSent: 0 requests, .never satisfied
+            .enqueueCount(0)   // refineNegative floor: .never is satisfied by 0
+            .enqueueCount(0)   // no offender
+        let wireMock = mock.client()
+
+        XCTAssertNoThrow(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/token")))
+                .toNeverHaveBeenSent()
+                .toNotHaveQueryParam("client_secret")
+        )
+    }
+
     /// A malformed-but-clearly-XML body (opens with `<`) must be skipped by the
     /// form-leak scan — its incidental `&client_secret=` substring must not fabricate
     /// a phantom form param. Locks the `<` arm of `looksStructuredNonForm`.

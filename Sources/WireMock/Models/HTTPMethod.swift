@@ -5,9 +5,8 @@ import Foundation
 /// autocomplete and typo-safety.
 ///
 /// ```swift
-/// get(urlEqualTo("/x"))            // uses .get
-/// request(.report, urlEqualTo("/x"))
-/// request("REPORT", urlEqualTo("/x"))  // still works via the string literal
+/// get(urlEqualTo("/x"))                 // common verb helper
+/// request("REPORT", urlEqualTo("/x"))   // custom verb via the string literal
 /// ```
 public struct HTTPMethod: RawRepresentable, Codable, Sendable, Hashable, ExpressibleByStringLiteral, CustomStringConvertible {
     public let rawValue: String

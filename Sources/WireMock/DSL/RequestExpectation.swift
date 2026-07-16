@@ -260,7 +260,7 @@ public struct RequestExpectation: Sendable {
     }
 
     /// Full JSON body comparison. `ignoreExtraElements: true` accepts extra
-    /// fields ("вхождение"); the default is a strict full match.
+    /// fields (subset match); the default is a strict full match.
     @discardableResult
     public func toHaveJsonBody(
         equalTo json: JSONValue,
@@ -497,23 +497,27 @@ public struct RequestExpectation: Sendable {
     /// that leaked it — a real footgun for a security negative like
     /// `toNotHaveQueryParam("client_secret")`. The builder is still narrowed by
     /// the absent matcher for any subsequent chained checks.
+    ///
+    /// Like ``refine(_:_:)`` it also holds the base pattern to `countSpec` (default
+    /// `.atLeast(1)`), so a negative can't pass vacuously when *zero* requests
+    /// matched — a typo'd URL or an un-run flow no longer greens the check. Unlike
+    /// the positive floor it imposes no extra `>= 1`: a spec that explicitly accepts
+    /// zero (`.never`, `.atMost`) makes the negative trivially true, so it passes.
     private func refineNegative(
         _ check: String,
         present presentTransform: (RequestPatternBuilder) -> RequestPatternBuilder,
         absent absentTransform: (RequestPatternBuilder) -> RequestPatternBuilder
     ) throws -> RequestExpectation {
-        // Floor, symmetric with `refine`: the base pattern must itself have matched
-        // (default `.atLeast(1)`) before "no request carried the field" can mean
-        // anything. Without it a negative passes VACUOUSLY when zero requests matched
-        // — a typo'd URL or a flow that never ran turns a security negative like
-        // `toNotHaveQueryParam("client_secret")` green, the same false-green the
-        // positive floor exists to prevent. (A deliberate strengthening over Java,
-        // whose `verify(never(), …)` is satisfied by zero requests; consistency
-        // between `toHave*`/`toNot*` outweighs matching Java's laxer negative here.)
+        // Floor: the base pattern must satisfy `countSpec` before "no request carried
+        // the field" can mean anything. Without it a negative passes VACUOUSLY on zero
+        // matches, the same false-green the positive floor prevents. But NO separate
+        // `>= 1` here: a spec that accepts zero (`.never`/`.atMost(n)`) opts out of the
+        // floor, and the negative is then trivially satisfied. (A deliberate
+        // strengthening over Java, whose `verify(never(), …)` ignores the base count;
+        // matching `toHave*`/`toNot*` on the DEFAULT `.atLeast(1)` spec matters more.)
         let baseCount = try wireMock.count(builder)
-        guard baseCount >= 1, countSpec.isSatisfied(by: baseCount) else {
-            let effectiveSpec = countSpec.isSatisfied(by: baseCount) ? CountSpec.atLeast(1) : countSpec
-            throw makeError(builder, actual: baseCount, check: check, spec: effectiveSpec)
+        guard countSpec.isSatisfied(by: baseCount) else {
+            throw makeError(builder, actual: baseCount, check: check, spec: countSpec)
         }
         let offending = presentTransform(builder)
         let count = try wireMock.count(offending)

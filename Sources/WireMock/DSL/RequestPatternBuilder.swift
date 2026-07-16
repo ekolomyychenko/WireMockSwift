@@ -28,6 +28,12 @@ public struct RequestPatternBuilder: Sendable {
     /// dropping one silently is a footgun. The wire shape stays one matcher object per
     /// key (`{"and":[…]}`, which the server accepts), and nested ANDs are flattened so
     /// N calls yield one N-element AND.
+    ///
+    /// - Warning: One combination is unsatisfiable. Pinning `.absent` (via
+    ///   `withoutHeader`/`withoutQueryParam`/…) AND a value matcher on the SAME key
+    ///   yields `{"and":[{"absent":true},…]}` — no request can be both absent and
+    ///   equal to something, so it matches nothing. `verify(never(), …)` on such a
+    ///   pattern therefore always passes. Don't assert presence and absence of one key.
     static func combined(_ existing: StringValuePattern, _ new: StringValuePattern) -> StringValuePattern {
         if existing.fields.count == 1, case .array(let members)? = existing.fields["and"] {
             return StringValuePattern(["and": .array(members + [new.asJSON])])

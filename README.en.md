@@ -363,6 +363,13 @@ content type would slip past a server-only check. On top of the server-side "no 
 scans the captured request bodies client-side (content-type-agnostic), so a leaked `client_secret` in the
 body is caught either way.
 
+Negatives require the base pattern to have matched. `toNotHaveHeader/QueryParam/Cookie/FormParam` fail when
+**zero** requests matched the pattern (under the default `.atLeast(1)`), so a typo'd URL or an un-run flow
+can't green a security negative vacuously — this is a deliberate strengthening over Java, whose
+`verify(never(), …)` is satisfied by zero requests. If you *do* expect zero traffic, say so explicitly
+(`.toNeverHaveBeenSent().toNotHave…` or `.toHaveBeenSent(.atMost(n))`): a count spec that accepts zero opts
+out of the floor, and the negative then passes trivially.
+
 ## Scenarios (state management)
 
 ```swift
