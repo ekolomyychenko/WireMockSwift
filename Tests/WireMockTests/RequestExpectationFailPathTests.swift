@@ -303,9 +303,11 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
     }
 
     func testJsonBodyRawInvalidThrowsBeforeServer() {
+        // Invalid raw JSON surfaces as the layer's own RequestExpectationError (not the
+        // underlying WireMockError), consistent with the file/bundle overloads below.
         XCTAssertThrowsError(
             try wireMock.expect(anyRequestedFor(anyUrl)).toHaveJsonBody(equalToRaw: "{bad")
-        ) { XCTAssertTrue($0 is WireMockError, String(describing: $0)) }
+        ) { XCTAssertTrue($0 is RequestExpectationError, String(describing: $0)) }
     }
 
     func testJsonBodyFileMissingErrors() throws {

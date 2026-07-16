@@ -30,8 +30,12 @@ public enum JSONValue: Codable, Hashable, Sendable {
         case let (.object(a), .object(b)): return a == b
         case let (.int(a), .int(b)): return a == b
         case let (.double(a), .double(b)): return a == b
-        case let (.int(a), .double(b)): return Double(a) == b
-        case let (.double(a), .int(b)): return a == Double(b)
+        // Only equal when the Int is EXACTLY representable as the Double (and equal).
+        // A plain `Double(a) == b` breaks Equatable transitivity past 2^53, where two
+        // distinct Ints round to the same Double: `Double(exactly:)` returns nil for a
+        // lossy Int, so those compare unequal — keeping `90 == 90.0` while staying transitive.
+        case let (.int(a), .double(b)): return Double(exactly: a) == b
+        case let (.double(a), .int(b)): return a == Double(exactly: b)
         default: return false
         }
     }

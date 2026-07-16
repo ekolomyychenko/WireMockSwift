@@ -79,11 +79,13 @@ extension RequestExtractor {
         guard let value = header("Authorization") else {
             throw RequestExpectationError(message: "No Authorization header to read a bearer JWT from")
         }
-        let prefix = "Bearer "
-        guard value.hasPrefix(prefix) else {
+        // RFC 6750 §2.1 / RFC 7235: the auth scheme is case-insensitive, so accept
+        // "Bearer", "bearer", "BEARER", … before dropping it.
+        let parts = value.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2, parts[0].caseInsensitiveCompare("Bearer") == .orderedSame else {
             throw RequestExpectationError(message: "Authorization header is not a Bearer token: \(value)")
         }
-        return try JWT(decoding: String(value.dropFirst(prefix.count)))
+        return try JWT(decoding: String(parts[1]))
     }
 
     /// Decodes the JWT carried by the named header (e.g. a `DPoP` proof).

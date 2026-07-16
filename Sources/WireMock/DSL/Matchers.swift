@@ -67,8 +67,24 @@ public func matchingJsonPath(_ expression: String, _ submatcher: StringValuePatt
     .matchingJsonPath(expression, submatcher)
 }
 
-public func equalToXml(_ xml: String) -> StringValuePattern {
-    .equalToXml(xml)
+public func equalToXml(
+    _ xml: String,
+    enablePlaceholders: Bool = false,
+    placeholderOpeningDelimiterRegex: String? = nil,
+    placeholderClosingDelimiterRegex: String? = nil,
+    exemptedComparisons: [String]? = nil,
+    ignoreOrderOfSameNode: Bool? = nil,
+    namespaceAwareness: StringValuePattern.NamespaceAwareness? = nil
+) -> StringValuePattern {
+    .equalToXml(
+        xml,
+        enablePlaceholders: enablePlaceholders,
+        placeholderOpeningDelimiterRegex: placeholderOpeningDelimiterRegex,
+        placeholderClosingDelimiterRegex: placeholderClosingDelimiterRegex,
+        exemptedComparisons: exemptedComparisons,
+        ignoreOrderOfSameNode: ignoreOrderOfSameNode,
+        namespaceAwareness: namespaceAwareness
+    )
 }
 
 public func matchingXPath(_ expression: String, namespaces: [String: String] = [:]) -> StringValuePattern {

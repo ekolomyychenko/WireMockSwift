@@ -28,11 +28,15 @@ final class RequestExpectationPureTests: XCTestCase {
     func testJSONPathHappyShapes() throws {
         XCTAssertEqual(try JSONPathLite.evaluate("$.id", on: sample).stringValue, "ord_42")
         XCTAssertEqual(try JSONPathLite.evaluate("$.items[1].sku", on: sample).stringValue, "DEF")
+        XCTAssertEqual(try JSONPathLite.evaluate("$.items[-1].sku", on: sample).stringValue, "DEF")  // negative index -> from end
+        XCTAssertEqual(try JSONPathLite.evaluate("$.items[-2].sku", on: sample).stringValue, "ABC")
         XCTAssertEqual(try JSONPathLite.evaluate("items[0].sku", on: sample).stringValue, "ABC")     // leading segment, no dot
         XCTAssertEqual(try JSONPathLite.evaluate("$['nested'].a.b", on: sample), .int(7))            // single-quoted key
         XCTAssertEqual(try JSONPathLite.evaluate("$[\"nested\"].a.b", on: sample), .int(7))          // double-quoted key
         XCTAssertEqual(try JSONPathLite.evaluate("$['nested']['a']['b']", on: sample), .int(7))      // chained bracket keys
         XCTAssertEqual(try JSONPathLite.evaluate("$", on: sample), sample)                           // bare root
+        XCTAssertEqual(try JSONPathLite.evaluate("$.id ", on: sample).stringValue, "ord_42")         // trailing space trimmed
+        XCTAssertEqual(try JSONPathLite.evaluate("$. id", on: sample), "ord_42")                     // leading space trimmed
         XCTAssertEqual(try JSONPathLite.evaluate("", on: sample), sample)                            // empty path == root
     }
 
@@ -75,7 +79,7 @@ final class RequestExpectationPureTests: XCTestCase {
     func testJSONPathErrorEdges() {
         XCTAssertThrowsError(try JSONPathLite.evaluate("$.missing", on: sample))         // key not found
         XCTAssertThrowsError(try JSONPathLite.evaluate("$.items[9]", on: sample))        // index out of range
-        XCTAssertThrowsError(try JSONPathLite.evaluate("$.items[-1]", on: sample))       // no negative index
+        XCTAssertThrowsError(try JSONPathLite.evaluate("$.items[-3]", on: sample))       // negative index past the start
         XCTAssertThrowsError(try JSONPathLite.evaluate("$.", on: sample))                // empty segment
         XCTAssertThrowsError(try JSONPathLite.evaluate("$.nested.a.", on: sample))       // trailing dot
         XCTAssertThrowsError(try JSONPathLite.evaluate("$.items[", on: sample))          // unterminated '['
@@ -145,6 +149,15 @@ final class RequestExpectationPureTests: XCTestCase {
         XCTAssertEqual(captured(#"{"url": "/s?&a=1"}"#).queryParam("a"), ["1"])
         XCTAssertEqual(captured(#"{"url": "/s?a=1&&b=2"}"#).queryParam("b"), ["2"])
         XCTAssertEqual(captured(#"{"url": "/s?a=1&&b=2"}"#).queryItems().count, 2)       // not 3 (no empty item)
+        // A fragment ('#…') is not part of the query: it neither leaks into the last
+        // value nor fabricates a phantom param.
+        XCTAssertEqual(captured(#"{"url": "/search?q=hello#section"}"#).queryParam("q"), ["hello"])
+        XCTAssertEqual(captured(#"{"url": "/f?a=1#b=2&c=3"}"#).queryParam("a"), ["1"])
+        XCTAssertTrue(captured(#"{"url": "/f?a=1#b=2&c=3"}"#).queryParam("c").isEmpty)   // 'c' is in the fragment, not the query
+        // An empty path (query-only URL) still yields its params — the empty leading
+        // segment is preserved so the query lands at index 1.
+        XCTAssertEqual(captured(#"{"url": "/?a=1"}"#).queryParam("a"), ["1"])
+        XCTAssertEqual(captured(#"{"url": "?a=1"}"#).queryParam("a"), ["1"])
     }
 
     // MARK: - bodyJSON / RequestExtractor
@@ -227,6 +240,10 @@ final class RequestExpectationPureTests: XCTestCase {
         XCTAssertEqual(pattern.fields["ignoreOrderOfSameNode"], .bool(true))
         XCTAssertEqual(pattern.fields["namespaceAwareness"], .string("NONE"))
         XCTAssertNil(StringValuePattern.equalToXml("<a/>").fields["namespaceAwareness"])
+        // The FREE-function overload forwards every advanced option (parity with the
+        // static factory), so it can be used directly in the matcher DSL.
+        let free = equalToXml("<a/>", enablePlaceholders: true, ignoreOrderOfSameNode: true, namespaceAwareness: .off)
+        XCTAssertEqual(free.fields, pattern.fields)
     }
 
     func testMatchingXPathNamespacesShape() {

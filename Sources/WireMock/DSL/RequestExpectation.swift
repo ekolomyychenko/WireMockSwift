@@ -112,7 +112,13 @@ public struct RequestExpectation: Sendable {
                                          absent: { $0.withoutFormParam(name) })
         let leaking = try wireMock.findAll(builder)
             .map(CapturedRequest.init)
-            .filter { req in req.formItems().contains { $0.name == name } }
+            .filter { req in
+                // Only treat the body as a form leak when it plausibly IS form-encoded.
+                // A non-form body (e.g. JSON whose text incidentally contains "&name=")
+                // must not fabricate a phantom form param and false-fail this negative.
+                guard let body = req.bodyString, Self.looksFormEncoded(body) else { return false }
+                return req.formItems().contains { $0.name == name }
+            }
         guard leaking.isEmpty else {
             var message = "Expected no form param \(name) on any request matching \(Self.summary(builder)), "
                 + "but \(leaking.count) carried it in the body — a form-encoded body sent without an "
@@ -266,7 +272,15 @@ public struct RequestExpectation: Sendable {
         ignoreExtraElements: Bool = false,
         ignoreArrayOrder: Bool = false
     ) throws -> RequestExpectation {
-        let matcher = try StringValuePattern.equalToJson(raw: json, ignoreArrayOrder: ignoreArrayOrder, ignoreExtraElements: ignoreExtraElements)
+        let matcher: StringValuePattern
+        do {
+            matcher = try StringValuePattern.equalToJson(raw: json, ignoreArrayOrder: ignoreArrayOrder, ignoreExtraElements: ignoreExtraElements)
+        } catch {
+            // Keep the layer's "only RequestExpectationError escapes" contract: the
+            // underlying `equalToJson(raw:)` throws WireMockError on malformed JSON,
+            // which the file/bundle overloads (and callers) shouldn't have to catch.
+            throw RequestExpectationError(message: "toHaveJsonBody(equalToRaw:) was given invalid JSON")
+        }
         return try refine("json body") { $0.withRequestBody(matcher) }
     }
 
@@ -558,5 +572,16 @@ public struct RequestExpectation: Sendable {
             line += "  body=\(snippet)"
         }
         return line
+    }
+
+    /// Whether `body` plausibly is an `application/x-www-form-urlencoded` payload.
+    /// A well-formed form body uses only these characters; a JSON/text body (with
+    /// `{`, `"`, `:`, spaces, …) is rejected so its incidental `&key=` substrings
+    /// don't fabricate a phantom form param in the content-type-agnostic leak scan.
+    private static let formURLEncodedCharacters = Set(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~*%+&="
+    )
+    private static func looksFormEncoded(_ body: String) -> Bool {
+        !body.isEmpty && body.allSatisfy { formURLEncodedCharacters.contains($0) }
     }
 }

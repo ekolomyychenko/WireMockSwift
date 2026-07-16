@@ -64,9 +64,16 @@ public struct CapturedRequest: Sendable {
     /// The query items parsed from the logged URL. Internal — `toHaveExactlyQueryParams`
     /// and `queryParam(_:)` build on it.
     func queryItems() -> [URLQueryItem] {
+        // `omittingEmptySubsequences: false` keeps an empty path segment so a
+        // query-only URL ("/?a=1", or even a path-less "?a=1") still lands the
+        // query at index 1 rather than shifting `dropFirst()` onto it.
         guard let raw = logged.url,
-              let query = raw.split(separator: "?", maxSplits: 1).dropFirst().first else { return [] }
-        return Self.decodeURLEncoded(String(query))
+              let query = raw.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false).dropFirst().first
+        else { return [] }
+        // A fragment ("#…") is not part of the query (RFC 3986 §3.5); strip it so a
+        // stray '#' can't leak into the last value or fabricate phantom params.
+        let withoutFragment = query.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0]
+        return Self.decodeURLEncoded(String(withoutFragment))
     }
 
     /// All values for an `application/x-www-form-urlencoded` body parameter (a key
@@ -101,9 +108,9 @@ public struct CapturedRequest: Sendable {
     /// Parses by hand rather than via `URLComponents.percentEncodedQuery`, whose
     /// setter **traps the whole process** (`Fatal error: … invalid characters`)
     /// on a stray `%` or `#` — shapes that arrive routinely (an unescaped `%` in
-    /// a value, a `#` in the URL, or any non-form body the accessors are
-    /// documented to tolerate). A malformed percent-escape is left verbatim here
-    /// instead of crashing.
+    /// a value, a `#` in a non-form body value, or any non-form body the accessors
+    /// are documented to tolerate). A malformed percent-escape is left verbatim
+    /// here instead of crashing.
     static func decodeURLEncoded(_ raw: String) -> [URLQueryItem] {
         raw.split(separator: "&", omittingEmptySubsequences: true).map { pair in
             let halves = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
@@ -179,10 +186,16 @@ enum JSONPathLite {
                 }
                 value = next
             case .index(let index):
-                guard let array = value.arrayValue, array.indices.contains(index) else {
+                guard let array = value.arrayValue else {
+                    throw RequestExpectationError(message: "JSONPath '\(path)': index \(index) applied to a non-array")
+                }
+                // A negative index counts from the end (Jayway/RestAssured parity):
+                // `$[-1]` is the last element.
+                let resolved = index < 0 ? array.count + index : index
+                guard array.indices.contains(resolved) else {
                     throw RequestExpectationError(message: "JSONPath '\(path)': index \(index) out of range")
                 }
-                value = array[index]
+                value = array[resolved]
             }
         }
         return value
@@ -229,9 +242,12 @@ enum JSONPathLite {
     private static func readName(_ chars: [Character], _ i: inout Int, _ path: String) throws -> String {
         var name = ""
         while i < chars.count, chars[i] != ".", chars[i] != "[" { name.append(chars[i]); i += 1 }
-        guard !name.isEmpty else {
+        // Trim surrounding whitespace so `$.a ` reads the key "a", not "a " (the
+        // bracket branch already trims; keep the dotted/bare branch consistent).
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
             throw RequestExpectationError(message: "Invalid JSONPath '\(path)': empty segment")
         }
-        return name
+        return trimmed
     }
 }

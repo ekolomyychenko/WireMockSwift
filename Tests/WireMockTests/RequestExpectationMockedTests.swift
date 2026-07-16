@@ -111,4 +111,70 @@ final class RequestExpectationMockedTests: XCTestCase {
         XCTAssertEqual(first.url, "/a", "dated request should sort before the undated one")
         XCTAssertEqual(last.url, "/b", "undated request should sort last (loggedDate ?? .max)")
     }
+
+    // MARK: - verifyInOrder: an undated step must not silently pass out-of-order
+
+    /// An undated request (`loggedDate` absent → `.max` in `orderingExists`) that
+    /// precedes a dated one has NO valid ordering. The greedy diagnostic walk must
+    /// advance its cursor with the same `?? .max` semantics, else it re-places every
+    /// step and `verifyInOrder` returns without throwing — a silent false pass.
+    func testVerifyInOrderThrowsWhenUndatedStepPrecedesDatedStep() {
+        let mock = MockAdminTransport()
+            .enqueueFind(rawRequests: #"[{"url":"/a","method":"GET"}]"#)                  // step 0: undated
+            .enqueueFind(rawRequests: #"[{"url":"/b","method":"GET","loggedDate":100}]"#) // step 1: dated
+        let wireMock = mock.client()
+
+        XCTAssertThrowsError(
+            try wireMock.verifyInOrder([getRequestedFor(anyUrl), getRequestedFor(anyUrl)])
+        ) { error in
+            XCTAssertTrue(error is SequenceVerificationError, "expected an out-of-order failure, got \(error)")
+        }
+    }
+
+    // MARK: - toNotHaveFormParam: only a plausibly form-encoded body is a leak
+
+    /// A NON-form body (JSON) whose text incidentally contains `&client_secret=`
+    /// must NOT be read as a form param — the content-type-agnostic scan only fires
+    /// on a body that plausibly is form-encoded, so this negative passes cleanly.
+    func testNotHaveFormParamIgnoresNonFormBodyWithAmpersandSubstring() throws {
+        let mock = MockAdminTransport()
+            .enqueueCount(0)   // refineNegative: no request matches the form-param matcher server-side
+            .enqueueFind(rawRequests: #"[{"url":"/x","method":"POST","body":"{\"note\":\"a&client_secret=b\"}"}]"#)
+        let wireMock = mock.client()
+
+        XCTAssertNoThrow(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/x"))).toNotHaveFormParam("client_secret")
+        )
+    }
+
+    /// The hardening still holds: a genuinely form-encoded body that leaked the param
+    /// WITHOUT a form Content-Type (so the server-side matcher missed it) is caught by
+    /// the client-side scan.
+    func testNotHaveFormParamStillCatchesRealFormLeak() {
+        let mock = MockAdminTransport()
+            .enqueueCount(0)   // server-side form matching misses it (no form Content-Type)
+            .enqueueFind(rawRequests: #"[{"url":"/x","method":"POST","body":"client_secret=b&grant_type=x"}]"#)
+        let wireMock = mock.client()
+
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/x"))).toNotHaveFormParam("client_secret")
+        ) { error in
+            XCTAssertTrue(self.message(of: error).contains("client_secret"), self.message(of: error))
+        }
+    }
+
+    // MARK: - toHaveJsonBody(equalToRaw:) surfaces the layer's own error type
+
+    /// Invalid raw JSON must throw `RequestExpectationError`, not the underlying
+    /// `WireMockError` — the layer documents a single error type. Throws before any
+    /// server call, so no responses are enqueued.
+    func testJsonBodyEqualToRawInvalidThrowsRequestExpectationError() {
+        let wireMock = MockAdminTransport().client()
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(anyUrl)).toHaveJsonBody(equalToRaw: "{not valid json")
+        ) { error in
+            XCTAssertTrue(error is RequestExpectationError, "expected RequestExpectationError, got \(type(of: error))")
+            XCTAssertTrue(self.message(of: error).contains("invalid JSON"), self.message(of: error))
+        }
+    }
 }

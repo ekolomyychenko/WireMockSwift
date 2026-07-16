@@ -64,9 +64,24 @@ extension WireMock {
                     chosen: chosen
                 )
             }
-            cursor = pick.loggedDate ?? cursor
+            // Advance the cursor with the SAME nil-date semantics as `orderingExists`
+            // (undated == latest possible, `.max`). Using `?? cursor` here instead would
+            // leave the cursor un-advanced for an undated pick, letting the greedy walk
+            // place every step even though `orderingExists` already proved no valid
+            // ordering exists — a silent false pass.
+            cursor = pick.loggedDate ?? .max
             chosen.append(pick)
         }
+
+        // `orderingExists` returned false, so no valid ordering can exist and the greedy
+        // walk above must have thrown. Reaching here would be a logic error; fail loudly
+        // rather than return a silent false pass.
+        throw SequenceVerificationError(
+            step: candidates.count - 1,
+            stepSummary: RequestExpectation.summary(builders[candidates.count - 1]),
+            hadAnyMatch: true,
+            chosen: chosen
+        )
     }
 
     /// Depth-first search for a system of distinct requests — one per remaining

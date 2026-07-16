@@ -42,7 +42,9 @@ final class OAuthAssertionPureTests: XCTestCase {
     func testFormParamsMalformedEscapesDoNotCrash() {
         XCTAssertEqual(captured(#"{"body": "pct=50%"}"#).formParam("pct"), "50%")        // bare %
         XCTAssertEqual(captured(#"{"body": "code=SAVE50%OFF"}"#).formParam("code"), "SAVE50%OFF")
-        XCTAssertEqual(captured(#"{"url": "/cb?state=abc#frag"}"#).queryParam("state"), ["abc#frag"])
+        // A '#' in the URL is a fragment, not part of the query: it is stripped (not
+        // retained in the value), and still does not crash.
+        XCTAssertEqual(captured(#"{"url": "/cb?state=abc#frag"}"#).queryParam("state"), ["abc"])
         // A non-form (JSON) body just yields no matches, as documented — not a crash.
         XCTAssertNil(captured(##"{"body": "{\"pct\":\"50%\"}"}"##).formParam("pct"))
         // Well-formed escapes still decode correctly.
@@ -148,6 +150,16 @@ final class OAuthAssertionPureTests: XCTestCase {
         XCTAssertEqual(try extractor.jwt(header: "DPoP").claim("iss")?.stringValue, "acme")
         XCTAssertEqual(try extractor.jwt(formParam: "client_assertion").claim("iss")?.stringValue, "acme")
         XCTAssertEqual(try extractor.jwt(queryParam: "id_token_hint").claim("iss")?.stringValue, "acme")
+    }
+
+    /// RFC 6750 §2.1: the `Bearer` auth scheme is case-insensitive, so a lowercase
+    /// or mixed-case scheme must still decode. Kills a case-sensitive `hasPrefix`.
+    func testBearerJWTSchemeIsCaseInsensitive() throws {
+        let jwt = [b64url(#"{"alg":"RS256"}"#), b64url(#"{"iss":"acme"}"#), "sig"].joined(separator: ".")
+        for scheme in ["Bearer", "bearer", "BEARER", "BeArEr"] {
+            let extractor = captured(#"{"headers": {"Authorization": "\#(scheme) \#(jwt)"}}"#).extract()
+            XCTAssertEqual(try extractor.bearerJWT().claim("iss")?.stringValue, "acme", "scheme '\(scheme)'")
+        }
     }
 
     func testExtractorJWTMissingSources() {
