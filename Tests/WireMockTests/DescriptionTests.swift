@@ -48,6 +48,18 @@ final class DescriptionTests: XCTestCase {
         XCTAssertEqual(JSONValue.string("/a/b").description, "\"/a/b\"")
     }
 
+    /// Literal escaping of the JSON metacharacters. The round-trip property tests
+    /// only prove `decode(encode(x)) == x`, which a *symmetric* escape bug would
+    /// still satisfy — so pin the actual on-the-wire bytes here.
+    func testJSONValueDescriptionEscapesMetacharacters() {
+        XCTAssertEqual(JSONValue.string("a\"b").description, "\"a\\\"b\"")   // quote -> \\"
+        XCTAssertEqual(JSONValue.string("a\\b").description, "\"a\\\\b\"") // backslash -> \\\\
+        XCTAssertEqual(JSONValue.string("a\nb").description, "\"a\\nb\"")     // newline -> \\n
+        XCTAssertEqual(JSONValue.string("a\tb").description, "\"a\\tb\"")     // tab -> \\t
+        XCTAssertEqual(JSONValue.string("a\u{01}b").description, "\"a\\u0001b\"") // control U+0001 -> \\u0001
+        XCTAssertEqual(JSONValue.string("a b").description, "\"a b\"")           // space stays literal
+    }
+
     func testCountMatchingStrategyDescription() {
         // All five cases pinned so a wrong rendering can't slip through.
         XCTAssertEqual(CountMatchingStrategy.exactly(3).description, "exactly 3")
@@ -204,5 +216,38 @@ final class DescriptionTests: XCTestCase {
         XCTAssertTrue(webhook.description.contains("\"webhook\""))
         XCTAssertEqual(try WireMockFixture.decode(ServeEventListenerDefinition.self, webhook.description),
                        webhook.asServeEventListener())
+    }
+
+    // MARK: - Client-side request views render as WireMock JSON (not a reflection dump)
+
+    /// A captured request describes as its journal entry's WireMock JSON — the same
+    /// shape the (Java) server emits — so it is report/attachment-ready. Proven by a
+    /// round-trip back to an equal `LoggedRequest`.
+    func testCapturedRequestDescriptionIsLoggedRequestJSON() throws {
+        var logged = LoggedRequest()
+        logged.method = .post
+        logged.url = "/orders?ref=1"
+        logged.headers = ["Content-Type": .single("application/json")]
+        logged.body = #"{"sku":"ABC"}"#
+        let captured = CapturedRequest(logged: logged)
+
+        XCTAssertEqual(captured.description, logged.description, "should delegate to the LoggedRequest JSON")
+        XCTAssertTrue(captured.description.hasPrefix("{"), captured.description)
+        // Faithful: the description decodes back to the same journal entry.
+        XCTAssertEqual(try WireMockFixture.decode(LoggedRequest.self, captured.description), logged)
+        // Not a struct-reflection dump.
+        XCTAssertFalse(captured.description.contains("CapturedRequest("), captured.description)
+    }
+
+    /// A request expectation describes as the WireMock JSON of the pattern it
+    /// matches on (consistent with the `expect`-terminal step attachments).
+    func testRequestExpectationDescriptionIsPatternJSON() throws {
+        let wireMock = WireMock(baseURL: URL(string: "http://desc.test")!)
+        let pattern = postRequestedFor(urlPathEqualTo("/orders")).withHeader("H", equalTo("v"))
+        let expectation = wireMock.expect(pattern)
+
+        XCTAssertEqual(expectation.description, pattern.description)
+        XCTAssertEqual(try WireMockFixture.decode(RequestPattern.self, expectation.description), pattern.pattern)
+        XCTAssertFalse(expectation.description.contains("RequestExpectation("), expectation.description)
     }
 }

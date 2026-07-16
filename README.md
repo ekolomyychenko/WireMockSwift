@@ -17,7 +17,7 @@
 - ✅ Синхронный API (как Java WireMock) + `callAsync` для `async`-контекста; `Sendable` под строгой конкурентностью Swift 6; macOS + iOS
 - ✅ Тестовые наборы golden-JSON + live-server; запасной выход через сырой JSON для всего немоделированного
 
-> **Статус:** ранняя разработка (0.x), первый релиз — `0.1.0`. API ещё может меняться.
+> **Статус:** ранняя разработка (0.x); последний релиз — `0.2.0`. API ещё может меняться.
 > Лицензия — Apache-2.0. Проверено на WireMock **3.13.2**.
 
 ## Содержание
@@ -30,6 +30,7 @@
 - [Матчеры запросов](#матчеры-запросов)
 - [Ответы](#ответы)
 - [Верификация](#верификация)
+- [Проверки запросов (BDD-стиль)](#проверки-запросов-bdd-стиль)
 - [Сценарии](#сценарии-управление-состоянием)
 - [Проксирование, сбои и задержки](#проксирование-сбои-и-задержки)
 - [Запись, файлы, метаданные и настройки](#запись-файлы-метаданные-и-настройки)
@@ -62,6 +63,14 @@ Swift Package Manager — добавьте в `Package.swift`:
 ```swift
 .testTarget(name: "MyAppTests", dependencies: [.product(name: "WireMock", package: "WireMockSwift")])
 ```
+
+> ⚠️ **Подключайте `WireMock` ТОЛЬКО в тестовые таргеты.** Это тестовый
+> инструмент, и его ядро линкует `XCTest` (ради `XCTActivityReporter` для
+> шагов в отчётах — см. [§ Логирование](#логирование-и-шаги-отчёта-allure-и-тп)).
+> `XCTest` доступен только в тест-бандлах. Если прилинковать `WireMock` в
+> **app- или framework-таргет**, то на iOS приложение упадёт при запуске
+> (`dyld: Library not loaded: XCTest`), а сборку для App Store завернут на
+> валидации. В обычный код приложения мок-сервер и не нужен — держите его в тестах.
 
 ## Быстрый старт
 
@@ -245,6 +254,129 @@ try wireMock.removeServeEvents(matching: getRequestedFor(urlEqualTo("/ping")))
 `RequestPatternBuilder` поддерживает те же критерии, что и создание стабов (`withHeader`, `withoutHeader`,
 `withQueryParam`, `withCookie`, `withRequestBody`, `withBasicAuth` и т. д.).
 
+## Проверки запросов (BDD-стиль)
+
+`expect(...)` — аддитивный слой в духе RestAssured поверх `verify`/`findAll` для **подробной** проверки
+запросов, которые реально отправило приложение. Цепочка `to*` / `toNot*` (каждая доуточняет паттерн и
+перепроверяет **на сервере** — матчинг идентичен Java WireMock), в конце — терминал, инспектирующий
+захваченный запрос **на клиенте**. Один `try` покрывает всю цепочку; при провале бросается
+`RequestExpectationError` с указанием, какая проверка уронила счётчик, и near-miss диффом (недобор) или
+дампом всех совпавших запросов («слишком много»). Старый `verify(...)` не изменён.
+
+```swift
+// Количество + проверки полей (ОДНА цепочка — каждая проверка добавляется к тому же паттерну через AND)
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
+    .toHaveBeenSent(.once)                        // .never / .times(3) / .atLeast(2) / .atMost(4) / .between(2...5)
+    .toHaveBearerToken("eyJ...")                  // или .toHaveBearerToken(matching: "eyJ.+")
+    .toHaveHeader("Content-Type", containing("json"))
+    .toHaveQueryParam("source", equalTo("mobile"))
+    .toHaveExactlyQueryParams(["page": "1", "size": "20"])   // провал при любом лишнем параметре
+    .toHaveJsonPath("$.id")                                   // поле тела просто существует
+    .toHaveJsonPath("$.items[0].sku", equalTo("ABC"))        // значение по пути
+
+// Матчеры всего тела — выбери ОДИН. Это АЛЬТЕРНАТИВЫ, а не цепочка: связать строгое,
+// частичное и файловое совпадение = склеить через AND три противоречивых тела, что всегда провалится.
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
+    .toHaveJsonBody(equalTo: ["id": 1, "sku": "ABC"])        // строгое полное совпадение
+// .toHaveJsonBody(equalTo: ["sku": "ABC"], ignoreExtraElements: true)                       // вхождение
+// .toHaveJsonBody(equalToFile: Bundle.module.url(forResource: "order", withExtension: "json")!)  // из файла
+
+// Негативные
+try wireMock.expect(anyRequestedFor(anyUrl))
+    .toNotHaveHeader("X-Debug")
+    .toNotHaveCookie("session")
+// «ни один запрос не содержал такое тело» — вносим условие в паттерн и проверяем «никогда»:
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/pay")).withRequestBody(containing("topsecret")))
+    .toNeverHaveBeenSent()
+
+// Захват конкретного запроса и извлечение значения (корреляция A → B)
+let orderId = try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
+    .toHaveBeenSent(.once)
+    .extract().jsonPath("$.id")
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/payments")))
+    .toHaveJsonPath("$.orderId", equalTo(orderId.stringValue ?? ""))
+
+// single() / first() / last() (по loggedDate) дают CapturedRequest; all() — [CapturedRequest]
+let req = try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders"))).single()
+_ = req.header("X-Request-Id"); _ = req.queryParam("page"); _ = req.bodyJSON
+```
+
+`extract().jsonPath(...)` поддерживает документированное подмножество — ключи объектов и индексы массивов
+(`$.id`, `$.items[0].sku`), достаточное для корреляции; для сложного — `CapturedRequest.bodyJSON`.
+Слой выходит за рамки Java-паритета (в Java WireMock нет capture/extract); сложный матчинг тела
+по-прежнему выполняет сервер.
+
+### Рецепты OAuth 2.0 / OIDC
+
+Когда приложение — клиент identity-провайдера (уровня Google ID / Yandex ID), несколько дополнительных
+хелперов закрывают стандартные проверки исходящих запросов:
+
+```swift
+// /authorize — проверки наличия (state/nonce/PKCE) и security-негативы
+try wireMock.expect(getRequestedFor(urlPathEqualTo("/authorize")))
+    .toHaveBeenSentOnce()
+    .toHaveQueryParam("state", matching(".+"))               // присутствует И непустой
+    .toHaveQueryParam("nonce", matching(".+"))
+    .toHaveQueryParam("code_challenge", matching(".+"))
+    .toHaveQueryParam("scope", containing("openid"))
+    .toHaveQueryParam("code_challenge_method", equalTo("S256"))   // нет PKCE-downgrade на "plain"
+    .toNotHaveQueryParam("client_secret")                    // секрет не должен попадать в URL
+
+// /token — извлечение form-параметров для корреляции между запросами
+let authorize = try wireMock.expect(getRequestedFor(urlPathEqualTo("/authorize"))).single()
+let token     = try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+    .toHaveFormParam("code_verifier", matching(".+"))        // присутствует И непустой
+    .toHaveFormParam("grant_type", equalTo("authorization_code"))
+    .single()
+// Ровно этот набор полей и ничего лишнего (напр. секрет не утёк в тело):
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+    .toHaveExactlyFormParams(["grant_type": "authorization_code", "code": "AUTHCODE",
+                              "redirect_uri": "https://app/cb", "code_verifier": "VERIFIER123"])
+XCTAssertEqual(authorize.extract().queryParam("redirect_uri"),
+               token.extract().formParam("redirect_uri"))    // совпадение redirect_uri
+
+// client_assertion / id_token_hint / DPoP / bearer — это JWT: декодируем и проверяем claims
+let jwt = try token.extract().jwt(formParam: "client_assertion")
+XCTAssertEqual(jwt.claim("iss")?.stringValue, "my-client-id")   // подпись НЕ проверяется
+
+// Порядок всего потока: authorize → token → userinfo
+try wireMock.verifyInOrder([
+    getRequestedFor(urlPathEqualTo("/authorize")),
+    postRequestedFor(urlPathEqualTo("/token")),
+    getRequestedFor(urlPathEqualTo("/userinfo")),
+])
+```
+
+Presence-overload `toHaveQueryParam("state")` (без матчера) требует лишь наличия ключа — пустое значение
+(`?state=`) тоже проходит. Для security-чувствительных `state`/`nonce`/`code_challenge` используйте
+`matching(".+")`, чтобы потребовать непустое значение. `verifyInOrder` матчит каждый шаг на сервере и
+сравнивает `loggedDate` из журнала (разрешение — миллисекунды), чтобы судить о порядке. Коллизии в одну
+миллисекунду **допускаются**: принимается любое назначение различных запросов с неубывающими метками
+времени (полный перебор), поэтому перекрывающиеся шаги и одинаковые метки не дают ложного провала —
+единственное остаточное ограничение — два байт-идентичных запроса в одну миллисекунду. `JWT(decoding:)`
+декодирует только header/payload
+и **не** проверяет подпись (для этого нужны
+ключи издателя). Чтобы сверить PKCE end-to-end (`code_challenge == BASE64URL(SHA256(code_verifier))`),
+извлеки оба значения и посчитай S256-хеш сам (например, через CryptoKit).
+
+`toHaveExactlyQueryParams` / `toHaveExactlyFormParams` принимают `[String: String]` — по одному значению
+на ключ — то есть проверяют набор, где каждый ключ встречается ровно один раз. Легитимно повторяющийся
+ключ (`?a=1&a=2`) как точный набор выразить нельзя; для таких случаев используйте по-ключевой
+`toHaveQueryParam(_:_:)` (серверное «содержит»).
+
+`toNotHaveFormParam` усилён для security-кейса: WireMock парсит `formParameters` только при
+`Content-Type: application/x-www-form-urlencoded`, поэтому form-тело без этого content-type проскользнуло бы
+мимо чисто серверной проверки. Помимо серверной проверки «нарушителей нет», метод дополнительно сканирует
+тела захваченных запросов client-side (не глядя на content-type) — так утёкший `client_secret` в теле
+ловится в любом случае.
+
+Негативы требуют, чтобы базовый паттерн совпал. `toNotHaveHeader/QueryParam/Cookie/FormParam` падают, если
+под паттерн не попало **ни одного** запроса (при дефолтном `.atLeast(1)`) — так опечатка в URL или
+несработавший флоу не «зазеленят» security-негатив вхолостую. Это осознанное усиление относительно Java, где
+`verify(never(), …)` проходит и при нуле запросов. Если ноль трафика ожидаем — скажи это явно
+(`.toNeverHaveBeenSent().toNotHave…` или `.toHaveBeenSent(.atMost(n))`): спек счётчика, принимающий ноль,
+отключает floor, и негатив тогда проходит тривиально.
+
 ## Сценарии (управление состоянием)
 
 ```swift
@@ -422,18 +554,39 @@ func testCheckout() async throws {
 }
 ```
 
-### Логирование (Allure и т.п.)
+### Логирование и шаги отчёта (Allure и т.п.)
 
 Все публичные типы имеют `description` в формате Java WireMock `toString()`: контейнеры
 (`StubMapping`, `LoggedRequest`, `ServeEvent`, `RequestPattern`, `ResponseDefinition`, `NearMiss`, …)
 печатаются как их JSON, leaf-типы — голым значением (`HTTPMethod` → `GET`, `Fault` → `EMPTY_RESPONSE`).
-Так что `"\(stub)"` / `String(describing: loggedRequest)` дают читаемую строку для step-имён и вложений,
-а не рефлексивный дамп. Секреты не светятся: `AdminAuthorization`/`WireMock`/`AdminClient` маскируют
-креды в своих описаниях.
+Секреты не светятся: `AdminAuthorization`/`WireMock`/`AdminClient` маскируют креды в своих описаниях.
+
+**Шаги «из коробки».** Передайте `reporter:` при создании клиента, и вызовы `stubFor` / `verify` /
+`expect` / `verifyInOrder` сами оборачиваются в шаги отчёта. `XCTActivityReporter` пишет их как
+`XCTContext.runActivity` — Xcode кладёт их в `.xcresult`, а Allure (нативно `allure generate *.xcresult`,
+либо через `xcresults`) превращает activity в шаги. Никакой зависимости от Allure в коде нет; полный JSON
+запроса/стаба едет вложением к шагу.
 
 ```swift
-Allure.step("Стаб: \(stub)") { … }                 // JSON стаба
-XCTContext.runActivity(named: "\(loggedRequest)") { … }
+// В setUp теста:
+let wireMock = WireMock(baseURL: url, reporter: XCTActivityReporter())
+
+// Дальше — обычный код, каждый вызов становится шагом в отчёте:
+try wireMock.stubFor(get(urlEqualTo("/cart")).willReturn(okForJson(["items": 2])))
+try wireMock.verify(getRequestedFor(urlEqualTo("/cart")))
+```
+
+По умолчанию reporter — `NoopReporter` (ничего не пишет), так что поведение без явной инъекции не меняется,
+и вне живого теста (превью, sample-app) ничего не падает. Свой репортёр (другой фреймворк, будущий
+swift-testing) — это реализация протокола `WireMockReporter`.
+
+> **Async:** внутри `callAsync` шаги **не** эмитятся — работа уходит на фоновый поток без живого
+> тест-контекста, где `XCTContext.runActivity` упал бы. Оборачивайте синхронные вызовы из тела теста.
+
+Если нужен ручной контроль — `description` по-прежнему даёт готовую строку для step-имён и вложений:
+
+```swift
+XCTContext.runActivity(named: "Стаб: \(stub)") { … }   // JSON стаба
 ```
 
 ## Непрерывная интеграция

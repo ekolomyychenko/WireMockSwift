@@ -429,6 +429,24 @@ final class GoldenEncodingTests: XCTestCase {
         XCTAssertEqual(request["formParameters"]?.objectValue?["name"], ["equalTo": "bob"])
     }
 
+    /// The request-side `cookies` matcher — what `expect(...).toHaveCookie` POSTs to
+    /// the journal-query endpoints — was only guarded by a PropertyTests round-trip and
+    /// live acceptance; pin its exact shape here (the suite's other cookie cases are
+    /// the response-side `Set-Cookie` header, a different thing).
+    func testRequestCookieMatcherEncodes() throws {
+        let pattern = getRequestedFor(urlPathEqualTo("/x")).withCookie("s", equalTo("v")).pattern
+        XCTAssertEqual(try json(pattern).objectValue?["cookies"], ["s": ["equalTo": "v"]])
+    }
+
+    /// The `basicAuthCredentials` matcher — what `expect(...).toHaveBasicAuth` POSTs —
+    /// encodes username+password as a nested object (Java `basicAuthCredentials`),
+    /// which the server turns into the Authorization matcher. Pin the exact shape.
+    func testRequestBasicAuthCredentialsEncode() throws {
+        let pattern = getRequestedFor(urlPathEqualTo("/x")).withBasicAuth(username: "bob", password: "secret").pattern
+        XCTAssertEqual(try json(pattern).objectValue?["basicAuthCredentials"],
+                       ["username": "bob", "password": "secret"])
+    }
+
     func testHostPortSchemeEncode() throws {
         let stub = get(urlPathEqualTo("/hp"))
             .withHost(equalTo("example.com"))

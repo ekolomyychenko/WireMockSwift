@@ -41,16 +41,23 @@ final class BoundaryTests: XCTestCase {
     // MARK: - 1. Path injection is neutralized (B4)
 
     /// The dangerous inputs and the single, fully-encoded segment each must
-    /// collapse to. Every one of these characters, left raw, would either split
-    /// the path (`/`), start a query (`?`) or fragment (`#`), or (space / é)
-    /// yield an invalid URL.
+    /// collapse to. `pathSegment` percent-encodes everything outside the RFC 3986
+    /// unreserved set, so every reserved character — whether it would split the
+    /// path (`/`), start a query/fragment (`?`/`#`), be reinterpreted by the server
+    /// (`;` → Jetty matrix params, verified live: raw `;` → 404), or just be raw in
+    /// the URL (`+ = & , @ %`, space, non-ASCII) — reaches the wire as `%XX`.
     private static let injectionCases: [(name: String, encoded: String)] = [
         ("a/b", "a%2Fb"),             // `/` -> %2F, must NOT split into two segments
         ("../secret", "..%2Fsecret"), // traversal `/` neutralized; `..` stays literal
-        ("a?x=1", "a%3Fx=1"),         // `?` -> %3F, must NOT start a real query
+        ("a?x=1", "a%3Fx%3D1"),       // `?`/`=` -> %3F/%3D, must NOT start a real query
         ("a#f", "a%23f"),             // `#` -> %23, must NOT start a real fragment
         ("a b", "a%20b"),             // space -> %20
-        ("café", "caf%C3%A9")         // non-ASCII UTF-8 percent-encoded
+        ("café", "caf%C3%A9"),        // non-ASCII UTF-8 percent-encoded
+        ("a;b.txt", "a%3Bb.txt"),     // `;` -> %3B, else Jetty truncates at the matrix sep
+        ("a+b", "a%2Bb"),             // `+` -> %2B, server-ambiguous in a path otherwise
+        ("50%off", "50%25off"),       // literal `%` -> %25, must NOT read as an escape
+        ("a=b&c", "a%3Db%26c"),       // `=`/`&` -> %3D/%26, sub-delims neutralized
+        ("a,b@c", "a%2Cb%40c")        // `,`/`@` -> %2C/%40
     ]
 
     func testGetFileNeutralizesPathInjection() throws {
@@ -123,6 +130,52 @@ final class BoundaryTests: XCTestCase {
         XCTAssertTrue(path.contains("%2F"), "the `/` must reach the wire as %2F, got: \(path)")
         XCTAssertFalse(path.contains("files/a/b"),
                        "the `/` must not split into a raw sub-segment, got: \(path)")
+    }
+
+    /// The `;` case in isolation: it is the one reserved char with active server
+    /// semantics (Jetty reads it as the start of path/matrix parameters and
+    /// truncates the segment there). Verified live against WireMock 3.13.2: a file
+    /// PUT/GET with a raw `;` 404s, while `%3B` resolves. Pin the encoding so the
+    /// regression can't creep back via a laxer allowlist.
+    func testSemicolonIsEncodedNotRaw() throws {
+        MockURLProtocol.respondData { _ in (200, Data()) }
+        let client = makeClient()
+        _ = try client.getFile(named: "a;b.txt")
+
+        let path = try XCTUnwrap(
+            URLComponents(url: try XCTUnwrap(MockURLProtocol.lastRequest?.url),
+                          resolvingAgainstBaseURL: false)?.percentEncodedPath)
+        XCTAssertTrue(path.contains("%3B"), "the `;` must reach the wire as %3B, got: \(path)")
+        XCTAssertFalse(path.contains("a;b"),
+                       "a raw `;` must not survive into the path, got: \(path)")
+    }
+
+    /// Non-ASCII names (CJK, emoji) encode their UTF-8 bytes and round-trip. Asserts
+    /// on properties rather than hand-computed hex: the output is pure ASCII, carries
+    /// no raw non-ASCII, and decodes back to the exact input.
+    func testUnicodeAndEmojiNamesRoundTrip() throws {
+        for name in ["日本語", "🎉party", "Ω≈ç"] {
+            let encoded = try AdminClient.pathSegment(name)
+            XCTAssertTrue(encoded.allSatisfy { $0.isASCII },
+                          "encoded segment must be pure ASCII for \(name), got: \(encoded)")
+            XCTAssertEqual(encoded.removingPercentEncoding, name,
+                           "must decode back to the original for \(name)")
+        }
+    }
+
+    /// The bare `.` / `..` guard (`AdminClient.pathSegment`) — rejected client-side
+    /// with `.invalidArgument`, never sent. (`../secret` in `injectionCases` proves
+    /// a `..` *substring* is fine; these prove the standalone segments are refused.)
+    func testBareDotSegmentsAreRejectedAndSendNothing() {
+        let client = makeClient()
+        for bad in [".", ".."] {
+            assertInvalidArgument("getFile(named: \"\(bad)\")") { try client.getFile(named: bad) }
+            XCTAssertNil(MockURLProtocol.lastRequest, "getFile(\"\(bad)\") must not hit the network")
+            assertInvalidArgument("setScenarioState(\"\(bad)\")") {
+                try client.setScenarioState(name: bad, state: "x")
+            }
+            XCTAssertNil(MockURLProtocol.lastRequest, "setScenarioState(\"\(bad)\") must not hit the network")
+        }
     }
 
     // MARK: - 2. Empty name throws .invalidArgument before any network (B4)

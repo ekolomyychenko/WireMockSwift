@@ -178,7 +178,10 @@ final class ReleasePolishTests: XCTestCase {
                           matchResult: MatchResult(distance: 0.2, diffDescriptions: [], subEvents: nil))
         let text = VerificationError(expected: "exactly 1", actual: 0, nearMisses: [nm]).description
         XCTAssertTrue(text.contains("closest request was: GET /actual"), text)
-        XCTAssertTrue(text.contains("distance 0.2"), text)
+        // W1: the raw score is labelled ("match distance … — lower is closer"), not a
+        // bare unitless number.
+        XCTAssertTrue(text.contains("match distance 0.2"), text)
+        XCTAssertTrue(text.contains("lower is closer"), text)
     }
 
     func testVerificationErrorWithoutNearMissesIsBare() {

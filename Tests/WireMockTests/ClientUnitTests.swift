@@ -207,6 +207,23 @@ final class ClientUnitTests: XCTestCase {
                       "the +01:00 offset must reach the server as %2B, got: \(url)")
     }
 
+    func testQueryParamNameIsPercentEncoded() throws {
+        // Only query *values* are exercised above; the encoder applies the same
+        // `+&=?#`-stripped set to the *name* too (AdminClient.perform). Drive it via
+        // the raw escape hatch, which is the one path that lets a caller supply an
+        // arbitrary param name. A raw `+`/`&`/`=` in the name would corrupt the
+        // query structure on the wire.
+        MockURLProtocol.respond { _ in (200, "") }
+        let client = makeClient()
+        _ = try client.admin.rawRequest("GET", "mappings",
+                                        query: [URLQueryItem(name: "a+b&c=d", value: "v")])
+
+        let url = try XCTUnwrap(MockURLProtocol.lastRequest?.url?.absoluteString)
+        XCTAssertTrue(url.contains("a%2Bb%26c%3Dd=v"),
+                      "the param name must be percent-encoded on the wire, got: \(url)")
+        XCTAssertFalse(url.contains("a+b"), "a raw + in the name would read as a space: \(url)")
+    }
+
     // MARK: - saveMappings persists via POST /__admin/mappings/save
 
     func testSaveMappingsPostsToSaveEndpoint() throws {

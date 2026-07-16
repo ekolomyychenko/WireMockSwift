@@ -24,7 +24,10 @@ public extension WireMock {
         // The blocking call can't be interrupted mid-flight, but an already
         // cancelled task shouldn't start one — honour cancellation up front.
         try Task.checkCancellation()
-        let client = self
+        // Reporting is disabled on this hop: the work runs on a GCD global-queue
+        // thread with no live test context, where `XCTContext.runActivity` would
+        // crash. (Wrapping async calls as steps is a deliberate non-goal for now.)
+        let client = disablingReporter()
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global().async {
                 continuation.resume(with: Result { try body(client) })

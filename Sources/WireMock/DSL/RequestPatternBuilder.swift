@@ -28,6 +28,16 @@ public struct RequestPatternBuilder: Sendable {
     /// dropping one silently is a footgun. The wire shape stays one matcher object per
     /// key (`{"and":[…]}`, which the server accepts), and nested ANDs are flattened so
     /// N calls yield one N-element AND.
+    ///
+    /// - Warning: Accumulating *mutually-exclusive* matchers on one key yields an
+    ///   unsatisfiable AND that matches nothing — so `verify(never(), …)` on it always
+    ///   passes (a false green). The sharpest case is `.absent` (via `withoutHeader`/
+    ///   `withoutQueryParam`/…) AND a value matcher: a key can't be both absent and
+    ///   present. But `equalTo("a")` + `equalTo("b")` is equally contradictory, and
+    ///   whether two matchers conflict is undecidable in general, so this is NOT
+    ///   detected here — it's the caller's responsibility not to over-constrain one
+    ///   key. In the `expect(...)` DSL such a contradiction instead surfaces as a
+    ///   thrown failure via the base-match floor, not a silent pass.
     static func combined(_ existing: StringValuePattern, _ new: StringValuePattern) -> StringValuePattern {
         if existing.fields.count == 1, case .array(let members)? = existing.fields["and"] {
             return StringValuePattern(["and": .array(members + [new.asJSON])])
@@ -232,7 +242,9 @@ public struct VerificationError: Error, CustomStringConvertible, Sendable {
             var line = "  closest request was: \(method) \(request.url ?? "?")"
             if let distance = closest.matchResult?.distance {
                 let rounded = (distance * 100).rounded() / 100
-                line += " (distance \(rounded))"
+                // Label the raw WireMock match score so "distance 0.14" isn't a bare,
+                // unitless number: it's a 0…1 dissimilarity, lower = closer to matching.
+                line += " (match distance \(rounded) — lower is closer)"
             }
             return line
         }

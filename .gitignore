@@ -19,3 +19,8 @@ xcuserdata/
 wiremock-standalone-*.jar
 .wiremock*.pid
 wiremock-*.log
+
+# muter artifacts (Scripts/mutation.sh): the runtime-generated v16 config and logs.
+# The canonical config is the committed dotted .muter.conf.yml.
+/muter.conf.yml
+/muter_logs/

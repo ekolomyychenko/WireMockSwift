@@ -26,6 +26,21 @@ final class JSONValueTests: XCTestCase {
         XCTAssertNotEqual(JSONValue.bool(true), JSONValue.int(1))
     }
 
+    /// int/double cross-equality must stay TRANSITIVE past 2^53, where distinct Ints
+    /// round to the same Double. `.int(2^53+1)` must not equal `.double(2^53)` (a lossy
+    /// round), otherwise `a==b, b==c, a!=c` and Set/Dictionary membership goes
+    /// order-dependent. Kills a `Double(a) == b` that ignores exact representability.
+    func testNumericEqualityStaysTransitiveBeyond2To53() {
+        let a = JSONValue.int(9_007_199_254_740_993)     // 2^53 + 1, not exactly a Double
+        let b = JSONValue.double(9_007_199_254_740_992)  // 2^53
+        let c = JSONValue.int(9_007_199_254_740_992)     // 2^53, exactly a Double
+        XCTAssertNotEqual(a, b, "a lossy Int must not equal the Double it rounds to")
+        XCTAssertEqual(b, c, "an exactly-representable Int still equals its Double")
+        XCTAssertNotEqual(a, c)
+        // Transitivity holds, so a Set keyed on these keeps a and c distinct.
+        XCTAssertEqual(Set<JSONValue>([a, b, c]).count, 2)
+    }
+
     func testEqualNumbersHashEqual() throws {
         let set: Set<JSONValue> = [.int(1), .double(1.0), try WireMockFixture.decode(JSONValue.self, "1")]
         XCTAssertEqual(set.count, 1, "1 and 1.0 must collapse to one element")
