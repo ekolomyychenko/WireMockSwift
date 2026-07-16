@@ -54,6 +54,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A positive field check (`toHaveHeader`/`toHaveQueryParam`/…) chained after an upper-bound-only count
     spec (`.atMost`/`.lessThan`, satisfied by 0) now requires the narrowed count to be at least one, so
     the check can no longer vacuously pass when the field is entirely absent.
+- **Test-report reporter seam** — an injectable, framework-agnostic hook so `stubFor` / `verify` /
+  `expect` / `verifyInOrder` can surface as *steps* in a test report without the core depending on any
+  reporting framework. New public protocol `WireMockReporter` (single `step(_:jsonBody:_:)` requirement,
+  `Sendable`), injected via a new defaulted `reporter:` parameter on `WireMock.init(admin:reporter:)`,
+  `init(baseURL:…:reporter:)` and `init(scheme:host:port:…:reporter:)`. The default `NoopReporter` runs
+  the work and records nothing, so behaviour is unchanged and it is safe outside a live test context
+  (SwiftUI previews, sample apps, where a real `XCTActivity` would crash). `XCTActivityReporter` wraps
+  each step in `XCTContext.runActivity`, which Xcode records in the `.xcresult`; Allure, AppCode and the
+  Xcode Test Report navigator turn those activities into steps *after the fact* — Allure steps with zero
+  Allure dependency in this code — with the full request/stub WireMock-style JSON attached to the step.
+  Reporting is disabled inside `callAsync`'s background hop (where `XCTContext.runActivity` would crash
+  off the main actor). Purely additive — the default no-op leaves existing behaviour unchanged.
 
 ### Fixed
 
