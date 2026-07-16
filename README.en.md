@@ -65,6 +65,15 @@ and add the product to your (test) target:
 .testTarget(name: "MyAppTests", dependencies: [.product(name: "WireMock", package: "WireMockSwift")])
 ```
 
+> ⚠️ **Link `WireMock` into TEST targets only.** It's a testing tool, and its
+> core links `XCTest` (for `XCTActivityReporter`, which turns calls into report
+> steps — see [§ Logging](#logging-and-report-steps-allure-etc)). `XCTest` is
+> only available inside test bundles. Linking `WireMock` into an **app or
+> framework target** makes an iOS app crash on launch
+> (`dyld: Library not loaded: XCTest`) and gets an App Store build rejected at
+> validation. A mock server has no place in shipping app code anyway — keep it
+> in tests.
+
 ## Quick start
 
 Start a server — the standalone jar needs only a JDK and runs anywhere (see
@@ -547,18 +556,39 @@ func testCheckout() async throws {
 }
 ```
 
-### Logging (Allure etc.)
+### Logging and report steps (Allure etc.)
 
 All public types have a `description` in the Java WireMock `toString()` style: containers
 (`StubMapping`, `LoggedRequest`, `ServeEvent`, `RequestPattern`, `ResponseDefinition`, `NearMiss`, …)
 print as their JSON, leaf types as the bare value (`HTTPMethod` → `GET`, `Fault` → `EMPTY_RESPONSE`).
-So `"\(stub)"` / `String(describing: loggedRequest)` give a readable string for step names and
-attachments, not a reflection dump. Secrets don't leak: `AdminAuthorization`/`WireMock`/`AdminClient`
-mask credentials in their descriptions.
+Secrets don't leak: `AdminAuthorization`/`WireMock`/`AdminClient` mask credentials in their descriptions.
+
+**Steps out of the box.** Pass a `reporter:` when creating the client, and `stubFor` / `verify` /
+`expect` / `verifyInOrder` wrap themselves as report steps. `XCTActivityReporter` records them via
+`XCTContext.runActivity` — Xcode writes them into the `.xcresult`, and Allure (natively via
+`allure generate *.xcresult`, or the `xcresults` tool) turns those activities into steps. There's no
+Allure dependency in your code; the full request/stub JSON rides along as a step attachment.
 
 ```swift
-Allure.step("Stub: \(stub)") { … }                 // the stub's JSON
-XCTContext.runActivity(named: "\(loggedRequest)") { … }
+// In test setUp:
+let wireMock = WireMock(baseURL: url, reporter: XCTActivityReporter())
+
+// Then normal code — each call becomes a report step:
+try wireMock.stubFor(get(urlEqualTo("/cart")).willReturn(okForJson(["items": 2])))
+try wireMock.verify(getRequestedFor(urlEqualTo("/cart")))
+```
+
+The default reporter is `NoopReporter` (records nothing), so behaviour is unchanged without an explicit
+injection, and nothing crashes outside a live test (previews, sample apps). A custom reporter (another
+framework, a future swift-testing one) is just an implementation of `WireMockReporter`.
+
+> **Async:** no steps are emitted inside `callAsync` — the work runs on a background thread with no live
+> test context, where `XCTContext.runActivity` would crash. Wrap synchronous calls from the test body.
+
+If you want manual control, `description` still gives a ready string for step names and attachments:
+
+```swift
+XCTContext.runActivity(named: "Stub: \(stub)") { … }   // the stub's JSON
 ```
 
 ## Continuous integration

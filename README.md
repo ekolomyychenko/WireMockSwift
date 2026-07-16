@@ -64,6 +64,14 @@ Swift Package Manager — добавьте в `Package.swift`:
 .testTarget(name: "MyAppTests", dependencies: [.product(name: "WireMock", package: "WireMockSwift")])
 ```
 
+> ⚠️ **Подключайте `WireMock` ТОЛЬКО в тестовые таргеты.** Это тестовый
+> инструмент, и его ядро линкует `XCTest` (ради `XCTActivityReporter` для
+> шагов в отчётах — см. [§ Логирование](#логирование-и-шаги-отчёта-allure-и-тп)).
+> `XCTest` доступен только в тест-бандлах. Если прилинковать `WireMock` в
+> **app- или framework-таргет**, то на iOS приложение упадёт при запуске
+> (`dyld: Library not loaded: XCTest`), а сборку для App Store завернут на
+> валидации. В обычный код приложения мок-сервер и не нужен — держите его в тестах.
+
 ## Быстрый старт
 
 Запустите сервер — standalone-jar требует лишь JDK и работает где угодно (см.
