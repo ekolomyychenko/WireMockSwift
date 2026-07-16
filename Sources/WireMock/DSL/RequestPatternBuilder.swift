@@ -29,11 +29,15 @@ public struct RequestPatternBuilder: Sendable {
     /// key (`{"and":[…]}`, which the server accepts), and nested ANDs are flattened so
     /// N calls yield one N-element AND.
     ///
-    /// - Warning: One combination is unsatisfiable. Pinning `.absent` (via
-    ///   `withoutHeader`/`withoutQueryParam`/…) AND a value matcher on the SAME key
-    ///   yields `{"and":[{"absent":true},…]}` — no request can be both absent and
-    ///   equal to something, so it matches nothing. `verify(never(), …)` on such a
-    ///   pattern therefore always passes. Don't assert presence and absence of one key.
+    /// - Warning: Accumulating *mutually-exclusive* matchers on one key yields an
+    ///   unsatisfiable AND that matches nothing — so `verify(never(), …)` on it always
+    ///   passes (a false green). The sharpest case is `.absent` (via `withoutHeader`/
+    ///   `withoutQueryParam`/…) AND a value matcher: a key can't be both absent and
+    ///   present. But `equalTo("a")` + `equalTo("b")` is equally contradictory, and
+    ///   whether two matchers conflict is undecidable in general, so this is NOT
+    ///   detected here — it's the caller's responsibility not to over-constrain one
+    ///   key. In the `expect(...)` DSL such a contradiction instead surfaces as a
+    ///   thrown failure via the base-match floor, not a silent pass.
     static func combined(_ existing: StringValuePattern, _ new: StringValuePattern) -> StringValuePattern {
         if existing.fields.count == 1, case .array(let members)? = existing.fields["and"] {
             return StringValuePattern(["and": .array(members + [new.asJSON])])
