@@ -463,4 +463,73 @@ final class RequestExpectationMockedTests: XCTestCase {
             XCTAssertTrue(msg.contains("nope.json"), "should name the missing fixture: \(msg)")
         }
     }
+
+    // MARK: - Dump / enumeration branches (server-less coverage of the #1/#2 rendering)
+    //
+    // The enumerated request dump (`\n  #i  METHOD url  Content-Type=…  body=…`) is
+    // produced by `RequestExpectation.enumeratedDump` and reached from three sites:
+    // the "too many" count failure, the negative offending-request dump, and the
+    // form-leak dump. Live suites exercise them but XCTSkip without a server and are
+    // invisible to muter — these hermetic tests pin the numbering/format so a mutant
+    // that breaks the `#i` counter or the `compactLine` shape dies here.
+
+    /// A "too many" count failure enumerates every matching request as `#1`, `#2`,
+    /// … with the `compactLine` shape (METHOD url, Content-Type, body snippet).
+    func testTooManyCountFailureDumpsEnumeratedRequests() {
+        let mock = MockAdminTransport()
+            .enqueueCount(2)   // toHaveBeenSent(.once): 2 matched → over the spec, not a shortfall
+            .enqueueFind(rawRequests:
+                #"[{"url":"/orders","method":"POST","headers":{"Content-Type":"text/plain"},"body":"one"},{"url":"/orders","method":"POST","body":"two"}]"#)
+        let wireMock = mock.client()
+
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders"))).toHaveBeenSent(.once)
+        ) { error in
+            let msg = self.message(of: error)
+            XCTAssertTrue(msg.contains("found 2"), msg)
+            XCTAssertTrue(msg.contains("#1  POST /orders"), msg)
+            XCTAssertTrue(msg.contains("#2  POST /orders"), msg)
+            XCTAssertTrue(msg.contains("Content-Type=text/plain"), "compactLine must render the content type: \(msg)")
+            XCTAssertTrue(msg.contains("body=one"), "compactLine must render the body snippet: \(msg)")
+        }
+    }
+
+    /// A negative check whose offenders exist dumps each offending request as
+    /// `#1`, `#2`, … below the "but N carried it" line.
+    func testNegativeOffendersAreDumpedEnumerated() {
+        let two = #"[{"url":"/token","method":"POST","headers":{"X-Debug":"1"},"body":"a"},{"url":"/token","method":"POST","body":"b"}]"#
+        let mock = MockAdminTransport()
+            .enqueueCount(2)   // refineNegative floor: base pattern matched
+            .enqueueCount(2)   // offending count (requests that carry the header)
+            .enqueueFind(rawRequests: two)
+        let wireMock = mock.client()
+
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/token"))).toNotHaveHeader("X-Debug")
+        ) { error in
+            let msg = self.message(of: error)
+            XCTAssertTrue(msg.contains("but 2 carried it"), msg)
+            XCTAssertTrue(msg.contains("#1  POST /token"), msg)
+            XCTAssertTrue(msg.contains("#2  POST /token"), msg)
+        }
+    }
+
+    /// The form-leak scan lists each leaking request as `#1`, … with its body
+    /// snippet — the content-type-evading branch of `toNotHaveFormParam`.
+    func testFormLeakDumpsEnumeratedRequests() {
+        let mock = MockAdminTransport()
+            .enqueueCount(1)   // refineNegative floor: base pattern matched
+            .enqueueCount(0)   // server-side form matching misses it (no form Content-Type)
+            .enqueueFind(rawRequests: #"[{"url":"/token","method":"POST","body":"client_secret=shh&grant_type=x"}]"#)
+        let wireMock = mock.client()
+
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/token"))).toNotHaveFormParam("client_secret")
+        ) { error in
+            let msg = self.message(of: error)
+            XCTAssertTrue(msg.contains("carried it in the body"), msg)
+            XCTAssertTrue(msg.contains("#1  POST /token"), msg)
+            XCTAssertTrue(msg.contains("body=client_secret=shh"), "compactLine must render the leaking body: \(msg)")
+        }
+    }
 }

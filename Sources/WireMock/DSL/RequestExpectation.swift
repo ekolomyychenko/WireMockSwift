@@ -159,12 +159,10 @@ public struct RequestExpectation: Sendable {
                 return req.formItems().contains { $0.name == name }
             }
         guard leaking.isEmpty else {
-            var message = "Expected no form param \(name) on any request matching \(Self.summary(builder)), "
+            let message = "Expected no form param \(name) on any request matching \(Self.summary(builder)), "
                 + "but \(leaking.count) carried it in the body — a form-encoded body sent without an "
                 + "application/x-www-form-urlencoded Content-Type evades server-side form matching:"
-            for (index, req) in leaking.enumerated() {
-                message += "\n  #\(index + 1)  \(Self.compactLine(req.logged))"
-            }
+                + Self.enumeratedDump(leaking.map(\.logged))
             throw fail(message)
         }
         return refined
@@ -565,10 +563,7 @@ public struct RequestExpectation: Sendable {
         guard count == 0 else {
             var message = "Expected \(check) on any request matching \(Self.summary(builder)), but \(count) carried it"
             if let matched = try? wireMock.findAll(offending), !matched.isEmpty {
-                message += ":"
-                for (index, request) in matched.enumerated() {
-                    message += "\n  #\(index + 1)  \(Self.compactLine(request))"
-                }
+                message += ":" + Self.enumeratedDump(matched)
             }
             throw fail(message)
         }
@@ -607,10 +602,7 @@ public struct RequestExpectation: Sendable {
         }
         var message = "Expected \(spec.description) matching request(s) for \(Self.summary(rb)) but found \(actual)\(note)"
         if actual > 0, let matched = try? wireMock.findAll(rb), !matched.isEmpty {
-            message += ":"
-            for (index, request) in matched.enumerated() {
-                message += "\n  #\(index + 1)  \(Self.compactLine(request))"
-            }
+            message += ":" + Self.enumeratedDump(matched)
         }
         return fail(message)
     }
@@ -626,7 +618,7 @@ public struct RequestExpectation: Sendable {
 
     private func dump(_ requests: [CapturedRequest]) -> String {
         guard !requests.isEmpty else { return "" }
-        return ":" + requests.enumerated().map { "\n  #\($0.offset + 1)  \(Self.compactLine($0.element.logged))" }.joined()
+        return ":" + Self.enumeratedDump(requests.map(\.logged))
     }
 
     /// A compact "METHOD url" summary of the pattern for messages.
@@ -641,6 +633,15 @@ public struct RequestExpectation: Sendable {
         let url = pattern.url ?? pattern.urlPattern ?? pattern.urlPath
             ?? pattern.urlPathPattern ?? pattern.urlPathTemplate ?? "any URL"
         return "\(method) \(url)"
+    }
+
+    /// The shared "#1 … #2 …" enumerated rendering of matching requests, used by
+    /// every dump site (the too-many count failure, the negative offending-request
+    /// dump, the form-leak dump, and the terminal `dump`). Each request is one line
+    /// `\n  #i  compactLine`; the caller supplies any leading `:` separator. One
+    /// funnel so the numbering/format can't drift between the four sites.
+    static func enumeratedDump(_ requests: [LoggedRequest]) -> String {
+        requests.enumerated().map { "\n  #\($0.offset + 1)  \(compactLine($0.element))" }.joined()
     }
 
     /// A one-line rendering of a logged request for the "too many" dump.

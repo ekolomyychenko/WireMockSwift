@@ -9,6 +9,9 @@ import XCTest
 /// The steps this emits (`Stub: …`, `Verify (…): …`, `Capture request: …`, each
 /// with a WireMock-JSON attachment) are what an `.xcresult` inspection confirms
 /// land as Allure/Xcode report steps — the one thing not observable server-less.
+/// `Scripts/verify-reporter-xcresult.sh` drives THIS test through xcodebuild and
+/// asserts those attachments landed in the result bundle (CI job "Reporter .xcresult
+/// guard").
 final class ReporterIntegrationTests: XCTestCase {
 
     func testReporterEmitsStepsWhileDrivingLiveServer() throws {

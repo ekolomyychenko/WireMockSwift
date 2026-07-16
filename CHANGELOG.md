@@ -78,6 +78,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `%3B` → 200). Every reserved character now round-trips through `%XX`; the empty / `.` / `..`
   rejection is unchanged.
 
+### Test & tooling hardening
+
+- **Reporter `.xcresult` guard** — the report-side behaviour (that `XCTActivityReporter` emits
+  Stub/Verify/Capture steps with WireMock-JSON attachments into the result bundle) is now asserted
+  by `Scripts/verify-reporter-xcresult.sh` and a CI job, instead of being eyeballed. It drives the
+  live reporter test through `xcodebuild` and inspects the bundle via `xcresulttool`; it fails if the
+  reporter degrades to a no-op.
+- **Hermetic coverage of the request-dump diagnostics** — the "too many" count dump, the negative
+  offending-request dump, and the `toNotHaveFormParam` form-leak dump are now pinned server-less in
+  `RequestExpectationMockedTests` (previously killable only by live suites, invisible to `muter`).
+  The four duplicated dump renderers were unified into one `enumeratedDump` funnel.
+- **`api-check.sh` no longer fails silently** — it now asserts a freshly generated digester dump
+  actually contains symbols (guarding the empty-dump/"everything removed" mode when XCTest fails to
+  load) and captures the digester's stderr instead of discarding it, so a load/tooling error fails
+  loudly rather than masquerading as an API change or a vacuously-empty `--update` baseline.
+- **Diagnostic-message assertions tightened** — several `expect(...)` fail-path tests now assert the
+  full `failing check: …` label rather than a bare token that the echoed request dump could also
+  supply. Removed a `Thread.sleep`-based live ordering test whose determinism already lives in the
+  mocked suite.
+
 ## [0.1.0] - 2026-07-15
 
 First public release. A native Swift client and DSL for [WireMock](https://wiremock.org)

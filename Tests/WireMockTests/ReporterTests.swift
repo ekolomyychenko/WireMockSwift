@@ -11,9 +11,11 @@ import XCTest
 /// Not covered here (impossible server-less): the *report-side* output of
 /// `XCTActivityReporter` — that the emitted `XCTActivity`/`XCTAttachment` actually
 /// land in the `.xcresult` with the right name/content/`.keepAlways`. XCTest has no
-/// public API to read back an activity within the same test, so that is verified
-/// later against a live `.xcresult`. Here the real reporter is only checked for
-/// being crash-free and behaviour-transparent.
+/// public API to read back an activity within the same test, so that is asserted by
+/// `Scripts/verify-reporter-xcresult.sh` (CI job "Reporter .xcresult guard"), which
+/// runs the live reporter test through xcodebuild and inspects the result bundle with
+/// `xcresulttool`. Here the real reporter is only checked for being crash-free and
+/// behaviour-transparent.
 final class ReporterTests: XCTestCase {
 
     /// Records every step it is asked to wrap, counts body invocations (even when
@@ -279,7 +281,7 @@ final class ReporterTests: XCTestCase {
     /// `XCTContext.runActivity` on the test's main thread (via `assumeIsolated`),
     /// with a non-nil `jsonBody` attachment, without crashing — for both a value
     /// terminal and a plain `verify`. (The attachment landing in the `.xcresult` is
-    /// verified later against a live result bundle; unobservable server-less.)
+    /// asserted by `Scripts/verify-reporter-xcresult.sh`; unobservable server-less.)
     func testXCTActivityReporterRunsInline() throws {
         let captured = try MockAdminTransport()
             .enqueueFind(rawRequests: #"[{"url":"/orders","method":"POST"}]"#)

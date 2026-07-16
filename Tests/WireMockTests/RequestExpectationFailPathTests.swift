@@ -132,14 +132,15 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
     func testGeneralBodyMatchersFailOnMismatch() throws {
         try wireMock.stubFor(post(urlPathEqualTo("/gb")).willReturn(ok()))
         try WireMockFixture.hit("gb", method: "POST", body: Data("hello world".utf8))
-        // exact-string overload, wrong value
+        // exact-string overload, wrong value. Assert the full failing-check LABEL, not
+        // a bare "body" substring that the echoed request dump could also supply.
         XCTAssertThrowsError(
             try wireMock.expect(postRequestedFor(urlPathEqualTo("/gb"))).toHaveBody(equalTo: "goodbye")
-        ) { XCTAssertTrue(String(describing: $0).contains("body"), String(describing: $0)) }
+        ) { XCTAssertTrue(String(describing: $0).contains("failing check: body"), String(describing: $0)) }
         // general positional overload, wrong value
         XCTAssertThrowsError(
             try wireMock.expect(postRequestedFor(urlPathEqualTo("/gb"))).toHaveBody(StringValuePattern.equalTo("goodbye"))
-        ) { XCTAssertTrue(String(describing: $0).contains("body"), String(describing: $0)) }
+        ) { XCTAssertTrue(String(describing: $0).contains("failing check: body"), String(describing: $0)) }
     }
 
     func testAtMostExceededDumps() throws {
@@ -332,7 +333,7 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
             try wireMock.expect(getRequestedFor(urlPathEqualTo("/acc")))
                 .toHaveHeader("X-Tag", equalTo("a"))
                 .toHaveHeader("X-Tag", equalTo("b"))
-        ) { XCTAssertTrue(String(describing: $0).contains("header X-Tag"), String(describing: $0)) }
+        ) { XCTAssertTrue(String(describing: $0).contains("failing check: header X-Tag"), String(describing: $0)) }
     }
 
     // MARK: - Bearer matching fail + anchor trap
@@ -382,12 +383,12 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
         XCTAssertThrowsError(
             try wireMock.expect(postRequestedFor(urlPathEqualTo("/xp")))
                 .toHaveBody(matchingXPath: "/order/missing")
-        ) { XCTAssertTrue(String(describing: $0).contains("xpath"), String(describing: $0)) }
+        ) { XCTAssertTrue(String(describing: $0).contains("failing check: xpath /order/missing"), String(describing: $0)) }
         // Node exists but its value fails the sub-matcher.
         XCTAssertThrowsError(
             try wireMock.expect(postRequestedFor(urlPathEqualTo("/xp")))
                 .toHaveBody(matchingXPath: "/order/id", equalTo("2"))
-        ) { XCTAssertTrue(String(describing: $0).contains("xpath"), String(describing: $0)) }
+        ) { XCTAssertTrue(String(describing: $0).contains("failing check: xpath /order/id"), String(describing: $0)) }
     }
 
     // MARK: - toHaveExactlyQueryParams branches
