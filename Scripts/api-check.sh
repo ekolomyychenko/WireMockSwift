@@ -19,12 +19,27 @@ SDK="$(xcrun --sdk macosx --show-sdk-path)"
 TARGET="arm64-apple-macosx12.0"
 INCLUDES=(-I .build/debug/Modules -I .build/debug)
 
+# The WireMock module links XCTest by design (the reporter seam's XCTActivityReporter
+# and the assertion helpers), so the digester must be able to *load* XCTest to read
+# the module at all. Newer toolchains (e.g. the macOS 26 SDK) don't put XCTest on the
+# digester's default search path, so it fails with "missing required module 'XCTest'"
+# and — because stderr is suppressed below — silently emits an EMPTY dump, making every
+# symbol read as "removed" (a false release-blocking alarm, or a real total break we'd
+# never see the shape of). Point at the platform's Developer frameworks when present so
+# the module loads; this only adds a search path, never changes which symbols WireMock
+# exposes, so it is a no-op on toolchains that already resolve XCTest.
+XCTEST_FW="$(xcode-select -p 2>/dev/null)/Platforms/MacOSX.platform/Developer/Library/Frameworks"
+FRAMEWORKS=()
+[ -d "$XCTEST_FW/XCTest.framework" ] && FRAMEWORKS=(-F "$XCTEST_FW")
+
 swift build >/dev/null
 
 if [ "${1:-}" = "--update" ]; then
   mkdir -p api
+  # Expand a possibly-empty array under `set -u` (bash 3.2 on stock macOS treats
+  # "${arr[@]}" of an empty array as unbound), matching Scripts/start-wiremock.sh.
   xcrun swift-api-digester -dump-sdk -module WireMock -o "$BASELINE" \
-    "${INCLUDES[@]}" -sdk "$SDK" -target "$TARGET"
+    "${INCLUDES[@]}" ${FRAMEWORKS[@]+"${FRAMEWORKS[@]}"} -sdk "$SDK" -target "$TARGET"
   echo "Baseline regenerated at $BASELINE — review and commit it."
   exit 0
 fi
@@ -37,7 +52,7 @@ fi
 REPORT="$(mktemp)"
 trap 'rm -f "$REPORT"' EXIT
 xcrun swift-api-digester -diagnose-sdk -baseline-path "$BASELINE" -module WireMock \
-  "${INCLUDES[@]}" -sdk "$SDK" -target "$TARGET" -o "$REPORT" 2>/dev/null
+  "${INCLUDES[@]}" ${FRAMEWORKS[@]+"${FRAMEWORKS[@]}"} -sdk "$SDK" -target "$TARGET" -o "$REPORT" 2>/dev/null
 
 # The report is section headers (/* … */) and blank lines; any other line is a
 # real API change (e.g. "Func foo(_:) has been removed").
