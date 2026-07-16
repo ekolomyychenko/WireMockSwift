@@ -673,3 +673,10 @@ public struct RequestExpectation: Sendable {
         return first == "{" || first == "[" || first == "<"
     }
 }
+
+extension RequestExpectation: CustomStringConvertible {
+    /// The WireMock JSON of the request pattern this expectation matches on —
+    /// report/log-friendly (same shape as the `expect`-terminal step attachments),
+    /// rather than a struct-reflection dump. Same-file so it can read `builder`.
+    public var description: String { builder.description }
+}

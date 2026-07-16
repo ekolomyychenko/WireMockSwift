@@ -79,6 +79,15 @@ extension WireMock.DuplicatePolicy: CustomStringConvertible {
     public var description: String { rawValue }
 }
 
+// MARK: - Client-side request views → JSON of what they wrap / match
+
+/// A captured request describes as its underlying journal entry's WireMock JSON —
+/// the same shape the (Java) server emits — rather than a struct-reflection dump,
+/// so `"\(captured)"` is report/attachment-ready.
+extension CapturedRequest: CustomStringConvertible {
+    public var description: String { logged.description }
+}
+
 // MARK: - Builders → JSON of the model they build
 
 extension MappingBuilder: CustomStringConvertible {
