@@ -56,13 +56,16 @@ public struct RequestExpectation: Sendable {
     /// field checks are held to.
     @discardableResult
     public func toHaveBeenSent(_ spec: CountSpec = .atLeast(1)) throws -> RequestExpectation {
-        let actual = try wireMock.count(builder)
-        guard spec.isSatisfied(by: actual) else {
-            throw makeError(builder, actual: actual, check: nil, spec: spec)
+        try wireMock.reporter.step("Verify sent (\(spec)): \(Self.summary(builder))",
+                                   jsonBody: builder.description) {
+            let actual = try wireMock.count(builder)
+            guard spec.isSatisfied(by: actual) else {
+                throw makeError(builder, actual: actual, check: nil, spec: spec)
+            }
+            var copy = self
+            copy.countSpec = spec
+            return copy
         }
-        var copy = self
-        copy.countSpec = spec
-        return copy
     }
 
     /// Alias for `toHaveBeenSent(.once)`.
@@ -462,29 +465,37 @@ public struct RequestExpectation: Sendable {
 
     /// The single matching request. Throws if the count is not exactly one.
     public func single() throws -> CapturedRequest {
-        let all = try fetchSorted()
-        guard all.count == 1 else {
-            let hint = all.isEmpty ? " — the pattern matched no captured request (check the URL/method, or that the flow ran)" : ""
-            throw fail("Expected exactly one request matching \(Self.summary(builder)), but found \(all.count)\(hint)" + dump(all))
+        try wireMock.reporter.step("Capture request: \(Self.summary(builder))", jsonBody: builder.description) {
+            let all = try fetchSorted()
+            guard all.count == 1 else {
+                let hint = all.isEmpty ? " — the pattern matched no captured request (check the URL/method, or that the flow ran)" : ""
+                throw fail("Expected exactly one request matching \(Self.summary(builder)), but found \(all.count)\(hint)" + dump(all))
+            }
+            return all[0]
         }
-        return all[0]
     }
 
     /// The earliest matching request (by `loggedDate`). Throws if none matched.
     public func first() throws -> CapturedRequest {
-        guard let first = try fetchSorted().first else { throw notFound() }
-        return first
+        try wireMock.reporter.step("Capture first request: \(Self.summary(builder))", jsonBody: builder.description) {
+            guard let first = try fetchSorted().first else { throw notFound() }
+            return first
+        }
     }
 
     /// The latest matching request (by `loggedDate`). Throws if none matched.
     public func last() throws -> CapturedRequest {
-        guard let last = try fetchSorted().last else { throw notFound() }
-        return last
+        try wireMock.reporter.step("Capture last request: \(Self.summary(builder))", jsonBody: builder.description) {
+            guard let last = try fetchSorted().last else { throw notFound() }
+            return last
+        }
     }
 
     /// All matching requests, oldest first.
     public func all() throws -> [CapturedRequest] {
-        try fetchSorted()
+        try wireMock.reporter.step("Capture all requests: \(Self.summary(builder))", jsonBody: builder.description) {
+            try fetchSorted()
+        }
     }
 
     /// Extract a value from the single matching request (for correlation across
@@ -620,7 +631,12 @@ public struct RequestExpectation: Sendable {
 
     /// A compact "METHOD url" summary of the pattern for messages.
     static func summary(_ builder: RequestPatternBuilder) -> String {
-        let pattern = builder.pattern
+        summary(builder.pattern)
+    }
+
+    /// A compact "METHOD url" summary of a request pattern (also used for report
+    /// step titles on the stub/verify seams).
+    static func summary(_ pattern: RequestPattern) -> String {
         let method = pattern.method?.description ?? "ANY"
         let url = pattern.url ?? pattern.urlPattern ?? pattern.urlPath
             ?? pattern.urlPathPattern ?? pattern.urlPathTemplate ?? "any URL"

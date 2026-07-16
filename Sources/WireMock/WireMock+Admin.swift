@@ -20,15 +20,18 @@ extension WireMock {
 
     /// Asserts the matching-request count satisfies `strategy`.
     public func verify(_ strategy: CountMatchingStrategy, _ builder: RequestPatternBuilder) throws {
-        let actual = try count(builder)
-        guard strategy.isSatisfied(by: actual) else {
-            // On a shortfall (fewer matches than expected), pull the closest
-            // near-misses so the thrown error carries a diff report, like Java's
-            // VerificationException. Best-effort: a disabled journal or a failed
-            // lookup falls back to the bare count rather than masking the real
-            // assertion failure with a secondary error.
-            let nearMisses = strategy.isShortfall(actual) ? ((try? findNearMisses(for: builder)) ?? []) : []
-            throw VerificationError(expected: strategy.description, actual: actual, nearMisses: nearMisses)
+        try reporter.step("Verify (\(strategy)): \(RequestExpectation.summary(builder))",
+                          jsonBody: builder.description) {
+            let actual = try count(builder)
+            guard strategy.isSatisfied(by: actual) else {
+                // On a shortfall (fewer matches than expected), pull the closest
+                // near-misses so the thrown error carries a diff report, like Java's
+                // VerificationException. Best-effort: a disabled journal or a failed
+                // lookup falls back to the bare count rather than masking the real
+                // assertion failure with a secondary error.
+                let nearMisses = strategy.isShortfall(actual) ? ((try? findNearMisses(for: builder)) ?? []) : []
+                throw VerificationError(expected: strategy.description, actual: actual, nearMisses: nearMisses)
+            }
         }
     }
 

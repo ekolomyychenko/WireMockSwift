@@ -546,18 +546,39 @@ func testCheckout() async throws {
 }
 ```
 
-### Логирование (Allure и т.п.)
+### Логирование и шаги отчёта (Allure и т.п.)
 
 Все публичные типы имеют `description` в формате Java WireMock `toString()`: контейнеры
 (`StubMapping`, `LoggedRequest`, `ServeEvent`, `RequestPattern`, `ResponseDefinition`, `NearMiss`, …)
 печатаются как их JSON, leaf-типы — голым значением (`HTTPMethod` → `GET`, `Fault` → `EMPTY_RESPONSE`).
-Так что `"\(stub)"` / `String(describing: loggedRequest)` дают читаемую строку для step-имён и вложений,
-а не рефлексивный дамп. Секреты не светятся: `AdminAuthorization`/`WireMock`/`AdminClient` маскируют
-креды в своих описаниях.
+Секреты не светятся: `AdminAuthorization`/`WireMock`/`AdminClient` маскируют креды в своих описаниях.
+
+**Шаги «из коробки».** Передайте `reporter:` при создании клиента, и вызовы `stubFor` / `verify` /
+`expect` / `verifyInOrder` сами оборачиваются в шаги отчёта. `XCTActivityReporter` пишет их как
+`XCTContext.runActivity` — Xcode кладёт их в `.xcresult`, а Allure (нативно `allure generate *.xcresult`,
+либо через `xcresults`) превращает activity в шаги. Никакой зависимости от Allure в коде нет; полный JSON
+запроса/стаба едет вложением к шагу.
 
 ```swift
-Allure.step("Стаб: \(stub)") { … }                 // JSON стаба
-XCTContext.runActivity(named: "\(loggedRequest)") { … }
+// В setUp теста:
+let wireMock = WireMock(baseURL: url, reporter: XCTActivityReporter())
+
+// Дальше — обычный код, каждый вызов становится шагом в отчёте:
+try wireMock.stubFor(get(urlEqualTo("/cart")).willReturn(okForJson(["items": 2])))
+try wireMock.verify(getRequestedFor(urlEqualTo("/cart")))
+```
+
+По умолчанию reporter — `NoopReporter` (ничего не пишет), так что поведение без явной инъекции не меняется,
+и вне живого теста (превью, sample-app) ничего не падает. Свой репортёр (другой фреймворк, будущий
+swift-testing) — это реализация протокола `WireMockReporter`.
+
+> **Async:** внутри `callAsync` шаги **не** эмитятся — работа уходит на фоновый поток без живого
+> тест-контекста, где `XCTContext.runActivity` упал бы. Оборачивайте синхронные вызовы из тела теста.
+
+Если нужен ручной контроль — `description` по-прежнему даёт готовую строку для step-имён и вложений:
+
+```swift
+XCTContext.runActivity(named: "Стаб: \(stub)") { … }   // JSON стаба
 ```
 
 ## Непрерывная интеграция

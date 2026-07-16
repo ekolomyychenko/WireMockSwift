@@ -33,6 +33,14 @@ extension WireMock {
     public func verifyInOrder(_ builders: [RequestPatternBuilder]) throws {
         guard !builders.isEmpty else { return }
 
+        let name = "Verify in order (\(builders.count)): "
+            + builders.map { RequestExpectation.summary($0) }.joined(separator: " → ")
+        try reporter.step(name, jsonBody: builders.map(\.description).joined(separator: "\n\n")) {
+            try verifyInOrderBody(builders)
+        }
+    }
+
+    private func verifyInOrderBody(_ builders: [RequestPatternBuilder]) throws {
         // Candidate requests per step, matched server-side, oldest first.
         let candidates = try builders.map { builder in
             try findAll(builder).sorted { ($0.loggedDate ?? .max) < ($1.loggedDate ?? .max) }

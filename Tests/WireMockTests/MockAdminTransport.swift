@@ -41,12 +41,13 @@ final class MockAdminTransport {
         Self.lock.lock(); Self.registry[host] = nil; Self.lock.unlock()
     }
 
-    /// A `WireMock` client whose transport is this mock.
-    func client() -> WireMock {
+    /// A `WireMock` client whose transport is this mock. Pass `reporter:` to
+    /// observe the step seam (defaults to the production `NoopReporter`).
+    func client(reporter: any WireMockReporter = NoopReporter()) -> WireMock {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubURLProtocol.self]
         let session = URLSession(configuration: config)
-        return WireMock(baseURL: URL(string: "http://\(host)")!, session: session)
+        return WireMock(baseURL: URL(string: "http://\(host)")!, session: session, reporter: reporter)
     }
 
     // MARK: - Enqueue canned responses (endpoint = admin path after `/__admin/`)

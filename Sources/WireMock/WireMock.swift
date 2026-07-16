@@ -19,13 +19,25 @@ public struct WireMock: Sendable, CustomStringConvertible {
     /// The underlying admin API client.
     public let admin: AdminClient
 
+    /// Wraps `stubFor` / `verify` / `expect` / `verifyInOrder` as report *steps*.
+    /// Defaults to `NoopReporter` (records nothing). Inject `XCTActivityReporter()`
+    /// from a test's setup to surface steps in the Xcode/Allure report.
+    public let reporter: any WireMockReporter
+
     public var description: String {
         "WireMock(baseURL: \(admin.baseURL.absoluteString), authorized: \(admin.isAuthorized))"
     }
 
     /// Creates a client over a pre-built admin API client.
-    public init(admin: AdminClient) {
+    public init(admin: AdminClient, reporter: any WireMockReporter = NoopReporter()) {
         self.admin = admin
+        self.reporter = reporter
+    }
+
+    /// A copy with reporting disabled. Used on the `callAsync` background hop,
+    /// where a real `XCTActivity` would crash (no live test context off-thread).
+    func disablingReporter() -> WireMock {
+        WireMock(admin: admin, reporter: NoopReporter())
     }
 
     /// Creates a client for a server addressed by scheme/host/port.
@@ -44,7 +56,8 @@ public struct WireMock: Sendable, CustomStringConvertible {
     ///   - session: A custom `URLSession` (e.g. with a trust delegate for a self-signed HTTPS cert).
     public init?(scheme: String = "http", host: String = "localhost", port: Int = 8080,
                  timeout: TimeInterval = 30,
-                 authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
+                 authorization: AdminAuthorization? = nil, session: URLSession = .shared,
+                 reporter: any WireMockReporter = NoopReporter()) {
         // Reject out-of-range ports and blank hosts up front. URLComponents is
         // lenient (a negative port or whitespace host can still yield a URL that
         // only fails later at transport), so validate rather than trap or defer.
@@ -56,6 +69,7 @@ public struct WireMock: Sendable, CustomStringConvertible {
         components.port = port
         guard let url = components.url else { return nil }
         self.admin = AdminClient(baseURL: url, session: session, timeout: timeout, authorization: authorization)
+        self.reporter = reporter
     }
 
     /// Creates a client for a server at the given base URL (e.g. a remote host).
@@ -68,8 +82,10 @@ public struct WireMock: Sendable, CustomStringConvertible {
     ///   - authorization: Credentials for a secured admin API.
     ///   - session: A custom `URLSession` (e.g. with a trust delegate for a self-signed HTTPS cert).
     public init(baseURL: URL, timeout: TimeInterval = 30,
-                authorization: AdminAuthorization? = nil, session: URLSession = .shared) {
+                authorization: AdminAuthorization? = nil, session: URLSession = .shared,
+                reporter: any WireMockReporter = NoopReporter()) {
         self.admin = AdminClient(baseURL: baseURL, session: session, timeout: timeout, authorization: authorization)
+        self.reporter = reporter
     }
 
     // MARK: - Stubbing
@@ -78,7 +94,11 @@ public struct WireMock: Sendable, CustomStringConvertible {
     /// (with the server-assigned id).
     @discardableResult
     public func stubFor(_ builder: MappingBuilder) throws -> StubMapping {
-        try register(builder.build())
+        let mapping = builder.build()
+        return try reporter.step("Stub: \(RequestExpectation.summary(mapping.request))",
+                                 jsonBody: mapping.description) {
+            try register(mapping)
+        }
     }
 
     /// Registers a raw stub mapping.
