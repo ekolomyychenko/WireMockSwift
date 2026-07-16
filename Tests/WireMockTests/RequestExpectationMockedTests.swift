@@ -282,6 +282,82 @@ final class RequestExpectationMockedTests: XCTestCase {
         )
     }
 
+    // MARK: - CountSpec fail-path rendering (each variant reaches the failure message)
+
+    /// `.between` fails both directions: out-of-range-high hits the "too many" dump,
+    /// below-range hits the near-miss/shortfall branch — both name "between 2 and 5".
+    func testCountSpecBetweenTooManyAndShortfall() {
+        let over = MockAdminTransport().enqueueCount(7).enqueueFind(rawRequests: "[]")
+        XCTAssertThrowsError(
+            try over.client().expect(getRequestedFor(anyUrl)).toHaveBeenSent(.between(2...5))
+        ) { error in
+            let m = self.message(of: error)
+            XCTAssertTrue(m.contains("between 2 and 5"), m)
+            XCTAssertTrue(m.contains("found 7"), m)
+        }
+        let under = MockAdminTransport().enqueueCount(1).enqueueNoNearMisses()
+        XCTAssertThrowsError(
+            try under.client().expect(getRequestedFor(anyUrl)).toHaveBeenSent(.between(2...5))
+        ) { XCTAssertTrue(self.message(of: $0).contains("between 2 and 5"), self.message(of: $0)) }
+    }
+
+    /// `.moreThan(n)` too-few → shortfall/near-miss branch, names "more than 3".
+    func testCountSpecMoreThanShortfall() {
+        let mock = MockAdminTransport().enqueueCount(2).enqueueNoNearMisses()
+        XCTAssertThrowsError(
+            try mock.client().expect(getRequestedFor(anyUrl)).toHaveBeenSent(.moreThan(3))
+        ) { XCTAssertTrue(self.message(of: $0).contains("more than 3"), self.message(of: $0)) }
+    }
+
+    /// `.lessThan(n)` too-many → "too many" branch (never a shortfall), names "fewer than 3".
+    func testCountSpecLessThanTooMany() {
+        let mock = MockAdminTransport().enqueueCount(5).enqueueFind(rawRequests: "[]")
+        XCTAssertThrowsError(
+            try mock.client().expect(getRequestedFor(anyUrl)).toHaveBeenSent(.lessThan(3))
+        ) { error in
+            let m = self.message(of: error)
+            XCTAssertTrue(m.contains("fewer than 3"), m)
+            XCTAssertTrue(m.contains("found 5"), m)
+        }
+    }
+
+    /// `.times(n)` OVER-count reaches the `makeError` dump branch, which enumerates the
+    /// matched requests (`#1 …`) — the "too many" side of `.times`, untested elsewhere
+    /// (only the shortfall side is).
+    func testCountSpecTimesOverCountDumpsRequests() {
+        let mock = MockAdminTransport()
+            .enqueueCount(4)
+            .enqueueFind(rawRequests: #"[{"url":"/x","method":"GET"},{"url":"/x","method":"GET"},{"url":"/x","method":"GET"},{"url":"/x","method":"GET"}]"#)
+        XCTAssertThrowsError(
+            try mock.client().expect(getRequestedFor(anyUrl)).toHaveBeenSent(.times(2))
+        ) { error in
+            let m = self.message(of: error)
+            XCTAssertTrue(m.contains("exactly 2"), m)
+            XCTAssertTrue(m.contains("found 4"), m)
+            XCTAssertTrue(m.contains("#1"), m)   // dump enumerates the matched requests
+        }
+    }
+
+    /// A held EXACT spec (`.times(2)`) re-checks after a field narrows the count: if the
+    /// refined count drops below 2 the check fails, reported against the held spec (not
+    /// the `.atLeast(1)` floor). Complements the `.atMost`/`.lessThan` floor tests.
+    func testPositiveCheckAfterTimesSpecFailsWhenNarrowedBelow() {
+        let mock = MockAdminTransport()
+            .enqueueCount(2)          // base .times(2) satisfied
+            .enqueueCount(1)          // refined check narrows to 1 (< 2)
+            .enqueueNoNearMisses()
+        let wireMock = mock.client()
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
+                .toHaveBeenSent(.times(2))
+                .toHaveHeader("X-Trace", equalTo("abc"))
+        ) { error in
+            let m = self.message(of: error)
+            XCTAssertTrue(m.contains("exactly 2"), "held spec, not the floor: \(m)")
+            XCTAssertTrue(m.contains("X-Trace"), m)
+        }
+    }
+
     // MARK: - toHaveJsonBody(equalToRaw:) surfaces the layer's own error type
 
     /// Invalid raw JSON must throw `RequestExpectationError`, not the underlying

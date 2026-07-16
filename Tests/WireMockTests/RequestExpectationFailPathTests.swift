@@ -146,7 +146,9 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
         XCTAssertThrowsError(try expectation.first()) { error in
             XCTAssertTrue(String(describing: error).contains("but found none"), String(describing: error))
         }
-        XCTAssertThrowsError(try expectation.last())
+        XCTAssertThrowsError(try expectation.last()) { error in
+            XCTAssertTrue(String(describing: error).contains("but found none"), String(describing: error))
+        }
     }
 
     // MARK: - toNot* fail when the field IS present
@@ -166,6 +168,68 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
         XCTAssertThrowsError(
             try wireMock.expect(getRequestedFor(urlPathEqualTo("/dirty"))).toNotHaveCookie("session")
         ) { XCTAssertTrue(String(describing: $0).contains("no cookie session"), String(describing: $0)) }
+    }
+
+    /// `toNotHaveHeader`/`toNotHaveCookie` must catch a leak in a LATER request even
+    /// when an earlier, clean request also matched the base pattern — the multi-request
+    /// footgun the `refineNegative` count design exists to kill. Proven for query at
+    /// `testNegativeCatchesLeakDespiteCleanDuplicate`; this pins header + cookie.
+    func testNegativeHeaderAndCookieCatchLeakDespiteCleanDuplicate() throws {
+        try wireMock.stubFor(get(urlPathEqualTo("/d2")).willReturn(ok()))
+        try WireMockFixture.hit("d2")                                                    // clean
+        try WireMockFixture.hit("d2", headers: ["X-Debug": "1", "Cookie": "session=leak"])  // leaks
+
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/d2"))).toNotHaveHeader("X-Debug")
+        ) { error in
+            let m = String(describing: error)
+            XCTAssertTrue(m.contains("no header X-Debug"), m)
+            XCTAssertTrue(m.contains("1 carried it"), m)
+        }
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/d2"))).toNotHaveCookie("session")
+        ) { error in
+            let m = String(describing: error)
+            XCTAssertTrue(m.contains("no cookie session"), m)
+            XCTAssertTrue(m.contains("1 carried it"), m)
+        }
+    }
+
+    /// Presence overloads must throw when the key is genuinely absent — the query and
+    /// form counterparts of the header/cookie presence-fail in `RequestExpectationTests`.
+    func testPresenceQueryAndFormFailWhenAbsent() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/pf")).willReturn(ok()))
+        try WireMockFixture.hit("pf?a=1", method: "POST",
+                                headers: ["Content-Type": "application/x-www-form-urlencoded"],
+                                body: Data("x=1".utf8))
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/pf"))).toHaveQueryParam("missing")
+        ) { XCTAssertTrue(String(describing: $0).contains("query param missing"), String(describing: $0)) }
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/pf"))).toHaveFormParam("missing")
+        ) { XCTAssertTrue(String(describing: $0).contains("form param missing"), String(describing: $0)) }
+    }
+
+    /// `toHaveQueryParam(_:_:)` with a wrong value must throw NAMING the failing check,
+    /// so a mutant erasing the "query param <name>" label dies.
+    func testQueryParamWrongValueNamesCheck() throws {
+        try wireMock.stubFor(get(urlPathEqualTo("/qv")).willReturn(ok()))
+        try WireMockFixture.hit("qv?source=web")
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/qv"))).toHaveQueryParam("source", equalTo("mobile"))
+        ) { error in
+            XCTAssertTrue(error is RequestExpectationError, String(describing: error))
+            XCTAssertTrue(String(describing: error).contains("query param source"), String(describing: error))
+        }
+    }
+
+    /// `toHaveBody(matching:)` regex mismatch must throw naming the "body matches" check.
+    func testBodyMatchingRegexFails() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/bm")).willReturn(ok()))
+        try WireMockFixture.hit("bm", method: "POST", body: Data("hello world".utf8))
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/bm"))).toHaveBody(matching: "^\\d+$")
+        ) { XCTAssertTrue(String(describing: $0).contains("body matches"), String(describing: $0)) }
     }
 
     /// `toNotHaveFormParam` is only ever asserted in the passing direction elsewhere —
@@ -191,7 +255,10 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
             .toHaveCookie("session", equalTo("abc"))
         XCTAssertThrowsError(
             try wireMock.expect(getRequestedFor(urlPathEqualTo("/c"))).toHaveCookie("session", equalTo("nope"))
-        )
+        ) { error in
+            XCTAssertTrue(error is RequestExpectationError, String(describing: error))
+            XCTAssertTrue(String(describing: error).contains("cookie session"), String(describing: error))
+        }
     }
 
     // MARK: - Header accumulate-AND (divergence from Java last-wins)
@@ -270,7 +337,11 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
         // missing key
         XCTAssertThrowsError(
             try wireMock.expect(getRequestedFor(urlPathEqualTo("/q"))).toHaveExactlyQueryParams(["page": "1", "size": "20"])
-        ) { XCTAssertTrue(String(describing: $0).contains("size"), String(describing: $0)) }
+        ) { error in
+            let m = String(describing: error)
+            XCTAssertTrue(m.contains("Expected exactly query params"), m)
+            XCTAssertTrue(m.contains("but had"), m)
+        }
         // wrong value, matching keys
         XCTAssertThrowsError(
             try wireMock.expect(getRequestedFor(urlPathEqualTo("/q"))).toHaveExactlyQueryParams(["page": "2"])
@@ -380,13 +451,21 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
         try wireMock.expect(postRequestedFor(urlPathEqualTo("/e1"))).toHaveEmptyBody()
         try wireMock.expect(postRequestedFor(urlPathEqualTo("/e2"))).toHaveNonEmptyBody()   // " " counts as non-empty
         XCTAssertThrowsError(try wireMock.expect(postRequestedFor(urlPathEqualTo("/e2"))).toHaveEmptyBody())
+        // toHaveNonEmptyBody must FAIL on a truly-empty body (its own fail-path).
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/e1"))).toHaveNonEmptyBody()
+        ) { XCTAssertTrue(String(describing: $0).contains("non-empty body"), String(describing: $0)) }
     }
 
     func testJsonPathNegativeAndMixedBodyName() throws {
         try wireMock.stubFor(post(urlPathEqualTo("/jp")).willReturn(ok()))
         try WireMockFixture.hit("jp", method: "POST", body: Data(#"{"a":1}"#.utf8))
-        XCTAssertThrowsError(try wireMock.expect(postRequestedFor(urlPathEqualTo("/jp"))).toHaveJsonPath("$.missing"))
-        XCTAssertThrowsError(try wireMock.expect(postRequestedFor(urlPathEqualTo("/jp"))).toHaveJsonPath("$.a", equalTo("999")))
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/jp"))).toHaveJsonPath("$.missing")
+        ) { XCTAssertTrue(String(describing: $0).contains("json path $.missing"), String(describing: $0)) }
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/jp"))).toHaveJsonPath("$.a", equalTo("999"))
+        ) { XCTAssertTrue(String(describing: $0).contains("json path $.a"), String(describing: $0)) }
         XCTAssertThrowsError(
             try wireMock.expect(postRequestedFor(urlPathEqualTo("/jp")))
                 .toHaveJsonPath("$.a")

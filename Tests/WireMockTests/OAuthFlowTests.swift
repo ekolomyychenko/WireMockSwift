@@ -111,7 +111,11 @@ final class OAuthFlowTests: WireMockIntegrationCase {
         XCTAssertEqual(field, "line1\nline2")
         XCTAssertThrowsError(try wireMock.expect(postRequestedFor(urlPathEqualTo("/probe")))
             .toHaveFormParam("field", .matching("line1")),
-            "full-region matching must reject a partial pattern")
+            "full-region matching must reject a partial pattern"
+        ) { error in
+            XCTAssertTrue(error is RequestExpectationError, String(describing: error))
+            XCTAssertTrue(String(describing: error).contains("form param field"), String(describing: error))
+        }
     }
 
     func testVerifyInOrderHappyAndWrong() throws {
