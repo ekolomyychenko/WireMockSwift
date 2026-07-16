@@ -18,7 +18,7 @@ Swift.
   strict concurrency; macOS + iOS
 - ✅ Golden-JSON + live-server test suites; a raw-JSON escape hatch for anything not yet modelled
 
-> **Status:** early development (0.x), first release — `0.1.0`. The API may still change.
+> **Status:** early development (0.x); latest release — `0.2.0`. The API may still change.
 > License — Apache-2.0. Verified against WireMock **3.13.2**.
 
 ## Contents
@@ -256,20 +256,23 @@ throws `RequestExpectationError` naming the check that dropped the count, with a
 or a dump of every matching request ("too many"). The older `verify(...)` API is unchanged.
 
 ```swift
-// Count + field checks
+// Count + field checks (ONE chain — every check is ANDed onto the same pattern)
 try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
     .toHaveBeenSent(.once)                        // .never / .times(3) / .atLeast(2) / .atMost(4) / .between(2...5)
     .toHaveBearerToken("eyJ...")                  // or .toHaveBearerToken(matching: "eyJ.+")
     .toHaveHeader("Content-Type", containing("json"))
     .toHaveQueryParam("source", equalTo("mobile"))
     .toHaveExactlyQueryParams(["page": "1", "size": "20"])   // fails on any stray extra param
-
-// Body: one field / full match / partial / from a file
-    .toHaveJsonPath("$.id")                                   // just present
+    .toHaveJsonPath("$.id")                                   // body field just present
     .toHaveJsonPath("$.items[0].sku", equalTo("ABC"))        // value at a path
+
+// Full-body matchers — pick ONE. These are ALTERNATIVES, not a chain: chaining a
+// strict match, a partial match and a file match would AND three conflicting bodies
+// and always fail.
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
     .toHaveJsonBody(equalTo: ["id": 1, "sku": "ABC"])        // strict full match
-    .toHaveJsonBody(equalTo: ["sku": "ABC"], ignoreExtraElements: true)
-    .toHaveJsonBody(equalToFile: Bundle.module.url(forResource: "order", withExtension: "json")!)
+// .toHaveJsonBody(equalTo: ["sku": "ABC"], ignoreExtraElements: true)                       // partial (containment)
+// .toHaveJsonBody(equalToFile: Bundle.module.url(forResource: "order", withExtension: "json")!)  // from a file
 
 // Negative
 try wireMock.expect(anyRequestedFor(anyUrl))
@@ -340,11 +343,25 @@ try wireMock.verifyInOrder([
 The presence overload `toHaveQueryParam("state")` (no matcher) only requires the key to exist — an empty
 value (`?state=`) passes too. For the security-sensitive `state`/`nonce`/`code_challenge`, use
 `matching(".+")` to require a non-empty value. `verifyInOrder` matches each step server-side and compares
-the journal's `loggedDate` (millisecond resolution) to judge order — real flows are separated by
-round-trips, so ties don't arise. `JWT(decoding:)` decodes header/payload only; it does **not** verify the
+the journal's `loggedDate` (millisecond resolution) to judge order. Same-millisecond ties are
+**tolerated**: it accepts any assignment of distinct requests with non-decreasing timestamps
+(exhaustive search), so overlapping steps and tied timestamps don't cause a false failure — the one
+residual limit is two byte-identical requests logged in the same millisecond. `JWT(decoding:)` decodes
+header/payload only; it does **not** verify the
 signature (that needs the issuer's keys). To
 correlate PKCE end-to-end (`code_challenge == BASE64URL(SHA256(code_verifier))`), extract both values and
 compute the S256 hash yourself (e.g. with CryptoKit).
+
+`toHaveExactlyQueryParams` / `toHaveExactlyFormParams` take `[String: String]` — one value per key — so
+they assert a set where every key appears exactly once. A key that legitimately repeats (`?a=1&a=2`) can't
+be expressed as an exact set; assert those with the per-key `toHaveQueryParam(_:_:)` (which is server-side
+"contains") instead.
+
+`toNotHaveFormParam` is hardened for the security case: WireMock only parses `formParameters` when the
+request carried `Content-Type: application/x-www-form-urlencoded`, so a form-encoded body sent without that
+content type would slip past a server-only check. On top of the server-side "no offender" check, it also
+scans the captured request bodies client-side (content-type-agnostic), so a leaked `client_secret` in the
+body is caught either way.
 
 ## Scenarios (state management)
 

@@ -104,7 +104,11 @@ public enum CountSpec: Sendable, CustomStringConvertible {
 /// so the two layers stay independent. On a shortfall the message carries a
 /// near-miss diff; on a "too many" failure it dumps every matching request.
 public struct RequestExpectationError: Error, CustomStringConvertible, Sendable {
+    /// The human-readable failure message (near-miss diff, request dump, or the
+    /// reason a terminal/extractor could not produce a value). Also surfaced via
+    /// `description`.
     public let message: String
+    /// Wraps a ready-rendered failure message.
     public init(message: String) { self.message = message }
     public var description: String { message }
 }

@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `toNot*` checks now assert **no** matching request carries the field (the count of requests that
     *do* must be zero), instead of the weaker "at least one request lacked it" — the latter silently
     passed when a clean duplicate request coexisted with a leaking one (a security-negative footgun).
+  - `toNotHaveFormParam` additionally scans the captured request bodies client-side: WireMock only
+    parses `formParameters` when the request carried an `application/x-www-form-urlencoded` content
+    type, so a form-encoded body sent without it would otherwise slip past the server-only negative and
+    leak the param (e.g. `client_secret`).
   - Form/query-param decoding parses by hand instead of via `URLComponents.percentEncodedQuery`, whose
     setter *trapped the whole process* on a stray `%` or `#`; a malformed escape is now left verbatim.
   - `verifyInOrder` decides ordering by exhaustive search over the per-step candidates, so overlapping

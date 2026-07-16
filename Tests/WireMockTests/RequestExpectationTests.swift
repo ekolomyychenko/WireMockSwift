@@ -244,6 +244,28 @@ final class RequestExpectationTests: WireMockIntegrationCase {
             .toNotHaveFormParam("client_secret")
     }
 
+    /// M2 regression: a form-encoded body sent WITHOUT the form content type is not
+    /// parsed as `formParameters` server-side, so the server-only negative would
+    /// falsely pass while the secret is physically in the body. `toNotHaveFormParam`
+    /// also scans the captured body client-side, so it must still catch the leak.
+    func testNotHaveFormParamCatchesLeakWithoutFormContentType() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/token")).willReturn(ok()))
+        // Deliberately text/plain, not application/x-www-form-urlencoded.
+        try WireMockFixture.hit(
+            "token", method: "POST",
+            headers: ["Content-Type": "text/plain"],
+            body: Data("grant_type=authorization_code&client_secret=LEAKED".utf8)
+        )
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/token")))
+                .toNotHaveFormParam("client_secret")
+        ) { error in
+            let msg = (error as? RequestExpectationError)?.message ?? "\(error)"
+            XCTAssertTrue(msg.contains("client_secret"), msg)
+            XCTAssertTrue(msg.contains("in the body"), msg)
+        }
+    }
+
     // MARK: XML body
 
     func testXmlBodyAndXPath() throws {

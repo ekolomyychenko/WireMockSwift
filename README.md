@@ -17,7 +17,7 @@
 - ✅ Синхронный API (как Java WireMock) + `callAsync` для `async`-контекста; `Sendable` под строгой конкурентностью Swift 6; macOS + iOS
 - ✅ Тестовые наборы golden-JSON + live-server; запасной выход через сырой JSON для всего немоделированного
 
-> **Статус:** ранняя разработка (0.x), первый релиз — `0.1.0`. API ещё может меняться.
+> **Статус:** ранняя разработка (0.x); последний релиз — `0.2.0`. API ещё может меняться.
 > Лицензия — Apache-2.0. Проверено на WireMock **3.13.2**.
 
 ## Содержание
@@ -256,20 +256,22 @@ try wireMock.removeServeEvents(matching: getRequestedFor(urlEqualTo("/ping")))
 дампом всех совпавших запросов («слишком много»). Старый `verify(...)` не изменён.
 
 ```swift
-// Количество + проверки полей
+// Количество + проверки полей (ОДНА цепочка — каждая проверка добавляется к тому же паттерну через AND)
 try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
     .toHaveBeenSent(.once)                        // .never / .times(3) / .atLeast(2) / .atMost(4) / .between(2...5)
     .toHaveBearerToken("eyJ...")                  // или .toHaveBearerToken(matching: "eyJ.+")
     .toHaveHeader("Content-Type", containing("json"))
     .toHaveQueryParam("source", equalTo("mobile"))
     .toHaveExactlyQueryParams(["page": "1", "size": "20"])   // провал при любом лишнем параметре
-
-// Тело: одно поле / полное совпадение / вхождение / из файла
-    .toHaveJsonPath("$.id")                                   // просто существует
+    .toHaveJsonPath("$.id")                                   // поле тела просто существует
     .toHaveJsonPath("$.items[0].sku", equalTo("ABC"))        // значение по пути
+
+// Матчеры всего тела — выбери ОДИН. Это АЛЬТЕРНАТИВЫ, а не цепочка: связать строгое,
+// частичное и файловое совпадение = склеить через AND три противоречивых тела, что всегда провалится.
+try wireMock.expect(postRequestedFor(urlPathEqualTo("/orders")))
     .toHaveJsonBody(equalTo: ["id": 1, "sku": "ABC"])        // строгое полное совпадение
-    .toHaveJsonBody(equalTo: ["sku": "ABC"], ignoreExtraElements: true)
-    .toHaveJsonBody(equalToFile: Bundle.module.url(forResource: "order", withExtension: "json")!)
+// .toHaveJsonBody(equalTo: ["sku": "ABC"], ignoreExtraElements: true)                       // вхождение
+// .toHaveJsonBody(equalToFile: Bundle.module.url(forResource: "order", withExtension: "json")!)  // из файла
 
 // Негативные
 try wireMock.expect(anyRequestedFor(anyUrl))
@@ -340,11 +342,25 @@ try wireMock.verifyInOrder([
 Presence-overload `toHaveQueryParam("state")` (без матчера) требует лишь наличия ключа — пустое значение
 (`?state=`) тоже проходит. Для security-чувствительных `state`/`nonce`/`code_challenge` используйте
 `matching(".+")`, чтобы потребовать непустое значение. `verifyInOrder` матчит каждый шаг на сервере и
-сравнивает `loggedDate` из журнала (разрешение — миллисекунды), чтобы судить о порядке; реальные потоки
-разделены round-trip'ами, так что коллизий не возникает. `JWT(decoding:)` декодирует только header/payload
+сравнивает `loggedDate` из журнала (разрешение — миллисекунды), чтобы судить о порядке. Коллизии в одну
+миллисекунду **допускаются**: принимается любое назначение различных запросов с неубывающими метками
+времени (полный перебор), поэтому перекрывающиеся шаги и одинаковые метки не дают ложного провала —
+единственное остаточное ограничение — два байт-идентичных запроса в одну миллисекунду. `JWT(decoding:)`
+декодирует только header/payload
 и **не** проверяет подпись (для этого нужны
 ключи издателя). Чтобы сверить PKCE end-to-end (`code_challenge == BASE64URL(SHA256(code_verifier))`),
 извлеки оба значения и посчитай S256-хеш сам (например, через CryptoKit).
+
+`toHaveExactlyQueryParams` / `toHaveExactlyFormParams` принимают `[String: String]` — по одному значению
+на ключ — то есть проверяют набор, где каждый ключ встречается ровно один раз. Легитимно повторяющийся
+ключ (`?a=1&a=2`) как точный набор выразить нельзя; для таких случаев используйте по-ключевой
+`toHaveQueryParam(_:_:)` (серверное «содержит»).
+
+`toNotHaveFormParam` усилён для security-кейса: WireMock парсит `formParameters` только при
+`Content-Type: application/x-www-form-urlencoded`, поэтому form-тело без этого content-type проскользнуло бы
+мимо чисто серверной проверки. Помимо серверной проверки «нарушителей нет», метод дополнительно сканирует
+тела захваченных запросов client-side (не глядя на content-type) — так утёкший `client_secret` в теле
+ловится в любом случае.
 
 ## Сценарии (управление состоянием)
 

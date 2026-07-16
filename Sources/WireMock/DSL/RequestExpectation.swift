@@ -95,11 +95,34 @@ public struct RequestExpectation: Sendable {
     }
 
     /// Requires that **no** matching request carries the `name` form-body parameter.
+    ///
+    /// Hardened against a content-type footgun: WireMock only parses (and matches)
+    /// `formParameters` when the request carried
+    /// `Content-Type: application/x-www-form-urlencoded`, so a form-encoded body
+    /// sent **without** that content type would slip past the server-side check and
+    /// leak the param (a real risk for a security negative like
+    /// `toNotHaveFormParam("client_secret")`). So after the server-side "count the
+    /// offenders is 0" check, this also scans the captured request bodies
+    /// client-side (content-type-agnostic, like ``CapturedRequest/formItems()``) and
+    /// fails if any actually carries `name` in its body.
     @discardableResult
     public func toNotHaveFormParam(_ name: String) throws -> RequestExpectation {
-        try refineNegative("no form param \(name)",
-                           present: { $0.withFormParam(name, Self.present) },
-                           absent: { $0.withoutFormParam(name) })
+        let refined = try refineNegative("no form param \(name)",
+                                         present: { $0.withFormParam(name, Self.present) },
+                                         absent: { $0.withoutFormParam(name) })
+        let leaking = try wireMock.findAll(builder)
+            .map(CapturedRequest.init)
+            .filter { req in req.formItems().contains { $0.name == name } }
+        guard leaking.isEmpty else {
+            var message = "Expected no form param \(name) on any request matching \(Self.summary(builder)), "
+                + "but \(leaking.count) carried it in the body — a form-encoded body sent without an "
+                + "application/x-www-form-urlencoded Content-Type evades server-side form matching:"
+            for (index, req) in leaking.enumerated() {
+                message += "\n  #\(index + 1)  \(Self.compactLine(req.logged))"
+            }
+            throw RequestExpectationError(message: message)
+        }
+        return refined
     }
 
     // MARK: - Presence (name only, any value)
