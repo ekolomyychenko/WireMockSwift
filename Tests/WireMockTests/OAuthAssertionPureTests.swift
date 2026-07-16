@@ -97,6 +97,17 @@ final class OAuthAssertionPureTests: XCTestCase {
         XCTAssertThrowsError(try JWT(decoding: b64url(#"{"a":1}"#) + "." + b64url("not json{"))) {
             assertJWTError($0, contains: "not valid JSON")
         }
+        // Valid base64url that decodes to non-UTF8 bytes (0xFF 0xFE) — hits the
+        // `String(data:encoding:.utf8) == nil` branch of decodeSegment, reported as
+        // "not valid JSON" like a bad-JSON payload.
+        XCTAssertThrowsError(try JWT(decoding: b64url(#"{"alg":"none"}"#) + ".__4")) {
+            assertJWTError($0, contains: "not valid JSON")
+        }
+        // A segment whose length % 4 == 1 is invalid base64url (1 leftover char can
+        // never be padded to a valid group) — exercises the remainder==1 padding path.
+        XCTAssertThrowsError(try JWT(decoding: "AAAAA." + b64url(#"{"a":1}"#))) {
+            assertJWTError($0, contains: "base64url")
+        }
     }
 
     /// A payload that is valid JSON but NOT an object (a bare array here) decodes
@@ -175,6 +186,21 @@ final class OAuthAssertionPureTests: XCTestCase {
         XCTAssertFalse(WireMock.orderingExists([[a], [a]], step: 0, cursor: .min, used: []))
         // Empty step list is vacuously satisfiable.
         XCTAssertTrue(WireMock.orderingExists([], step: 0, cursor: .min, used: []))
+    }
+
+    /// A missing `loggedDate` is treated as `.max` (newest), so an undated request
+    /// can only satisfy the LAST step. Pins the `?? .max` fallback: a mutant to
+    /// `?? .min` would place the undated request first and flip these verdicts.
+    func testOrderingExistsUndatedRequestSortsLast() throws {
+        func req(_ url: String, _ time: Int64) throws -> LoggedRequest {
+            try WireMockFixture.decode(LoggedRequest.self, #"{"method":"GET","url":"\#(url)","loggedDate":\#(time)}"#)
+        }
+        let dated = try req("/a", 5)
+        let undated = try WireMockFixture.decode(LoggedRequest.self, #"{"method":"GET","url":"/b"}"#)
+        // dated(5) then undated(.max) — non-decreasing, valid.
+        XCTAssertTrue(WireMock.orderingExists([[dated], [undated]], step: 0, cursor: .min, used: []))
+        // undated(.max) then dated(5) — the undated first would need 5 >= .max, impossible.
+        XCTAssertFalse(WireMock.orderingExists([[undated], [dated]], step: 0, cursor: .min, used: []))
     }
 
     func testSequenceErrorNeverSent() {

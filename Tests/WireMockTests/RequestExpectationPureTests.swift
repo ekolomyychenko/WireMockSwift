@@ -54,6 +54,22 @@ final class RequestExpectationPureTests: XCTestCase {
         XCTAssertEqual(try JSONPathLite.evaluate("$.list[0]", on: obj).stringValue, "x")     // unquoted == index
         XCTAssertEqual(try JSONPathLite.evaluate("$['a.b']", on: obj).stringValue, "dotted") // quotes protect the dot
         XCTAssertThrowsError(try JSONPathLite.evaluate("$.a.b", on: obj))                    // dot splits -> key "a" missing
+        // Unquoted, non-numeric bracket content on an object is treated as a KEY
+        // (success path of the `else` rung, previously only hit as a failure).
+        XCTAssertEqual(try JSONPathLite.evaluate("$[list][1]", on: obj).stringValue, "y")
+    }
+
+    /// A bracket key with only a LEADING quote (no matching closing quote) is not
+    /// "quoted" — it is a literal key that keeps the quote char. Pins the two
+    /// `hasPrefix && hasSuffix` conjunctions: flipping either `&&` to `||` would
+    /// misclassify these as quoted and strip a character, so these kill those mutants.
+    func testJSONPathHalfQuotedBracketKeyIsLiteral() throws {
+        let single: JSONValue = ["'a": 42]           // key literally starts with a quote
+        XCTAssertEqual(try JSONPathLite.evaluate("$['a]", on: single), .int(42))
+        let double: JSONValue = ["\"a": 43]
+        XCTAssertEqual(try JSONPathLite.evaluate("$[\"a]", on: double), .int(43))
+        // Trailing-only quote is likewise literal.
+        XCTAssertEqual(try JSONPathLite.evaluate("$[a']", on: ["a'": 44]), .int(44))
     }
 
     func testJSONPathErrorEdges() {
@@ -255,11 +271,24 @@ final class RequestExpectationPureTests: XCTestCase {
 
         let empty = RequestExpectation.compactLine(try WireMockFixture.decode(LoggedRequest.self, "{}"))
         XCTAssertEqual(empty, "? ?")                                   // nil method/url, no body= segment
+
+        // Short (<= 80 char) body: the FALSE branch of the truncation ternary —
+        // rendered verbatim, no ellipsis.
+        let shortLine = RequestExpectation.compactLine(
+            try WireMockFixture.decode(LoggedRequest.self, #"{"method": "GET", "url": "/s", "body": "hello"}"#)
+        )
+        XCTAssertTrue(shortLine.contains("body=hello"), shortLine)
+        XCTAssertFalse(shortLine.contains("…"), shortLine)
     }
 
     func testSummaryFallbacks() {
-        XCTAssertEqual(RequestExpectation.summary(getRequestedFor(urlMatching("/x"))), "GET /x")
-        XCTAssertEqual(RequestExpectation.summary(getRequestedFor(urlPathTemplate("/t/{id}"))), "GET /t/{id}")
-        XCTAssertEqual(RequestExpectation.summary(anyRequestedFor(anyUrl)), "ANY any URL")
+        // Every rung of the `url ?? urlPattern ?? urlPath ?? urlPathPattern ??
+        // urlPathTemplate ?? "any URL"` chain, so a reorder/drop mutant on any rung dies.
+        XCTAssertEqual(RequestExpectation.summary(getRequestedFor(urlEqualTo("/e"))), "GET /e")          // url
+        XCTAssertEqual(RequestExpectation.summary(getRequestedFor(urlMatching("/x"))), "GET /x")         // urlPattern
+        XCTAssertEqual(RequestExpectation.summary(getRequestedFor(urlPathEqualTo("/p"))), "GET /p")      // urlPath
+        XCTAssertEqual(RequestExpectation.summary(getRequestedFor(urlPathMatching("/pm.*"))), "GET /pm.*") // urlPathPattern
+        XCTAssertEqual(RequestExpectation.summary(getRequestedFor(urlPathTemplate("/t/{id}"))), "GET /t/{id}") // urlPathTemplate
+        XCTAssertEqual(RequestExpectation.summary(anyRequestedFor(anyUrl)), "ANY any URL")               // final fallback
     }
 }

@@ -10,6 +10,18 @@
 # Uses the hermetic test command (no live server) so each mutant runs fast and
 # deterministically; the encoders are fully exercised by the golden + property
 # suites, which need no server.
+#
+# BLIND SPOT — read before trusting a clean run: this command runs `swift test`
+# with NO live WireMock, and `--skip` matches test IDENTIFIERS, not superclasses.
+# The server-delegated suites (RequestExpectationTests, RequestExpectationFailPathTests,
+# OAuthFlowTests, …) aren't skipped by name, but their setUp throws `XCTSkip` when no
+# server is reachable — so a mutant killable ONLY through them can never die here.
+# Concretely, the logic in `expect(...)` that re-queries the server (`refine`/
+# `refineNegative`/`makeError`'s too-many dump/`assertExactly`/every `to*`) is INVISIBLE
+# to muter unless a pure or mocked (URLProtocol) test also pins it. Those server paths
+# are instead verified by the live suites in CI (`WIREMOCK_REQUIRED=1`). Treat
+# "mutation-clean" as strong evidence for the PURE building blocks (CountSpec, JSONPathLite,
+# decodeURLEncoded, JWT, error rendering, orderingExists) — not for the server round-trips.
 executable: /usr/bin/env
 arguments:
   - swift
@@ -27,3 +39,10 @@ exclude:
   - Examples
   - Snippets
   - Scripts
+#
+# muter version: this config targets muter's classic schema (dotted filename,
+# space-separated file list, no `excludeCalls`). muter 16 changed all three AND
+# regressed its schemata codegen (it mangles ternaries like `x > 1 ? a : b` and
+# `flag ? a : b` into non-compiling source), so a full run there aborts. Pin a
+# known-good pre-16 muter to run this; do not "upgrade" the config to 16 until
+# that codegen bug is fixed upstream.
