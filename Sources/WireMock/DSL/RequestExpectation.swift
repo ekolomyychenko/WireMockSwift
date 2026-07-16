@@ -502,6 +502,19 @@ public struct RequestExpectation: Sendable {
         present presentTransform: (RequestPatternBuilder) -> RequestPatternBuilder,
         absent absentTransform: (RequestPatternBuilder) -> RequestPatternBuilder
     ) throws -> RequestExpectation {
+        // Floor, symmetric with `refine`: the base pattern must itself have matched
+        // (default `.atLeast(1)`) before "no request carried the field" can mean
+        // anything. Without it a negative passes VACUOUSLY when zero requests matched
+        // — a typo'd URL or a flow that never ran turns a security negative like
+        // `toNotHaveQueryParam("client_secret")` green, the same false-green the
+        // positive floor exists to prevent. (A deliberate strengthening over Java,
+        // whose `verify(never(), …)` is satisfied by zero requests; consistency
+        // between `toHave*`/`toNot*` outweighs matching Java's laxer negative here.)
+        let baseCount = try wireMock.count(builder)
+        guard baseCount >= 1, countSpec.isSatisfied(by: baseCount) else {
+            let effectiveSpec = countSpec.isSatisfied(by: baseCount) ? CountSpec.atLeast(1) : countSpec
+            throw makeError(builder, actual: baseCount, check: check, spec: effectiveSpec)
+        }
         let offending = presentTransform(builder)
         let count = try wireMock.count(offending)
         guard count == 0 else {

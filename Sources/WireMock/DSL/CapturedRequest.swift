@@ -64,16 +64,18 @@ public struct CapturedRequest: Sendable {
     /// The query items parsed from the logged URL. Internal — `toHaveExactlyQueryParams`
     /// and `queryParam(_:)` build on it.
     func queryItems() -> [URLQueryItem] {
+        guard let raw = logged.url else { return [] }
+        // A fragment ("#…") is the terminal URL component (RFC 3986 §3.5): everything
+        // from the first '#' is fragment, so strip it BEFORE locating the query. A '#'
+        // that precedes the '?' (e.g. "/p#f?a=1") therefore means there is *no* query
+        // at all — stripping after the '?' split would have fabricated a phantom "a=1".
+        let beforeFragment = raw.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0]
         // `omittingEmptySubsequences: false` keeps an empty path segment so a
         // query-only URL ("/?a=1", or even a path-less "?a=1") still lands the
         // query at index 1 rather than shifting `dropFirst()` onto it.
-        guard let raw = logged.url,
-              let query = raw.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false).dropFirst().first
+        guard let query = beforeFragment.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false).dropFirst().first
         else { return [] }
-        // A fragment ("#…") is not part of the query (RFC 3986 §3.5); strip it so a
-        // stray '#' can't leak into the last value or fabricate phantom params.
-        let withoutFragment = query.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0]
-        return Self.decodeURLEncoded(String(withoutFragment))
+        return Self.decodeURLEncoded(String(query))
     }
 
     /// All values for an `application/x-www-form-urlencoded` body parameter (a key

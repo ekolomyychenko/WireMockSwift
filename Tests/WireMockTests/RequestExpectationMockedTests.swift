@@ -138,6 +138,7 @@ final class RequestExpectationMockedTests: XCTestCase {
     /// on a body that plausibly is form-encoded, so this negative passes cleanly.
     func testNotHaveFormParamIgnoresNonFormBodyWithAmpersandSubstring() throws {
         let mock = MockAdminTransport()
+            .enqueueCount(1)   // refineNegative floor: the base pattern matched (>= 1)
             .enqueueCount(0)   // refineNegative: no request matches the form-param matcher server-side
             .enqueueFind(rawRequests: #"[{"url":"/x","method":"POST","body":"{\"note\":\"a&client_secret=b\"}"}]"#)
         let wireMock = mock.client()
@@ -152,6 +153,7 @@ final class RequestExpectationMockedTests: XCTestCase {
     /// the client-side scan.
     func testNotHaveFormParamStillCatchesRealFormLeak() {
         let mock = MockAdminTransport()
+            .enqueueCount(1)   // refineNegative floor: the base pattern matched (>= 1)
             .enqueueCount(0)   // server-side form matching misses it (no form Content-Type)
             .enqueueFind(rawRequests: #"[{"url":"/x","method":"POST","body":"client_secret=b&grant_type=x"}]"#)
         let wireMock = mock.client()
@@ -171,6 +173,7 @@ final class RequestExpectationMockedTests: XCTestCase {
     /// (skip only recognisably structured JSON/XML) fires the scan here.
     func testNotHaveFormParamCatchesLeakWithRawUnencodedValue() {
         let mock = MockAdminTransport()
+            .enqueueCount(1)   // refineNegative floor: the base pattern matched (>= 1)
             .enqueueCount(0)   // server-side form matching misses it (no form Content-Type)
             .enqueueFind(rawRequests:
                 #"[{"url":"/token","method":"POST","body":"grant_type=authorization_code&redirect_uri=https://app/cb&client_secret=SEKRET"}]"#)
@@ -189,8 +192,72 @@ final class RequestExpectationMockedTests: XCTestCase {
     /// prefix arm of the blacklist, not just the valid-JSON arm.
     func testNotHaveFormParamIgnoresMalformedJsonPrefixBody() throws {
         let mock = MockAdminTransport()
+            .enqueueCount(1)   // refineNegative floor: the base pattern matched (>= 1)
             .enqueueCount(0)
             .enqueueFind(rawRequests: #"[{"url":"/x","method":"POST","body":"{\"note\":\"a&client_secret=b\""}]"#)
+        let wireMock = mock.client()
+
+        XCTAssertNoThrow(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/x"))).toNotHaveFormParam("client_secret")
+        )
+    }
+
+    // MARK: - refineNegative floor: a negative must not pass VACUOUSLY on zero matches
+
+    /// A negative check (`toNot…`) must FAIL when the base pattern matched no request
+    /// at all — otherwise a typo'd URL or an un-run flow silently greens a security
+    /// negative. Mirrors the positive `refine` floor. Regression for Finding A.
+    func testNegativeCheckFailsWhenZeroRequestsMatched() {
+        let mock = MockAdminTransport()
+            .enqueueCount(0)          // refineNegative floor: base pattern matched nothing
+            .enqueueNoNearMisses()    // makeError shortfall diagnostic lookup
+        let wireMock = mock.client()
+
+        XCTAssertThrowsError(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/token"))).toNotHaveQueryParam("client_secret")
+        ) { error in
+            let msg = self.message(of: error)
+            XCTAssertTrue(msg.contains("at least 1"), "should fail against the >= 1 floor: \(msg)")
+            XCTAssertTrue(msg.contains("client_secret"), "should name the failing check: \(msg)")
+        }
+    }
+
+    /// The floor must NOT over-fire: with the base pattern matched and no request
+    /// carrying the field, the negative passes. Guards against a mutant that makes
+    /// `refineNegative` always throw.
+    func testNegativeCheckPassesWhenBaseMatchedAndNoOffender() {
+        let mock = MockAdminTransport()
+            .enqueueCount(2)   // floor: base matched
+            .enqueueCount(0)   // no request carries the header
+        let wireMock = mock.client()
+
+        XCTAssertNoThrow(
+            try wireMock.expect(getRequestedFor(urlPathEqualTo("/x"))).toNotHaveHeader("X-Debug")
+        )
+    }
+
+    /// A malformed-but-clearly-XML body (opens with `<`) must be skipped by the
+    /// form-leak scan — its incidental `&client_secret=` substring must not fabricate
+    /// a phantom form param. Locks the `<` arm of `looksStructuredNonForm`.
+    func testNotHaveFormParamIgnoresXmlPrefixBody() {
+        let mock = MockAdminTransport()
+            .enqueueCount(1)   // floor
+            .enqueueCount(0)   // no server-side form match
+            .enqueueFind(rawRequests: #"[{"url":"/x","method":"POST","body":"<root>&client_secret=b"}]"#)
+        let wireMock = mock.client()
+
+        XCTAssertNoThrow(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/x"))).toNotHaveFormParam("client_secret")
+        )
+    }
+
+    /// A malformed-but-clearly-array body (opens with `[`) is skipped likewise.
+    /// Locks the `[` arm of `looksStructuredNonForm`.
+    func testNotHaveFormParamIgnoresJsonArrayPrefixBody() {
+        let mock = MockAdminTransport()
+            .enqueueCount(1)   // floor
+            .enqueueCount(0)
+            .enqueueFind(rawRequests: #"[{"url":"/x","method":"POST","body":"[1,2&client_secret=b"}]"#)
         let wireMock = mock.client()
 
         XCTAssertNoThrow(

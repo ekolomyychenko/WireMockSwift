@@ -52,6 +52,16 @@ final class OAuthAssertionPureTests: XCTestCase {
         XCTAssertEqual(captured(#"{"body": "a=1%2B1&b=x+y"}"#).formParam("b"), "x y")
     }
 
+    /// A '#' that PRECEDES the '?' makes the whole "?…" part of the fragment
+    /// (RFC 3986 §3.5) — there is no query, so no phantom param may be fabricated.
+    /// Regression for the fragment-stripped-after-'?'-split ordering bug.
+    func testQueryParamFragmentBeforeQuestionMarkYieldsNoParams() {
+        XCTAssertEqual(captured(#"{"url": "/path#frag?a=1"}"#).queryParam("a"), [])
+        XCTAssertEqual(captured(#"{"url": "/path#a=1"}"#).queryParam("a"), [])
+        // Sanity: the normal order (query then fragment) still reads the query.
+        XCTAssertEqual(captured(#"{"url": "/path?a=1#frag"}"#).queryParam("a"), ["1"])
+    }
+
     func testFormParamsEmptyOrAbsentBody() {
         XCTAssertEqual(captured(#"{"body": ""}"#).formParams("x"), [])
         XCTAssertEqual(captured("{}").formParams("x"), [])

@@ -214,11 +214,52 @@ final class RequestExpectationFailPathTests: WireMockIntegrationCase {
         try WireMockFixture.hit("auth", headers: ["Authorization": "Bearer eyJvalid"])
         XCTAssertThrowsError(
             try wireMock.expect(getRequestedFor(urlPathEqualTo("/auth"))).toHaveBearerToken(matching: "plain.+")
-        )
-        // '^' anchor lands after the injected "Bearer " prefix -> never matches.
+        ) { error in
+            XCTAssertTrue(error is RequestExpectationError, "expected RequestExpectationError, got \(type(of: error))")
+            XCTAssertTrue(String(describing: error).contains("bearer token"), String(describing: error))
+        }
+        // '^' anchor lands after the injected "Bearer " prefix -> never matches. Assert
+        // it is our own assertion failure (not a server-side regex-compile error, which
+        // would also "throw something" and hide the documented anchor footgun).
         XCTAssertThrowsError(
             try wireMock.expect(getRequestedFor(urlPathEqualTo("/auth"))).toHaveBearerToken(matching: "^eyJ.+")
-        )
+        ) { error in
+            XCTAssertTrue(error is RequestExpectationError, "expected RequestExpectationError, got \(type(of: error))")
+            XCTAssertTrue(String(describing: error).contains("bearer token"), String(describing: error))
+        }
+    }
+
+    // MARK: - XML / XPath body matchers fail paths
+
+    /// A body that differs from the expected XML must fail, naming the xml-body check.
+    func testXmlBodyMismatchFails() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/xml")).willReturn(ok()))
+        try WireMockFixture.hit("xml", method: "POST",
+                                headers: ["Content-Type": "application/xml"],
+                                body: Data("<order><id>1</id></order>".utf8))
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/xml")))
+                .toHaveXmlBody(equalTo: "<order><id>2</id></order>")
+        ) { XCTAssertTrue(String(describing: $0).contains("xml body"), String(describing: $0)) }
+    }
+
+    /// An XPath that does not select a node fails; and a selected value that does not
+    /// satisfy the sub-matcher fails — the value-extraction negative branch.
+    func testXPathBodyFailPaths() throws {
+        try wireMock.stubFor(post(urlPathEqualTo("/xp")).willReturn(ok()))
+        try WireMockFixture.hit("xp", method: "POST",
+                                headers: ["Content-Type": "application/xml"],
+                                body: Data("<order><id>1</id></order>".utf8))
+        // No such node.
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/xp")))
+                .toHaveBody(matchingXPath: "/order/missing")
+        ) { XCTAssertTrue(String(describing: $0).contains("xpath"), String(describing: $0)) }
+        // Node exists but its value fails the sub-matcher.
+        XCTAssertThrowsError(
+            try wireMock.expect(postRequestedFor(urlPathEqualTo("/xp")))
+                .toHaveBody(matchingXPath: "/order/id", equalTo("2"))
+        ) { XCTAssertTrue(String(describing: $0).contains("xpath"), String(describing: $0)) }
     }
 
     // MARK: - toHaveExactlyQueryParams branches
