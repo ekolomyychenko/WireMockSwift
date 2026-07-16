@@ -65,6 +65,21 @@ final class OAuthAssertionPureTests: XCTestCase {
         XCTAssertNil(extractor.formParam("nope"))
     }
 
+    /// `decodeURLEncoded` backs BOTH `queryParam` and `formParam`, but the
+    /// `+`→space / `%2B`→`+` conventions and the `maxSplits:1` value handling were
+    /// only asserted on the form side. Pin them on the QUERY side too, so a
+    /// query/body divergence can't slip through the shared decoder — plus hex-case
+    /// insensitivity and a null byte.
+    func testQueryParamDecodingMatchesFormSemantics() {
+        let req = captured(#"{"url": "/cb?a=x+y&b=1%2B1&c=a=b=c&d=caf%C3%A9&e=%2f%2F&f=a%00b"}"#)
+        XCTAssertEqual(req.queryParam("a"), ["x y"])    // '+' -> space (query side)
+        XCTAssertEqual(req.queryParam("b"), ["1+1"])    // %2B -> literal '+' (query side)
+        XCTAssertEqual(req.queryParam("c"), ["a=b=c"])  // raw '=' in value survives maxSplits:1
+        XCTAssertEqual(req.queryParam("d"), ["café"])   // percent-encoded UTF-8 decodes
+        XCTAssertEqual(req.queryParam("e"), ["//"])     // %2f and %2F decode alike (case-insensitive hex)
+        XCTAssertEqual(req.queryParam("f"), ["a\u{0}b"]) // %00 decodes to NUL, no truncation
+    }
+
     // MARK: - JWT decoding
 
     func testJWTDecodeSignedToken() throws {
@@ -110,6 +125,37 @@ final class OAuthAssertionPureTests: XCTestCase {
         XCTAssertThrowsError(try JWT(decoding: "AAAAA." + b64url(#"{"a":1}"#))) {
             assertJWTError($0, contains: "base64url")
         }
+    }
+
+    /// An empty token is not two-or-three segments (`"".split` keeps one empty
+    /// segment), so it fails the shape guard rather than the base64 step.
+    func testJWTDecodeEmptyToken() {
+        XCTAssertThrowsError(try JWT(decoding: "")) { assertJWTError($0, contains: "2 or 3") }
+    }
+
+    /// Explicitly drive the `remainder == 2` and `remainder == 3` padding branches
+    /// of `base64URLDecode` (only `remainder == 1`, the failure path, was asserted).
+    /// `{}` (2 bytes) base64url-encodes to length ≡ 3 (mod 4); `[10]` (4 bytes) to
+    /// length ≡ 2 — both must re-pad and decode cleanly.
+    func testJWTDecodePaddingBranches() throws {
+        let seg3 = b64url("{}")     // 2 bytes -> "e30" (len 3, remainder 3)
+        let seg2 = b64url("[10]")   // 4 bytes -> "WzEwXQ" (len 6, remainder 2)
+        XCTAssertEqual(seg3.count % 4, 3, "precondition: expected a remainder-3 segment, got \(seg3)")
+        XCTAssertEqual(seg2.count % 4, 2, "precondition: expected a remainder-2 segment, got \(seg2)")
+        XCTAssertEqual(try JWT(decoding: seg3 + "." + seg3).payload, .object([:]))
+        XCTAssertEqual(try JWT(decoding: seg2 + "." + seg2).payload, .array([.int(10)]))
+    }
+
+    /// A payload whose *standard* base64 carries `+`/`/` (the `???`/`>>>` byte runs
+    /// land on sextets 62/63) forces real base64url `-`/`_` characters, which
+    /// `base64URLDecode` must translate back before `Data(base64Encoded:)`.
+    func testJWTDecodesRealBase64URLChars() throws {
+        let payloadJSON = #"{"note":">>>???"}"#
+        let encoded = b64url(payloadJSON)
+        XCTAssertTrue(encoded.contains("-") || encoded.contains("_"),
+                      "precondition: segment must exercise a real base64url char, got \(encoded)")
+        let jwt = try JWT(decoding: b64url(#"{"alg":"none"}"#) + "." + encoded)
+        XCTAssertEqual(jwt.claim("note")?.stringValue, ">>>???")
     }
 
     /// A payload that is valid JSON but NOT an object (a bare array here) decodes

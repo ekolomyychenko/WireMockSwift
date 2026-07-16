@@ -283,6 +283,26 @@ final class FacadeIntegrationTests: WireMockIntegrationCase {
         try wireMock.deleteFile(named: "acc.txt")
     }
 
+    /// F2 round-trip: a file name carrying reserved chars (`;`, `,`, `=`) must
+    /// survive PUT→GET through the client. Before `pathSegment` encoded them, a raw
+    /// `;` made Jetty truncate the path at the matrix-param separator so `getFile`
+    /// 404'd (verified live: raw `;` → 404, `%3B` → 200). Now both sides percent-
+    /// encode and address the same file.
+    func testFileNameWithReservedCharsRoundTrips() throws {
+        let name = "a;b,c=d.txt"
+        try wireMock.putFile(named: name, text: "SEMI")
+        XCTAssertEqual(String(decoding: try wireMock.getFile(named: name), as: UTF8.self), "SEMI",
+                       "a file name with reserved chars must round-trip via percent-encoding")
+        // Not passes-when-broken: with the raw `;` bug both PUT and GET would truncate
+        // identically to file `a`, so the round-trip alone can't tell. Pin that the
+        // server actually stored the FULLY percent-encoded name (`;`→%3B, `,`→%2C,
+        // `=`→%3D), which only the unreserved-only allowlist produces.
+        XCTAssertTrue(try wireMock.listFiles().contains("a%3Bb%2Cc%3Dd.txt"),
+                      "the reserved chars must reach the server percent-encoded, not truncated")
+        try wireMock.deleteFile(named: name)
+        XCTAssertThrowsError(try wireMock.getFile(named: name), "the deleted file must 404")
+    }
+
     func testGetServeEventsSinceWithTimezoneOffset() throws {
         try wireMock.stubFor(get(urlEqualTo("/se")).willReturn(ok()))
         try WireMockFixture.hit("se")

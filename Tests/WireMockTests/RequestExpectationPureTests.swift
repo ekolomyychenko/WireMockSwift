@@ -63,6 +63,16 @@ final class RequestExpectationPureTests: XCTestCase {
         XCTAssertEqual(try JSONPathLite.evaluate("$[list][1]", on: obj).stringValue, "y")
     }
 
+    /// Multibyte (CJK / emoji) keys via bracket-quote notation. `tokens` walks
+    /// `Array(path)` as `Character`s, so a grapheme is one element and a non-ASCII
+    /// key resolves the same as an ASCII one.
+    func testJSONPathUnicodeAndEmojiBracketKeys() throws {
+        let obj: JSONValue = ["café": "coffee", "🎉": ["x": 1]]
+        XCTAssertEqual(try JSONPathLite.evaluate("$['café']", on: obj).stringValue, "coffee")
+        XCTAssertEqual(try JSONPathLite.evaluate("$[\"café\"]", on: obj).stringValue, "coffee")
+        XCTAssertEqual(try JSONPathLite.evaluate("$['🎉'].x", on: obj), .int(1))
+    }
+
     /// A bracket key with only a LEADING quote (no matching closing quote) is not
     /// "quoted" — it is a literal key that keeps the quote char. Pins the two
     /// `hasPrefix && hasSuffix` conjunctions: flipping either `&&` to `||` would

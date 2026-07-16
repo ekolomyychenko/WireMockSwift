@@ -84,6 +84,36 @@ final class OAuthFlowTests: WireMockIntegrationCase {
         XCTAssertEqual(jwt.claim("aud")?.stringValue, "https://idp/token")
     }
 
+    /// Locks the server assumption that backs the presence-only overloads:
+    /// WireMock compiles its `matches` regex with DOTALL, so `.matching(".*")` (what
+    /// `toHaveFormParam(name)` uses) sees a value spanning a newline as present.
+    /// Confirmed live during the escaping audit — an audit initially suspected `.*`
+    /// would miss multiline values, but `line1.line2` matches across the `\n` here,
+    /// proving DOTALL is on. If a future server dropped it, this goes red instead of
+    /// silently under-matching.
+    func testPresenceOverloadMatchesMultilineValue() throws {
+        try wireMock.stubFor(any(anyUrl).willReturn(ok()))
+        try WireMockFixture.hit("probe", method: "POST",
+                                headers: ["Content-Type": "application/x-www-form-urlencoded"],
+                                body: Data("field=line1%0Aline2".utf8))
+
+        // Presence overload (.matching(".*")) must see the multiline value; the dot
+        // in a second matcher spans the newline (DOTALL), both AND-combined on `field`.
+        try wireMock.expect(postRequestedFor(urlPathEqualTo("/probe")))
+            .toHaveBeenSentOnce()
+            .toHaveFormParam("field")                          // presence -> .matching(".*")
+            .toHaveFormParam("field", .matching("line1.line2"))
+
+        // Not vacuous: the value truly contains a newline, and matching is
+        // full-region, so a partial pattern must NOT match.
+        let field = try wireMock.expect(postRequestedFor(urlPathEqualTo("/probe")))
+            .single().extract().formParam("field")
+        XCTAssertEqual(field, "line1\nline2")
+        XCTAssertThrowsError(try wireMock.expect(postRequestedFor(urlPathEqualTo("/probe")))
+            .toHaveFormParam("field", .matching("line1")),
+            "full-region matching must reject a partial pattern")
+    }
+
     func testVerifyInOrderHappyAndWrong() throws {
         try driveFlow()
         let authorize = getRequestedFor(urlPathEqualTo("/authorize"))

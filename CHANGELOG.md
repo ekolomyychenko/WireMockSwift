@@ -55,6 +55,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     spec (`.atMost`/`.lessThan`, satisfied by 0) now requires the narrowed count to be at least one, so
     the check can no longer vacuously pass when the field is entirely absent.
 
+### Fixed
+
+- **Path-segment encoding** — user-supplied scenario/file names (`setScenarioState`, `getFile` /
+  `putFile` / `deleteFile`) are now percent-encoded against the RFC 3986 *unreserved* set
+  (`A–Z a–z 0–9 - . _ ~`) instead of `urlPathAllowed` minus `/?#`. The old allowlist left the
+  sub-delimiters `!$&'()*+,;=:@` raw in the segment, and a `;` in particular carries server
+  semantics — Jetty reads it as the start of path (matrix) parameters and truncates the segment
+  there, so a file named `a;b.txt` resolved to `a` (verified live against 3.13.2: raw `;` → 404,
+  `%3B` → 200). Every reserved character now round-trips through `%XX`; the empty / `.` / `..`
+  rejection is unchanged.
+
 ## [0.1.0] - 2026-07-15
 
 First public release. A native Swift client and DSL for [WireMock](https://wiremock.org)

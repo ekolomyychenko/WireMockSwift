@@ -195,8 +195,8 @@ public struct AdminClient: Sendable, CustomStringConvertible {
     }
 
     /// Percent-encodes a single, user-supplied path segment (a scenario or file
-    /// name) so it can't inject extra path segments (`/`) or bleed into the
-    /// query/fragment (`?`, `#`). Rejects an empty segment, and `.`/`..`, up
+    /// name) so it can't inject extra path segments, bleed into the query/fragment,
+    /// or be reinterpreted by the server. Rejects an empty segment, and `.`/`..`, up
     /// front rather than silently hitting the wrong endpoint (a bare `..` would
     /// traverse back out of the resource collection).
     static func pathSegment(_ raw: String) throws -> String {
@@ -206,11 +206,20 @@ public struct AdminClient: Sendable, CustomStringConvertible {
         guard raw != "." && raw != ".." else {
             throw WireMockError.invalidArgument("path segment must not be '.' or '..'")
         }
-        var allowed = CharacterSet.urlPathAllowed
-        // `/` would split into segments; `?`/`#` would start the query/fragment.
-        allowed.remove(charactersIn: "/?#")
-        // urlPathAllowed maps every input, so the coalesce never actually fires.
-        return raw.addingPercentEncoding(withAllowedCharacters: allowed) ?? raw
+        // Encode everything except the RFC 3986 *unreserved* set (`A–Z a–z 0–9 - . _ ~`).
+        // Starting from `urlPathAllowed` and only stripping `/?#` would leave the
+        // sub-delimiters `!$&'()*+,;=` (plus `:@`) raw in the segment — and at least
+        // `;` carries server semantics: Jetty reads it as the start of path (matrix)
+        // parameters and truncates the segment there, so a file named `a;b.txt` would
+        // resolve to `a` (verified live against WireMock 3.13.2: raw `;` → 404, `%3B`
+        // → 200). An unreserved-only allowlist is bullet-proof — every reserved char
+        // round-trips through `%XX` with no chance of reinterpretation. Deliberately
+        // ASCII-only, so non-ASCII (e.g. `é`) percent-encodes its UTF-8 bytes rather
+        // than passing through.
+        let unreserved = CharacterSet(charactersIn:
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+        // `unreserved` is pure ASCII, so encoding always succeeds; `?? raw` never fires.
+        return raw.addingPercentEncoding(withAllowedCharacters: unreserved) ?? raw
     }
 
     /// Transport core: builds the URL, sends, checks the status code.

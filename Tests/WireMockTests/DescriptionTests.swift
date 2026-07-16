@@ -48,6 +48,18 @@ final class DescriptionTests: XCTestCase {
         XCTAssertEqual(JSONValue.string("/a/b").description, "\"/a/b\"")
     }
 
+    /// Literal escaping of the JSON metacharacters. The round-trip property tests
+    /// only prove `decode(encode(x)) == x`, which a *symmetric* escape bug would
+    /// still satisfy — so pin the actual on-the-wire bytes here.
+    func testJSONValueDescriptionEscapesMetacharacters() {
+        XCTAssertEqual(JSONValue.string("a\"b").description, "\"a\\\"b\"")   // quote -> \\"
+        XCTAssertEqual(JSONValue.string("a\\b").description, "\"a\\\\b\"") // backslash -> \\\\
+        XCTAssertEqual(JSONValue.string("a\nb").description, "\"a\\nb\"")     // newline -> \\n
+        XCTAssertEqual(JSONValue.string("a\tb").description, "\"a\\tb\"")     // tab -> \\t
+        XCTAssertEqual(JSONValue.string("a\u{01}b").description, "\"a\\u0001b\"") // control U+0001 -> \\u0001
+        XCTAssertEqual(JSONValue.string("a b").description, "\"a b\"")           // space stays literal
+    }
+
     func testCountMatchingStrategyDescription() {
         // All five cases pinned so a wrong rendering can't slip through.
         XCTAssertEqual(CountMatchingStrategy.exactly(3).description, "exactly 3")
